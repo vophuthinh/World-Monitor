@@ -32,7 +32,6 @@ import type {
   NewsCategory,
   NewsItem,
   NewsStreamStats,
-  PredictionCategory,
   PredictionItem,
   TechCyberItem,
   TechCyberSnapshot,
@@ -40,7 +39,7 @@ import type {
 } from '@shared/types';
 import type { FlashDirection } from '../hooks/useMonitorData';
 
-type RightTabId = 'intel' | 'techCyber' | 'news' | 'markets' | 'predictions';
+type RightTabId = 'intel' | 'techCyber' | 'news' | 'markets';
 type NewsFilterId = 'all' | 'bbc' | NewsCategory;
 
 interface RightIntelPanelProps {
@@ -160,8 +159,6 @@ export function RightIntelPanel({
 }: RightIntelPanelProps) {
   const [activeTab, setActiveTab] = useState<RightTabId>('intel');
   const [intelTopic, setIntelTopic] = useState<IntelTopicId | 'c2_ioc'>('cyber');
-  const [predFilter, setPredFilter] = useState<'all' | PredictionCategory>('all');
-  const [predQuery, setPredQuery] = useState('');
   const [newsFilter, setNewsFilter] = useState<NewsFilterId>('all');
   const [newsQuery, setNewsQuery] = useState('');
   const [techFilter, setTechFilter] = useState<'all' | TechSubCategory>('all');
@@ -202,14 +199,10 @@ export function RightIntelPanel({
     [news],
   );
 
-  const filteredPredictions = useMemo(() => {
-    const q = predQuery.trim().toLowerCase();
-    return predictions.filter((item) => {
-      if (predFilter !== 'all' && item.category !== predFilter) return false;
-      if (q && !item.title.toLowerCase().includes(q)) return false;
-      return true;
-    });
-  }, [predictions, predFilter, predQuery]);
+  const topMacroGeopoliticsPredictions = useMemo(() => {
+    const macroGeo = predictions.filter((p) => p.category === 'finance' || p.category === 'geopolitics');
+    return (macroGeo.length >= 5 ? macroGeo : predictions).slice(0, 5);
+  }, [predictions]);
 
   const filteredNews = useMemo(() => {
     const q = newsQuery.trim().toLowerCase();
@@ -273,67 +266,55 @@ export function RightIntelPanel({
 
   return (
     <aside className="flex h-full w-full flex-col border-l border-slate-800/95 bg-[#090e18] lg:w-[444px] xl:w-[482px]">
-      {/* 5-Tab Command Header */}
-      <div className="grid shrink-0 grid-cols-5 border-b border-slate-800/95 bg-[#070b12]">
+      {/* 4-Tab Spacious Command Header */}
+      <div className="grid shrink-0 grid-cols-4 border-b border-slate-800/95 bg-[#070b12]">
         <button
           type="button"
           onClick={() => setActiveTab('intel')}
-          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
+          className={`flex items-center justify-center gap-1.5 border-b-2 py-2.5 text-xs font-semibold transition ${
             activeTab === 'intel'
               ? 'border-fuchsia-400 bg-fuchsia-500/12 text-fuchsia-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          <Target size={13} />
+          <Target size={14} />
           <span>Live Intel</span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('techCyber')}
-          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
+          className={`flex items-center justify-center gap-1.5 border-b-2 py-2.5 text-xs font-semibold transition ${
             activeTab === 'techCyber'
               ? 'border-violet-400 bg-violet-500/12 text-violet-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          <Cpu size={13} />
+          <Cpu size={14} />
           <span>AI &amp; ML</span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('news')}
-          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
+          className={`flex items-center justify-center gap-1.5 border-b-2 py-2.5 text-xs font-semibold transition ${
             activeTab === 'news'
               ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          <Newspaper size={13} />
+          <Newspaper size={14} />
           <span>Tin nóng</span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('markets')}
-          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
+          className={`flex items-center justify-center gap-1.5 border-b-2 py-2.5 text-xs font-semibold transition ${
             activeTab === 'markets'
               ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          <ChartLineUp size={13} />
+          <ChartLineUp size={14} />
           <span>Thị trường</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('predictions')}
-          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
-            activeTab === 'predictions'
-              ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <ChartBar size={13} />
-          <span>Dự đoán</span>
         </button>
       </div>
 
@@ -1240,96 +1221,52 @@ export function RightIntelPanel({
               </table>
             </div>
           </section>
-        </div>
-      )}
 
-      {/* Tab 5: Polymarket Predictions */}
-      {activeTab === 'predictions' && (
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <div className="space-y-2 border-b border-slate-800/90 p-2.5">
-            <div className="flex flex-wrap gap-1">
-              {(
-                [
-                  { id: 'all', label: 'Tất cả' },
-                  { id: 'geopolitics', label: 'Địa chính trị' },
-                  { id: 'finance', label: 'Kinh tế & Fed' },
-                  { id: 'crypto_tech', label: 'Crypto & AI' },
-                ] as const
-              ).map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setPredFilter(cat.id)}
-                  className={`rounded px-2 py-1 text-[11px] font-medium transition ${
-                    predFilter === cat.id
-                      ? 'border border-cyan-500/40 bg-cyan-500/20 text-cyan-200'
-                      : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="relative">
-              <MagnifyingGlass
-                size={13}
-                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500"
-              />
-              <input
-                type="text"
-                value={predQuery}
-                onChange={(e) => setPredQuery(e.target.value)}
-                placeholder="Lọc hợp đồng dự đoán Polymarket..."
-                aria-label="Lọc hợp đồng Polymarket"
-                className="w-full rounded border border-slate-800 bg-[#0d1524] py-1 pl-7 pr-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="flex-1 space-y-2 overflow-y-auto p-2.5">
-            {filteredPredictions.length === 0 ? (
-              <div className="py-10 text-center text-xs text-slate-400">
-                Không có thị trường dự đoán nào khớp bộ lọc.
+          {/* Compact Top 5 Macro & Geopolitical Probability Indicators (Polymarket) */}
+          {topMacroGeopoliticsPredictions.length > 0 && (
+            <section>
+              <div className="flex items-center justify-between">
+                <h2 className="flex items-center gap-1.5 font-mono text-[11px] font-semibold tracking-wider text-slate-300">
+                  <ChartBar size={13} className="text-cyan-400" />
+                  <span>CHỈ BÁO XÁC SUẤT VĨ MÔ &amp; ĐỊA CHÍNH TRỊ (TOP 5)</span>
+                </h2>
+                <span className="font-mono text-[9.5px] text-slate-500">Polymarket</span>
               </div>
-            ) : (
-              filteredPredictions.map((item) => (
-                <a
-                  key={item.id}
-                  href={item.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block rounded border border-slate-800/95 bg-[#0d1524] p-2.5 transition hover:border-cyan-500/40 hover:bg-[#111c30]"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-xs font-medium leading-snug text-slate-100">{item.title}</h3>
-                    <ArrowSquareOut size={13} className="mt-0.5 shrink-0 text-slate-500" />
-                  </div>
 
-                  <div className="mt-2">
-                    <div className="flex items-center justify-between font-mono text-[11px] tabular-nums">
-                      <span className="font-bold text-cyan-300">YES {item.yesPercent}%</span>
-                      <span className="text-slate-400">NO {100 - item.yesPercent}%</span>
-                    </div>
-                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-                      <div
-                        className="h-full rounded-full bg-cyan-400"
-                        style={{ width: `${Math.max(2, Math.min(98, item.yesPercent))}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-slate-400 tabular-nums">
-                    <span>Vol {formatCompactUsd(item.volumeUsd)}</span>
-                    <span>Liq {formatCompactUsd(item.liquidityUsd)}</span>
-                    {item.endDate && (
-                      <span>Đóng: {new Date(item.endDate).toLocaleDateString('vi-VN')}</span>
-                    )}
-                  </div>
-                </a>
-              ))
-            )}
-          </div>
+              <div className="mt-1.5 divide-y divide-slate-800/80 rounded border border-slate-800/95 bg-[#0d1524]">
+                {topMacroGeopoliticsPredictions.map((item) => {
+                  const label = translateVi ? item.titleVi || item.title : item.title;
+                  return (
+                    <a
+                      key={item.id}
+                      href={item.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block px-2.5 py-2 transition hover:bg-[#111c30]"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-xs font-medium leading-snug text-slate-100">{label}</span>
+                        <span className="shrink-0 font-mono text-xs font-bold text-cyan-300 tabular-nums">
+                          {item.yesPercent}%
+                        </span>
+                      </div>
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-800">
+                          <div
+                            className="h-full rounded-full bg-cyan-400"
+                            style={{ width: `${Math.max(2, Math.min(98, item.yesPercent))}%` }}
+                          />
+                        </div>
+                        <span className="shrink-0 font-mono text-[9.5px] text-slate-400 tabular-nums">
+                          Vol {formatCompactUsd(item.volumeUsd)}
+                        </span>
+                      </div>
+                    </a>
+                  );
+                })}
+              </div>
+            </section>
+          )}
         </div>
       )}
     </aside>

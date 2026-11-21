@@ -65,7 +65,7 @@ function classifyPredictionCategory(title: string, tags: string): PredictionCate
 
 function isSportsNoise(title: string, tags: string): boolean {
   const text = `${title} ${tags}`.toLowerCase();
-  return /\b(nba|nfl|mlb|nhl|premier league|champions league|la liga|ufc|formula 1|super bowl|world series|stanley cup|fifa|tennis|golf|esports|valorant|counter-strike)\b/.test(
+  return /\b(nba|nfl|mlb|nhl|premier league|champions league|la liga|ufc|formula 1|super bowl|world series|stanley cup|fifa|tennis|golf|esports|valorant|counter-strike|oscars|grammy|gta vi|mrbeast|kardashian|taylor swift|box office)\b/.test(
     text,
   );
 }
@@ -122,7 +122,18 @@ export async function fetchPolymarketPredictions(): Promise<PredictionItem[]> {
     retries: 1,
     userAgent: NAMED_APP_UA,
   });
-  return normalizePolymarketEvents(payload);
+  const normalized = normalizePolymarketEvents(payload);
+  // Prioritize macro finance & geopolitical indicators first, then translate top items to Vietnamese
+  const prioritized = [
+    ...normalized.filter((p) => p.category === 'finance' || p.category === 'geopolitics'),
+    ...normalized.filter((p) => p.category === 'crypto_tech'),
+  ].slice(0, 15);
+
+  const translated = await globalViTranslator.translateBatch(prioritized.map((p) => p.title));
+  return prioritized.map((item, idx) => ({
+    ...item,
+    titleVi: translated[idx] || item.title,
+  }));
 }
 
 // === GEO-TAGGED RSS NEWS COLLECTOR ===

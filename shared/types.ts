@@ -178,6 +178,7 @@ export type PredictionCategory = 'geopolitics' | 'finance' | 'crypto_tech';
 export interface PredictionItem {
   id: string;
   title: string;
+  titleVi?: string;
   category: PredictionCategory;
   yesPercent: number;
   volumeUsd: number;
