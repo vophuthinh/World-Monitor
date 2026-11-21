@@ -5,6 +5,7 @@ import { THEATER_PRESETS, buildStaticGeoBundle } from '@shared/registries/index'
 import type {
   BootstrapResponse,
   GeoPointFeature,
+  GoogleTrendsSnapshot,
   LiveFastResponse,
   MacroCountryIndicator,
   MarketSnapshot,
@@ -155,6 +156,7 @@ export function createApp(
       newsStreamStats: options.getNewsStreamStats?.(),
       techCyber: store.get<TechCyberSnapshot>('tech-cyber', now) ?? undefined,
       policyLegal: store.get<PolicyLegalSnapshot>('policy-legal', now) ?? undefined,
+      googleTrends: store.get<GoogleTrendsSnapshot>('google-trends', now) ?? undefined,
     };
 
     return c.json(payload);
@@ -179,6 +181,8 @@ export function createApp(
       quotes: rawMarkets?.quotes ?? [],
       crypto: rawMarkets?.crypto ?? [],
       fearGreed: rawMarkets?.fearGreed ?? null,
+      predictions: store.get<PredictionItem[]>('polymarket', now) ?? [],
+      googleTrends: store.get<GoogleTrendsSnapshot>('google-trends', now),
       health: store.getAllHealth(now),
     };
 

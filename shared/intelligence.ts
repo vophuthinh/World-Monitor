@@ -1,4 +1,4 @@
-import type { GeoPointFeature, NewsItem, TechCyberItem } from './types';
+import type { GeoPointFeature, NewsItem, PredictionItem, TechCyberItem } from './types';
 
 export type PostureLevel = 'NORMAL' | 'ELEVATED' | 'CRITICAL';
 
@@ -515,4 +515,36 @@ export function detectTrendingSpikes(
   return out
     .sort((a, b) => b.mentions * 2 + b.sourceCount - (a.mentions * 2 + a.sourceCount))
     .slice(0, 10);
+}
+
+function getHotSeriesDedupeBucket(title: string): string | null {
+  const low = title.toLowerCase();
+  if (/what price will bitcoin hit/.test(low)) return 'series:btc-price-hit';
+  if (/what price will ethereum hit/.test(low)) return 'series:eth-price-hit';
+  if (/what price will solana hit/.test(low)) return 'series:sol-price-hit';
+  return null;
+}
+
+export function selectTopHotPolymarket(
+  predictions: readonly PredictionItem[],
+  limit = 5,
+): PredictionItem[] {
+  const sorted = [...predictions].sort(
+    (a, b) => (b.volume24hUsd ?? b.volumeUsd) - (a.volume24hUsd ?? a.volumeUsd),
+  );
+
+  const usedBuckets = new Set<string>();
+  const picked: PredictionItem[] = [];
+
+  for (const item of sorted) {
+    const bucket = getHotSeriesDedupeBucket(item.title);
+    if (bucket) {
+      if (usedBuckets.has(bucket)) continue;
+      usedBuckets.add(bucket);
+    }
+    picked.push(item);
+    if (picked.length >= limit) break;
+  }
+
+  return picked;
 }

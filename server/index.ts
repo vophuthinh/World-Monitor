@@ -5,9 +5,11 @@ import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import type {
   GeoPointFeature,
+  GoogleTrendsSnapshot,
   MarketSnapshot,
   NewsItem,
   PolicyLegalSnapshot,
+  PredictionItem,
   TechCyberSnapshot,
 } from '@shared/types';
 import { createApp } from './app';
@@ -16,6 +18,7 @@ import { SnapshotStore } from './cache/snapshot-store';
 import { fetchCyberThreats } from './collectors/cyber-threats';
 import { fetchEarthquakes } from './collectors/earthquakes';
 import { fetchGeopoliticsGdelt } from './collectors/geopolitics-gdelt';
+import { fetchGoogleTrendsRealtime } from './collectors/google-trends';
 import { fetchWorldBankMacro } from './collectors/macro-worldbank';
 import { MaritimeVesselStreamManager } from './collectors/maritime-vessels';
 import { fetchMarketsAndCrypto } from './collectors/markets-crypto';
@@ -28,6 +31,7 @@ import { fetchWeatherRadar } from './collectors/weather-radar';
 import { BinanceRealtimeStream } from './realtime/binance-stream';
 import { RealtimeHub } from './realtime/hub';
 import { UnifiedNewsStreamService } from './realtime/news-stream';
+import { PolymarketRealtimeStream } from './realtime/polymarket-stream';
 
 for (const envName of ['.env.local', '.env']) {
   const full = resolve(process.cwd(), envName);
@@ -48,6 +52,7 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
   const hub = new RealtimeHub();
   const vesselManager = new MaritimeVesselStreamManager(hub, process.env.AISSTREAM_API_KEY);
   const newsStream = new UnifiedNewsStreamService(hub, store);
+  const polymarketStream = new PolymarketRealtimeStream(hub, store);
 
   const scheduler = new CollectorScheduler(store, (id, data) => {
     const now = Date.now();
@@ -65,6 +70,16 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
       newsStream.ingestBatchItems(data as NewsItem[], true);
     } else if (id === 'geopolitics-gdelt' && Array.isArray(data)) {
       void newsStream.ingestGdeltGeoFeatures(data as GeoPointFeature[]);
+    } else if (id === 'polymarket' && Array.isArray(data)) {
+      const predictions = data as PredictionItem[];
+      polymarketStream.syncTokens(predictions);
+      hub.publish({ type: 'polymarket_update', predictions, ts: now });
+    } else if (id === 'google-trends' && data && typeof data === 'object') {
+      hub.publish({
+        type: 'google_trends_update',
+        googleTrends: data as GoogleTrendsSnapshot,
+        ts: now,
+      });
     }
 
     hub.publish({
@@ -162,11 +177,20 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector({
     id: 'polymarket',
-    label: 'Thị trường Dự đoán (Polymarket)',
-    intervalMs: 120_000,
+    label: 'Polymarket Top Hot (+ CLOB Live WS · 45s)',
+    intervalMs: 45_000,
     retainMs: 6 * 3_600_000,
     countItems: (items) => items.length,
     fetcher: () => fetchPolymarketPredictions(),
+  });
+
+  scheduler.registerCollector<GoogleTrendsSnapshot>({
+    id: 'google-trends',
+    label: 'Google Trends Realtime (VN + Thế giới · 60s)',
+    intervalMs: 60_000,
+    retainMs: 6 * 3_600_000,
+    countItems: (snap) => snap.vn.length + snap.global.length,
+    fetcher: () => fetchGoogleTrendsRealtime(),
   });
 
   scheduler.registerCollector({
@@ -203,16 +227,19 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
     hub,
     scheduler,
     binanceStream,
+    polymarketStream,
     vesselManager,
     newsStream,
   };
 }
 
 async function main(): Promise<void> {
-  const { store, hub, scheduler, binanceStream, vesselManager, newsStream } = buildProductionRuntime();
+  const { store, hub, scheduler, binanceStream, polymarketStream, vesselManager, newsStream } =
+    buildProductionRuntime();
   await store.hydrateFromDisk();
   scheduler.startAll({ runImmediately: true });
   binanceStream.start();
+  polymarketStream.start();
   vesselManager.start();
   newsStream.start();
 
@@ -243,6 +270,7 @@ async function main(): Promise<void> {
 
   const shutdown = () => {
     binanceStream.stop();
+    polymarketStream.stop();
     vesselManager.stop();
     newsStream.stop();
     scheduler.stopAll();

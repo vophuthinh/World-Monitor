@@ -32,6 +32,7 @@ export type CollectorId =
   | 'markets-crypto'
   | 'macro-worldbank'
   | 'polymarket'
+  | 'google-trends'
   | 'rss-news'
   | 'tech-cyber'
   | 'policy-legal';
@@ -182,10 +183,42 @@ export interface PredictionItem {
   titleVi?: string;
   category: PredictionCategory;
   yesPercent: number;
+  outcomeLabel?: string;
   volumeUsd: number;
+  volume24hUsd?: number;
+  change24hPct?: number;
+  clobTokenId?: string;
   liquidityUsd: number;
   endDate: string | null;
   url: string;
+  updatedAt?: number;
+}
+
+export type GoogleTrendGeo = 'VN' | 'GLOBAL';
+
+export interface GoogleTrendItem {
+  id: string;
+  rank: number;
+  query: string;
+  approxTraffic: string;
+  trafficScore: number;
+  geo: GoogleTrendGeo;
+  publishedAt: number;
+  trendUrl: string;
+  pictureUrl?: string;
+  topNewsTitle?: string;
+  topNewsTitleVi?: string;
+  topNewsSource?: string;
+  topNewsUrl?: string;
+  matchedLat?: number;
+  matchedLon?: number;
+  matchedLocation?: string;
+}
+
+export interface GoogleTrendsSnapshot {
+  vn: GoogleTrendItem[];
+  global: GoogleTrendItem[];
+  updatedAt: number;
 }
 
 export type NewsCategory = 'world' | 'finance' | 'vietnam' | 'tech' | 'osint_live';
@@ -339,6 +372,7 @@ export interface BootstrapResponse {
   newsStreamStats?: NewsStreamStats;
   techCyber?: TechCyberSnapshot;
   policyLegal?: PolicyLegalSnapshot;
+  googleTrends?: GoogleTrendsSnapshot;
 }
 
 export interface LiveFastResponse {
@@ -350,6 +384,8 @@ export interface LiveFastResponse {
   quotes: MarketQuote[];
   crypto: CryptoQuote[];
   fearGreed: FearGreedSnapshot | null;
+  predictions?: PredictionItem[];
+  googleTrends?: GoogleTrendsSnapshot | null;
   health: SourceHealth[];
 }
 
@@ -406,5 +442,16 @@ export type RealtimeServerEvent =
       type: 'news_prepend';
       items: NewsItem[];
       stats: NewsStreamStats;
+      ts: number;
+    }
+  | {
+      type: 'polymarket_update';
+      predictions: PredictionItem[];
+      flashedIds?: Record<string, 'up' | 'down'>;
+      ts: number;
+    }
+  | {
+      type: 'google_trends_update';
+      googleTrends: GoogleTrendsSnapshot;
       ts: number;
     };

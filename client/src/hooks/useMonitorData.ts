@@ -70,6 +70,7 @@ export function useMonitorData() {
   const [streamConnected, setStreamConnected] = useState<boolean>(false);
   const [liveTickCount, setLiveTickCount] = useState<number>(0);
   const [priceFlashes, setPriceFlashes] = useState<Record<string, FlashDirection>>({});
+  const [predictionFlashes, setPredictionFlashes] = useState<Record<string, FlashDirection>>({});
   const [freshNewsIds, setFreshNewsIds] = useState<Set<string>>(new Set());
   const [breakingAlerts, setBreakingAlerts] = useState<BreakingAlertItem[]>([]);
   const [alertsMuted, setAlertsMuted] = useState<boolean>(false);
@@ -88,6 +89,7 @@ export function useMonitorData() {
   const alertsMutedRef = useRef(alertsMuted);
   alertsMutedRef.current = alertsMuted;
   const flashTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const predFlashTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const loadBootstrap = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -142,6 +144,9 @@ export function useMonitorData() {
             fearGreed: fast.fearGreed ?? prev.markets.fearGreed,
             updatedAt: fast.serverTime,
           },
+          predictions:
+            fast.predictions && fast.predictions.length > 0 ? fast.predictions : prev.predictions,
+          googleTrends: fast.googleTrends ?? prev.googleTrends,
           health: fast.health,
         };
       });
@@ -282,10 +287,43 @@ export function useMonitorData() {
                   }
                 : prev,
             );
+          } else if (ev.type === 'polymarket_update') {
+            setData((prev) =>
+              prev ? { ...prev, predictions: ev.predictions } : prev,
+            );
+            const flashes = ev.flashedIds ?? {};
+            const changedIds = Object.keys(flashes);
+            if (changedIds.length > 0) {
+              setLiveTickCount((c) => c + 1);
+              setPredictionFlashes((prev) => ({ ...prev, ...flashes }));
+              for (const id of changedIds) {
+                const existing = predFlashTimersRef.current.get(id);
+                if (existing) clearTimeout(existing);
+                const timer = setTimeout(() => {
+                  if (!mountedRef.current) return;
+                  setPredictionFlashes((curr) => {
+                    const copy = { ...curr };
+                    delete copy[id];
+                    return copy;
+                  });
+                  predFlashTimersRef.current.delete(id);
+                }, 950);
+                predFlashTimersRef.current.set(id, timer);
+              }
+            }
+          } else if (ev.type === 'google_trends_update') {
+            setData((prev) =>
+              prev ? { ...prev, googleTrends: ev.googleTrends } : prev,
+            );
           } else if (ev.type === 'collector_sync') {
             setData((prev) => (prev ? { ...prev, health: ev.health } : prev));
-            // Pull updated layer/news/predictions immediately when slower collectors finish
-            if (ev.collectorId !== 'military-flights' && ev.collectorId !== 'maritime-vessels') {
+            // Pull updated layer/news immediately when slower collectors finish (streamed collectors already push directly)
+            if (
+              ev.collectorId !== 'military-flights' &&
+              ev.collectorId !== 'maritime-vessels' &&
+              ev.collectorId !== 'polymarket' &&
+              ev.collectorId !== 'google-trends'
+            ) {
               void loadBootstrap(true);
             }
           } else if (ev.type === 'breaking_alert' && !alertsMutedRef.current) {
@@ -342,6 +380,10 @@ export function useMonitorData() {
         clearTimeout(timer);
       }
       flashTimersRef.current.clear();
+      for (const timer of predFlashTimersRef.current.values()) {
+        clearTimeout(timer);
+      }
+      predFlashTimersRef.current.clear();
     };
   }, [applyPriceTicks, loadBootstrap, loadLiveFast]);
 
@@ -591,6 +633,29 @@ export function useMonitorData() {
       }
     }
 
+    for (const trend of [
+      ...(data.googleTrends?.vn ?? []),
+      ...(data.googleTrends?.global ?? []),
+    ]) {
+      if (
+        `${trend.query} ${trend.topNewsTitle ?? ''} ${trend.topNewsTitleVi ?? ''}`
+          .toLowerCase()
+          .includes(q)
+      ) {
+        hits.push({
+          id: `gt:${trend.id}`,
+          kind: 'news',
+          badge: `TREND ${trend.approxTraffic}`,
+          title: trend.query,
+          subtitle: `Google Trends ${trend.geo} · ${trend.topNewsTitleVi || trend.topNewsTitle || ''}`,
+          lat: trend.matchedLat,
+          lon: trend.matchedLon,
+          url: trend.topNewsUrl ?? trend.trendUrl,
+        });
+        if (hits.length >= 38) break;
+      }
+    }
+
     return hits.slice(0, 24);
   }, [searchQuery, data, filteredData]);
 
@@ -604,6 +669,7 @@ export function useMonitorData() {
     streamConnected,
     liveTickCount,
     priceFlashes,
+    predictionFlashes,
     freshNewsIds,
     breakingAlerts,
     dismissAlert,

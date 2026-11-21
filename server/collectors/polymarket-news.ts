@@ -1,16 +1,25 @@
 import { XMLParser } from 'fast-xml-parser';
+import { selectTopHotPolymarket } from '@shared/intelligence';
 import type { NewsCategory, NewsItem, PredictionCategory, PredictionItem } from '@shared/types';
 import { DEFAULT_BROWSER_UA, NAMED_APP_UA, fetchJsonWithTimeout, fetchTextWithTimeout } from '../lib/http';
 import { globalViTranslator } from '../lib/translator';
 
+export { selectTopHotPolymarket };
+
 const POLYMARKET_EVENTS_URL =
-  'https://gamma-api.polymarket.com/events?active=true&closed=false&order=volume24hr&ascending=false&limit=60';
+  'https://gamma-api.polymarket.com/events?active=true&closed=false&order=volume24hr&ascending=false&limit=80';
 
 export interface RawPolymarketMarket {
   question?: string;
+  groupItemTitle?: string;
+  closed?: boolean;
+  active?: boolean;
   outcomePrices?: string | number[];
   volume?: string | number;
+  volume24hr?: string | number;
   liquidity?: string | number;
+  oneDayPriceChange?: string | number;
+  clobTokenIds?: string | string[];
 }
 
 export interface RawPolymarketEvent {
@@ -65,7 +74,10 @@ function classifyPredictionCategory(title: string, tags: string): PredictionCate
 
 function isSportsNoise(title: string, tags: string): boolean {
   const text = `${title} ${tags}`.toLowerCase();
-  return /\b(nba|nfl|mlb|nhl|premier league|champions league|la liga|ufc|formula 1|super bowl|world series|stanley cup|fifa|tennis|golf|esports|valorant|counter-strike|oscars|grammy|gta vi|mrbeast|kardashian|taylor swift|box office|aliens?\b|ufo|extraterrestrial|jesus|christ return|tweet|tweets|2028 presidential|democratic presidential nominee|republican presidential nominee|governor|mayor)\b/.test(
+  if (/\b(sports|soccer|basketball|esports|mma|baseball|hockey|football|tennis)\b/.test(tags.toLowerCase())) {
+    return true;
+  }
+  return /\b(nba|nfl|mlb|nhl|premier league|champions league|la liga|serie a|bundesliga|ligue 1|ufc|formula 1|super bowl|world series|stanley cup|fifa|tennis|golf|esports|valorant|counter-strike|oscars|grammy|gta vi|mrbeast|kardashian|taylor swift|box office|aliens?\b|ufo|extraterrestrial|jesus|christ return|tweet|tweets|2028 presidential|democratic presidential nominee|republican presidential nominee|governor|mayor)\b|\bvs\.\s|\b(o\/u|moneyline|spread)\b|\b(fc|cf)\b/.test(
     text,
   );
 }
@@ -73,12 +85,97 @@ function isSportsNoise(title: string, tags: string): boolean {
 const HIGH_SIGNAL_MACRO_GEO_RE =
   /\b(fed\b|interest rate|fomc|recession|inflation|cpi|gdp|tariff|trade deal|oil\b|crude|gold\b|ceasefire|ukraine|russia|iran|israel|gaza|china|taiwan|north korea|hormuz|red sea|nato|nuclear|sanction|central bank|ecb|boj)\b/i;
 
+function parseFirstClobTokenId(raw?: string | string[]): string | undefined {
+  if (!raw) return undefined;
+  if (Array.isArray(raw)) {
+    const first = String(raw[0] ?? '').trim();
+    return first || undefined;
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      const first = String(parsed[0] ?? '').trim();
+      return first || undefined;
+    }
+  } catch {
+    // Ignore malformed token array
+  }
+  return undefined;
+}
+
+function selectBestOpenSubMarket(markets?: RawPolymarketMarket[]): {
+  market?: RawPolymarketMarket;
+  yesPercent: number;
+  outcomeLabel?: string;
+  change24hPct?: number;
+  clobTokenId?: string;
+} {
+  if (!markets || markets.length === 0) {
+    return { yesPercent: 50 };
+  }
+
+  const openMarkets = markets.filter((m) => !m.closed && m.active !== false);
+  const pool = openMarkets.length > 0 ? openMarkets : markets;
+
+  if (pool.length === 1) {
+    const m = pool[0];
+    const yesPercent = parseYesPercent(m.outcomePrices) ?? 50;
+    const rawChange = Number(m.oneDayPriceChange);
+    const label = (m.groupItemTitle ?? '').trim();
+    return {
+      market: m,
+      yesPercent,
+      ...(label && label.toLowerCase() !== 'yes' ? { outcomeLabel: label } : {}),
+      ...(Number.isFinite(rawChange) && rawChange !== 0
+        ? { change24hPct: Math.round(rawChange * 1000) / 10 }
+        : {}),
+      clobTokenId: parseFirstClobTokenId(m.clobTokenIds),
+    };
+  }
+
+  // Multi-bracket event: prefer active outcomes not already locked at 0% or 100%, ranked by probability then 24h volume
+  const scored = pool
+    .map((m) => {
+      const prob = parseYesPercent(m.outcomePrices);
+      const vol24 = Number(m.volume24hr ?? m.volume ?? 0);
+      return {
+        m,
+        prob: prob ?? 50,
+        hasValidProb: prob !== null,
+        isLiveContested: prob !== null && prob >= 2 && prob <= 98,
+        vol24: Number.isFinite(vol24) ? vol24 : 0,
+      };
+    })
+    .sort((a, b) => {
+      if (a.isLiveContested !== b.isLiveContested) {
+        return a.isLiveContested ? -1 : 1;
+      }
+      if (b.prob !== a.prob) return b.prob - a.prob;
+      return b.vol24 - a.vol24;
+    });
+
+  const best = scored[0];
+  const rawChange = Number(best.m.oneDayPriceChange);
+  const label = (best.m.groupItemTitle ?? '').trim();
+
+  return {
+    market: best.m,
+    yesPercent: best.hasValidProb ? best.prob : 50,
+    ...(label && label.toLowerCase() !== 'yes' ? { outcomeLabel: label } : {}),
+    ...(Number.isFinite(rawChange) && rawChange !== 0
+      ? { change24hPct: Math.round(rawChange * 1000) / 10 }
+      : {}),
+    clobTokenId: parseFirstClobTokenId(best.m.clobTokenIds),
+  };
+}
+
 export function normalizePolymarketEvents(events: RawPolymarketEvent[]): PredictionItem[] {
   if (!Array.isArray(events)) {
     throw new Error('Malformed Polymarket Gamma events array');
   }
 
   const deduped = new Map<string, PredictionItem>();
+  const now = Date.now();
 
   for (const ev of events) {
     const title = (ev.title ?? '').trim();
@@ -93,30 +190,41 @@ export function normalizePolymarketEvents(events: RawPolymarketEvent[]): Predict
         ? `slug:${slug.toLowerCase()}`
         : `title:${title.toLowerCase()}`;
 
-    const primaryMarket = ev.markets?.[0];
-    const yesPercent = parseYesPercent(primaryMarket?.outcomePrices) ?? 50;
-    const volumeUsd = Number(ev.volume ?? ev.volume24hr ?? primaryMarket?.volume ?? 0);
-    const liquidityUsd = Number(ev.liquidity ?? primaryMarket?.liquidity ?? 0);
+    const selected = selectBestOpenSubMarket(ev.markets);
+    const rawVol24 = Number(ev.volume24hr ?? selected.market?.volume24hr ?? 0);
+    const volume24hUsd = Number.isFinite(rawVol24) && rawVol24 > 0 ? Math.round(rawVol24) : undefined;
+    const rawVolTotal = Number(ev.volume ?? ev.volume24hr ?? selected.market?.volume ?? 0);
+    const volumeUsd = Number.isFinite(rawVolTotal) ? Math.round(rawVolTotal) : 0;
+    const liquidityUsd = Number(ev.liquidity ?? selected.market?.liquidity ?? 0);
     const url = slug ? `https://polymarket.com/event/${slug}` : 'https://polymarket.com';
 
     const candidate: PredictionItem = {
       id: slug || String(ev.id ?? title.slice(0, 32)),
       title,
       category: classifyPredictionCategory(title, tagText),
-      yesPercent,
-      volumeUsd: Number.isFinite(volumeUsd) ? Math.round(volumeUsd) : 0,
+      yesPercent: selected.yesPercent,
+      ...(selected.outcomeLabel ? { outcomeLabel: selected.outcomeLabel } : {}),
+      volumeUsd,
+      ...(volume24hUsd !== undefined ? { volume24hUsd } : {}),
+      ...(selected.change24hPct !== undefined ? { change24hPct: selected.change24hPct } : {}),
+      ...(selected.clobTokenId ? { clobTokenId: selected.clobTokenId } : {}),
       liquidityUsd: Number.isFinite(liquidityUsd) ? Math.round(liquidityUsd) : 0,
       endDate: ev.endDate ?? null,
       url,
+      updatedAt: now,
     };
 
     const incumbent = deduped.get(identityKey);
-    if (!incumbent || candidate.volumeUsd > incumbent.volumeUsd) {
+    const candScore = candidate.volume24hUsd ?? candidate.volumeUsd;
+    const incScore = incumbent ? (incumbent.volume24hUsd ?? incumbent.volumeUsd) : -1;
+    if (!incumbent || candScore > incScore) {
       deduped.set(identityKey, candidate);
     }
   }
 
-  return [...deduped.values()].sort((a, b) => b.volumeUsd - a.volumeUsd).slice(0, 45);
+  return [...deduped.values()]
+    .sort((a, b) => (b.volume24hUsd ?? b.volumeUsd) - (a.volume24hUsd ?? a.volumeUsd))
+    .slice(0, 45);
 }
 
 export async function fetchPolymarketPredictions(): Promise<PredictionItem[]> {
@@ -126,11 +234,19 @@ export async function fetchPolymarketPredictions(): Promise<PredictionItem[]> {
     userAgent: NAMED_APP_UA,
   });
   const normalized = normalizePolymarketEvents(payload);
-  // Prioritize genuine actionable Macro (Fed/Tariffs/Recession/Oil) & Geopolitical Flashpoints first
-  const highSignal = normalized.filter((p) => HIGH_SIGNAL_MACRO_GEO_RE.test(p.title));
-  const rest = normalized.filter((p) => !HIGH_SIGNAL_MACRO_GEO_RE.test(p.title));
-  const prioritized = [...highSignal, ...rest].slice(0, 15);
 
+  // Combine Top Hottest 24h events (for Live Intel) + High-Signal Macro/Geopolitical events (for Thị trường)
+  const topHot = selectTopHotPolymarket(normalized, 12);
+  const highSignal = normalized.filter((p) => HIGH_SIGNAL_MACRO_GEO_RE.test(p.title)).slice(0, 12);
+  const combinedMap = new Map<string, PredictionItem>();
+  for (const item of [...topHot, ...highSignal, ...normalized]) {
+    if (!combinedMap.has(item.id)) {
+      combinedMap.set(item.id, item);
+    }
+    if (combinedMap.size >= 24) break;
+  }
+
+  const prioritized = [...combinedMap.values()];
   const translated = await globalViTranslator.translateBatch(prioritized.map((p) => p.title));
   return prioritized.map((item, idx) => ({
     ...item,
@@ -327,10 +443,10 @@ export function parseRssFeedXml(
       url,
       ...(loc
         ? {
-            matchedLat: loc.lat,
-            matchedLon: loc.lon,
-            matchedLocation: loc.name,
-          }
+          matchedLat: loc.lat,
+          matchedLon: loc.lon,
+          matchedLocation: loc.name,
+        }
         : {}),
     });
   }

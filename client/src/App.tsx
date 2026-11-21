@@ -20,6 +20,7 @@ export function App() {
     streamConnected,
     liveTickCount,
     priceFlashes,
+    predictionFlashes,
     freshNewsIds,
     breakingAlerts,
     dismissAlert,
@@ -235,6 +236,7 @@ export function App() {
               }
             }
             predictions={filteredData.predictions}
+            googleTrends={data?.googleTrends}
             news={filteredData.news}
             techCyber={data?.techCyber}
             policyLegal={data?.policyLegal}
@@ -245,6 +247,9 @@ export function App() {
             newsStreamStats={data?.newsStreamStats}
             freshNewsIds={freshNewsIds}
             priceFlashes={priceFlashes}
+            predictionFlashes={predictionFlashes}
+            refreshingIds={refreshingIds}
+            onForceRefresh={forceRefresh}
             streamConnected={streamConnected}
             onFlyToLocation={(lat, lon, zoom) => {
               flyTo(lat, lon, zoom ?? 5.5);
@@ -266,6 +271,7 @@ export function App() {
                 }
               }
               predictions={filteredData.predictions}
+              googleTrends={data?.googleTrends}
               news={filteredData.news}
               techCyber={data?.techCyber}
               policyLegal={data?.policyLegal}
@@ -276,6 +282,9 @@ export function App() {
               newsStreamStats={data?.newsStreamStats}
               freshNewsIds={freshNewsIds}
               priceFlashes={priceFlashes}
+              predictionFlashes={predictionFlashes}
+              refreshingIds={refreshingIds}
+              onForceRefresh={forceRefresh}
               streamConnected={streamConnected}
               onFlyToLocation={(lat, lon, zoom) => {
                 setMobileIntelOpen(false);

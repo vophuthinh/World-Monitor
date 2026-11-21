@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
+  ArrowsClockwise,
   ArrowSquareOut,
   Broadcast,
   ChartBar,
@@ -27,9 +28,13 @@ import {
   computeCountryInstabilityScores,
   computeTheaterPostures,
   detectTrendingSpikes,
+  selectTopHotPolymarket,
 } from '@shared/intelligence';
 import type {
+  CollectorId,
   GeoPointFeature,
+  GoogleTrendGeo,
+  GoogleTrendsSnapshot,
   LegalDocType,
   MarketSnapshot,
   NewsCategory,
@@ -50,6 +55,7 @@ type NewsFilterId = 'all' | 'bbc' | NewsCategory;
 interface RightIntelPanelProps {
   markets: MarketSnapshot;
   predictions: PredictionItem[];
+  googleTrends?: GoogleTrendsSnapshot;
   news: NewsItem[];
   techCyber?: TechCyberSnapshot;
   policyLegal?: PolicyLegalSnapshot;
@@ -60,6 +66,9 @@ interface RightIntelPanelProps {
   newsStreamStats?: NewsStreamStats;
   freshNewsIds?: ReadonlySet<string>;
   priceFlashes: Record<string, FlashDirection>;
+  predictionFlashes?: Record<string, FlashDirection>;
+  refreshingIds?: ReadonlySet<string>;
+  onForceRefresh?: (collectorId: CollectorId | 'polymarket-news') => void;
   streamConnected: boolean;
   onFlyToLocation: (lat: number, lon: number, zoom?: number) => void;
 }
@@ -173,6 +182,7 @@ function legalBadgeStyle(item: PolicyLegalItem): string {
 export function RightIntelPanel({
   markets,
   predictions,
+  googleTrends,
   news,
   techCyber,
   policyLegal,
@@ -183,11 +193,15 @@ export function RightIntelPanel({
   newsStreamStats,
   freshNewsIds,
   priceFlashes,
+  predictionFlashes = {},
+  refreshingIds,
+  onForceRefresh,
   streamConnected,
   onFlyToLocation,
 }: RightIntelPanelProps) {
   const [activeTab, setActiveTab] = useState<RightTabId>('intel');
   const [intelTopic, setIntelTopic] = useState<IntelTopicId | 'c2_ioc'>('cyber');
+  const [trendGeo, setTrendGeo] = useState<GoogleTrendGeo>('VN');
   const [newsFilter, setNewsFilter] = useState<NewsFilterId>('all');
   const [newsQuery, setNewsQuery] = useState('');
   const [techFilter, setTechFilter] = useState<'all' | TechSubCategory>('all');
@@ -228,6 +242,16 @@ export function RightIntelPanel({
   const bbcCount = useMemo(
     () => news.filter((n) => n.source.startsWith('BBC ')).length,
     [news],
+  );
+
+  const top5HotPolymarket = useMemo(
+    () => selectTopHotPolymarket(predictions, 5),
+    [predictions],
+  );
+
+  const activeGoogleTrends = useMemo(
+    () => (trendGeo === 'VN' ? googleTrends?.vn ?? [] : googleTrends?.global ?? []),
+    [googleTrends, trendGeo],
   );
 
   const topMacroGeopoliticsPredictions = useMemo(() => {
@@ -444,7 +468,276 @@ export function RightIntelPanel({
             </div>
           </section>
 
-          {/* 2. Surging Keywords & CVE Spike Detector */}
+          {/* 2. Polymarket Top 5 Hottest Realtime (CLOB Live WS + 24h Volume) */}
+          <section>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="flex items-center gap-1.5 font-mono text-[10.5px] font-semibold tracking-wider text-slate-200">
+                <Fire size={13} className="text-amber-400" weight="fill" />
+                <span>POLYMARKET · TOP 5 HOT NHẤT</span>
+                <span className="inline-flex items-center gap-1 rounded border border-emerald-500/40 bg-emerald-500/15 px-1.5 py-0.2 font-mono text-[8.5px] font-bold text-emerald-300">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+                  {streamConnected ? 'LIVE WS' : '45S LIVE'}
+                </span>
+              </h2>
+
+              <div className="flex items-center gap-1.5 font-mono text-[9.5px] text-slate-400">
+                <span>24h Vol</span>
+                {onForceRefresh && (
+                  <button
+                    type="button"
+                    onClick={() => onForceRefresh('polymarket')}
+                    title="Làm mới Polymarket ngay lập tức"
+                    className="inline-flex items-center gap-0.5 rounded border border-slate-700/90 bg-slate-900 px-1.5 py-0.5 text-slate-300 transition hover:border-cyan-500/50 hover:text-cyan-200"
+                  >
+                    <ArrowsClockwise
+                      size={10}
+                      className={refreshingIds?.has('polymarket') ? 'animate-spin text-cyan-300' : ''}
+                    />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {top5HotPolymarket.length === 0 ? (
+              <div className="mt-1.5 rounded border border-slate-800/95 bg-[#0d1524] py-4 text-center text-xs text-slate-400">
+                Đang đồng bộ Top 5 Polymarket sôi động nhất 24h...
+              </div>
+            ) : (
+              <div className="mt-1.5 divide-y divide-slate-800/85 rounded border border-amber-500/25 bg-[#0d1524]">
+                {top5HotPolymarket.map((item, idx) => {
+                  const label = translateVi ? item.titleVi || item.title : item.title;
+                  const flash = predictionFlashes[item.id];
+                  const vol24 = item.volume24hUsd ?? item.volumeUsd;
+                  return (
+                    <a
+                      key={item.id}
+                      href={item.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={`block px-2.5 py-2 transition hover:bg-[#121e33] ${
+                        flash === 'up'
+                          ? 'bg-emerald-500/15'
+                          : flash === 'down'
+                            ? 'bg-rose-500/15'
+                            : ''
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span
+                              className={`inline-flex shrink-0 items-center rounded px-1.5 py-0.2 font-mono text-[9px] font-bold ${
+                                idx === 0
+                                  ? 'border border-amber-400/50 bg-amber-500/20 text-amber-200'
+                                  : idx < 3
+                                    ? 'border border-cyan-500/40 bg-cyan-500/15 text-cyan-200'
+                                    : 'border border-slate-700 bg-slate-800 text-slate-300'
+                              }`}
+                            >
+                              #{idx + 1} HOT
+                            </span>
+                            {item.outcomeLabel && (
+                              <span className="truncate rounded border border-fuchsia-500/35 bg-fuchsia-500/15 px-1.5 py-0.2 font-mono text-[9px] font-semibold text-fuchsia-200">
+                                {item.outcomeLabel}
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 text-xs font-medium leading-snug text-slate-100">
+                            {label}
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 text-right font-mono tabular-nums">
+                          <div
+                            className={`text-sm font-bold transition-colors ${
+                              flash === 'up'
+                                ? 'text-emerald-300'
+                                : flash === 'down'
+                                  ? 'text-rose-300'
+                                  : 'text-cyan-300'
+                            }`}
+                          >
+                            {item.yesPercent}%
+                          </div>
+                          {item.change24hPct !== undefined && (
+                            <div
+                              className={`text-[9px] font-semibold ${
+                                item.change24hPct >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                              }`}
+                            >
+                              {item.change24hPct >= 0 ? '+' : ''}
+                              {item.change24hPct.toFixed(1)}% 24h
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-800">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-amber-400 to-cyan-400 transition-all duration-500"
+                            style={{ width: `${Math.max(3, Math.min(98, item.yesPercent))}%` }}
+                          />
+                        </div>
+                        <span className="shrink-0 font-mono text-[9.5px] font-semibold text-amber-300 tabular-nums">
+                          24h {formatCompactUsd(vol24)}
+                        </span>
+                        <span className="shrink-0 font-mono text-[9px] text-slate-500 tabular-nums">
+                          Tổng {formatCompactUsd(item.volumeUsd)}
+                        </span>
+                      </div>
+                    </a>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* 3. Google Trends Realtime — What People Are Searching Most on Google */}
+          <section>
+            <div className="flex flex-wrap items-center justify-between gap-1.5">
+              <h2 className="flex items-center gap-1.5 font-mono text-[10.5px] font-semibold tracking-wider text-slate-200">
+                <MagnifyingGlass size={13} className="text-cyan-400" weight="bold" />
+                <span>GOOGLE TRENDS REALTIME</span>
+                <span className="inline-flex items-center gap-1 rounded border border-cyan-500/40 bg-cyan-500/12 px-1.5 py-0.2 font-mono text-[8.5px] font-bold text-cyan-300">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-400" />
+                  LIVE 60S
+                </span>
+              </h2>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setTrendGeo('VN')}
+                  className={`rounded px-2 py-0.5 font-mono text-[9.5px] font-semibold transition ${
+                    trendGeo === 'VN'
+                      ? 'border border-emerald-500/50 bg-emerald-500/20 text-emerald-200'
+                      : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  🇻🇳 Việt Nam ({googleTrends?.vn.length ?? 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTrendGeo('GLOBAL')}
+                  className={`rounded px-2 py-0.5 font-mono text-[9.5px] font-semibold transition ${
+                    trendGeo === 'GLOBAL'
+                      ? 'border border-cyan-500/50 bg-cyan-500/20 text-cyan-200'
+                      : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  🌍 Thế giới ({googleTrends?.global.length ?? 0})
+                </button>
+                {onForceRefresh && (
+                  <button
+                    type="button"
+                    onClick={() => onForceRefresh('google-trends')}
+                    title="Làm mới Google Trends ngay lập tức"
+                    className="inline-flex items-center rounded border border-slate-700/90 bg-slate-900 px-1.5 py-0.5 text-slate-300 transition hover:border-cyan-500/50 hover:text-cyan-200"
+                  >
+                    <ArrowsClockwise
+                      size={10}
+                      className={refreshingIds?.has('google-trends') ? 'animate-spin text-cyan-300' : ''}
+                    />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-0.5 flex items-center justify-between font-mono text-[9px] text-slate-500">
+              <span>Từ khóa người dùng tìm kiếm đột biến nhiều nhất trên Google</span>
+              {googleTrends?.updatedAt ? (
+                <span>Cập nhật {formatRelativeTime(googleTrends.updatedAt)}</span>
+              ) : null}
+            </div>
+
+            {activeGoogleTrends.length === 0 ? (
+              <div className="mt-1.5 rounded border border-slate-800/95 bg-[#0d1524] py-4 text-center text-xs text-slate-400">
+                Đang kéo luồng xu hướng tìm kiếm trực tiếp từ Google Trends...
+              </div>
+            ) : (
+              <div className="mt-1.5 max-h-[295px] divide-y divide-slate-800/80 overflow-y-auto rounded border border-cyan-500/25 bg-[#0d1524]">
+                {activeGoogleTrends.slice(0, 10).map((tr, idx) => {
+                  const newsHeadline = translateVi
+                    ? tr.topNewsTitleVi || tr.topNewsTitle
+                    : tr.topNewsTitle;
+                  return (
+                    <div key={tr.id} className="px-2.5 py-2 transition hover:bg-[#111c30]">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span
+                            className={`inline-flex h-4 min-w-[20px] shrink-0 items-center justify-center rounded px-1 font-mono text-[9.5px] font-bold ${
+                              idx === 0
+                                ? 'bg-amber-500/25 text-amber-200 border border-amber-400/50'
+                                : idx < 3
+                                  ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-500/40'
+                                  : 'bg-slate-800 text-slate-400'
+                            }`}
+                          >
+                            #{tr.rank}
+                          </span>
+                          <a
+                            href={tr.topNewsUrl ?? tr.trendUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="truncate text-xs font-semibold text-slate-100 hover:text-cyan-300"
+                          >
+                            {tr.query}
+                          </a>
+                        </div>
+
+                        <div className="flex shrink-0 items-center gap-1.5 font-mono text-[9.5px]">
+                          <span className="rounded border border-amber-500/35 bg-amber-500/12 px-1.5 py-0.2 font-semibold text-amber-300 tabular-nums">
+                            🔥 {tr.approxTraffic}
+                          </span>
+                          <span className="text-slate-500">{formatRelativeTime(tr.publishedAt)}</span>
+                        </div>
+                      </div>
+
+                      {newsHeadline && (
+                        <a
+                          href={tr.topNewsUrl ?? tr.trendUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-1 block text-[11px] leading-snug text-slate-300 hover:text-slate-100"
+                        >
+                          {tr.topNewsSource && (
+                            <span className="mr-1.5 rounded bg-slate-800 px-1 py-0.2 font-mono text-[9px] text-slate-400">
+                              {tr.topNewsSource}
+                            </span>
+                          )}
+                          <span>{newsHeadline}</span>
+                        </a>
+                      )}
+
+                      <div className="mt-1 flex items-center justify-between font-mono text-[9.5px]">
+                        <a
+                          href={tr.trendUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-0.5 text-slate-400 hover:text-cyan-300"
+                        >
+                          Google Trends <ArrowSquareOut size={10} />
+                        </a>
+                        {tr.matchedLat !== undefined && tr.matchedLon !== undefined && (
+                          <button
+                            type="button"
+                            onClick={() => onFlyToLocation(tr.matchedLat!, tr.matchedLon!, 5.5)}
+                            className="inline-flex items-center gap-1 text-cyan-300 hover:underline"
+                          >
+                            <Crosshair size={10} />
+                            Bay tới: {tr.matchedLocation}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* 4. Surging Keywords & CVE Spike Detector */}
           {trendingSpikes.length > 0 && (
             <section>
               <h2 className="flex items-center gap-1 font-mono text-[10.5px] font-semibold tracking-wider text-slate-300">
@@ -1481,7 +1774,14 @@ export function RightIntelPanel({
                       className="block px-2.5 py-2 transition hover:bg-[#111c30]"
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <span className="text-xs font-medium leading-snug text-slate-100">{label}</span>
+                        <div className="min-w-0 flex-1">
+                          <span className="text-xs font-medium leading-snug text-slate-100">{label}</span>
+                          {item.outcomeLabel && (
+                            <span className="ml-1.5 inline-block rounded border border-cyan-500/35 bg-cyan-500/12 px-1 py-0.2 font-mono text-[9px] text-cyan-200">
+                              {item.outcomeLabel}
+                            </span>
+                          )}
+                        </div>
                         <span className="shrink-0 font-mono text-xs font-bold text-cyan-300 tabular-nums">
                           {item.yesPercent}%
                         </span>
