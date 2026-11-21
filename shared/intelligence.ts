@@ -1,4 +1,10 @@
-import type { GeoPointFeature, NewsItem, PredictionItem, TechCyberItem } from './types';
+import type {
+  GeoPointFeature,
+  MitreTechniqueTag,
+  NewsItem,
+  PredictionItem,
+  TechCyberItem,
+} from './types';
 
 export type PostureLevel = 'NORMAL' | 'ELEVATED' | 'CRITICAL';
 
@@ -547,4 +553,101 @@ export function selectTopHotPolymarket(
   }
 
   return picked;
+}
+
+const MITRE_TECHNIQUE_RULES: ReadonlyArray<{
+  id: string;
+  name: string;
+  pattern: RegExp;
+}> = [
+  { id: 'T1566', name: 'Phishing', pattern: /\b(phish(?:ing)?|spear-?phish(?:ing)?|smishing|vishing|lừa đảo)\b/i },
+  { id: 'T1486', name: 'Ransomware', pattern: /\b(ransomware|lockbit|blackcat|alphv|cl0p|akira|mã hóa tống tiền)\b/i },
+  {
+    id: 'T1190',
+    name: 'Exploit Public App',
+    pattern: /\b(rce\b|remote code execution|zero-day|0-day|sql injection|sqli|ssrf|path traversal|auth bypass|cve-\d{4}-\d+)\b/i,
+  },
+  { id: 'T1071', name: 'C2 Protocol', pattern: /\b(cobalt\s*strike|sliver|brute\s*ratel|c2\b|command and control|botnet|beacon)\b/i },
+  { id: 'T1195', name: 'Supply Chain', pattern: /\b(supply[- ]chain|npm package|pypi|malicious package|chuỗi cung ứng)\b/i },
+  { id: 'T1498', name: 'DDoS Impact', pattern: /\b(ddos|denial[- ]of[- ]service|botnet flood|tấn công từ chối dịch vụ)\b/i },
+  { id: 'T1059', name: 'Command Exec', pattern: /\b(powershell|shellcode|reverse shell|bash script|command injection)\b/i },
+  { id: 'T1003', name: 'Credential Theft', pattern: /\b(infostealer|stealer|mimikatz|credential|password dump|session token|cookie theft)\b/i },
+  { id: 'T1110', name: 'Brute Force', pattern: /\b(brute[- ]?force|credential stuffing|password spray|ssh attack)\b/i },
+  { id: 'T1485', name: 'Data Wiper', pattern: /\b(wiper|destructive malware|sabotage|scada|ics attack)\b/i },
+  { id: 'T1505', name: 'Web Shell', pattern: /\b(webshell|web shell|backdoor|cửa hậu)\b/i },
+  { id: 'T1041', name: 'Data Exfil', pattern: /\b(data breach|exfiltrat|leaked database|rò rỉ dữ liệu|đánh cắp dữ liệu)\b/i },
+];
+
+export function detectMitreTechniques(text: string, maxTags = 3): MitreTechniqueTag[] {
+  if (!text) return [];
+  const out: MitreTechniqueTag[] = [];
+  for (const rule of MITRE_TECHNIQUE_RULES) {
+    if (rule.pattern.test(text)) {
+      out.push({ id: rule.id, name: rule.name });
+      if (out.length >= maxTags) break;
+    }
+  }
+  return out;
+}
+
+export interface GlobalThreatAssessment {
+  defcon: 2 | 3 | 4 | 5;
+  score: number; // 0..100
+  label: string;
+  summary: string;
+}
+
+export function computeGlobalThreatLevel(input: {
+  theaterPostures: readonly TheaterPostureSummary[];
+  cyberCount: number;
+  earthquakeMajorCount: number;
+  geopoliticsCriticalCount: number;
+}): GlobalThreatAssessment {
+  const criticalTheaters = input.theaterPostures.filter((t) => t.posture === 'CRITICAL').length;
+  const elevatedTheaters = input.theaterPostures.filter((t) => t.posture === 'ELEVATED').length;
+  const avgTheater =
+    input.theaterPostures.length > 0
+      ? input.theaterPostures.reduce((acc, t) => acc + t.score, 0) / input.theaterPostures.length
+      : 28;
+
+  const rawScore =
+    avgTheater * 0.45 +
+    criticalTheaters * 14 +
+    elevatedTheaters * 6 +
+    Math.min(18, input.cyberCount * 0.16) +
+    Math.min(12, input.geopoliticsCriticalCount * 0.9) +
+    Math.min(8, input.earthquakeMajorCount * 2);
+
+  const score = Math.max(12, Math.min(96, Math.round(rawScore)));
+
+  if (score >= 74 || criticalTheaters >= 2) {
+    return {
+      defcon: 2,
+      score,
+      label: 'DEFCON 2 · NGUY CƠ CAO',
+      summary: `${criticalTheaters} chiến trường CRITICAL · C2/APT cường độ cao`,
+    };
+  }
+  if (score >= 52 || criticalTheaters >= 1) {
+    return {
+      defcon: 3,
+      score,
+      label: 'DEFCON 3 · CẢNH GIÁC TĂNG CƯỜNG',
+      summary: `${criticalTheaters} điểm nóng xung đột · ${input.cyberCount} C2/APT hoạt động`,
+    };
+  }
+  if (score >= 34 || elevatedTheaters >= 1) {
+    return {
+      defcon: 4,
+      score,
+      label: 'DEFCON 4 · GIÁM SÁT CHỦ ĐỘNG',
+      summary: 'Hoạt động quân sự & không gian mạng ở ngưỡng kiểm soát',
+    };
+  }
+  return {
+    defcon: 5,
+    score,
+    label: 'DEFCON 5 · ỔN ĐỊNH',
+    summary: 'Tình hình các khu vực chiến lược ổn định',
+  };
 }

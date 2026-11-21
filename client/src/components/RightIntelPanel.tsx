@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowsClockwise,
   ArrowSquareOut,
@@ -26,6 +26,7 @@ import {
   type PostureLevel,
   classifyLiveIntelTopics,
   computeCountryInstabilityScores,
+  computeGlobalThreatLevel,
   computeTheaterPostures,
   detectTrendingSpikes,
   selectTopHotPolymarket,
@@ -35,6 +36,7 @@ import type {
   GeoPointFeature,
   GoogleTrendGeo,
   GoogleTrendsSnapshot,
+  IocLookupResult,
   LegalDocType,
   MarketSnapshot,
   NewsCategory,
@@ -61,6 +63,7 @@ interface RightIntelPanelProps {
   policyLegal?: PolicyLegalSnapshot;
   military: GeoPointFeature[];
   vessels: GeoPointFeature[];
+  earthquakes?: GeoPointFeature[];
   geopolitics: GeoPointFeature[];
   cyberThreats: GeoPointFeature[];
   newsStreamStats?: NewsStreamStats;
@@ -125,6 +128,9 @@ function sourceBadgeStyle(item: NewsItem): string {
 }
 
 function techBadgeStyle(item: TechCyberItem): string {
+  if (item.subCategory === 'github_release') {
+    return 'border border-emerald-500/45 bg-emerald-500/18 text-emerald-200';
+  }
   if (item.subCategory === 'cyber') {
     return item.severity === 'critical'
       ? 'border border-rose-500/50 bg-rose-500/20 text-rose-200'
@@ -188,6 +194,7 @@ export function RightIntelPanel({
   policyLegal,
   military,
   vessels,
+  earthquakes = [],
   geopolitics,
   cyberThreats,
   newsStreamStats,
@@ -205,11 +212,63 @@ export function RightIntelPanel({
   const [newsFilter, setNewsFilter] = useState<NewsFilterId>('all');
   const [newsQuery, setNewsQuery] = useState('');
   const [techFilter, setTechFilter] = useState<'all' | TechSubCategory>('all');
+  const [mitreFilter, setMitreFilter] = useState<string | null>(null);
   const [techQuery, setTechQuery] = useState('');
   const [legalFilter, setLegalFilter] = useState<'all' | 'most' | LegalDocType>('all');
   const [legalPillar, setLegalPillar] = useState<'57' | '59' | '66' | '68' | null>(null);
   const [legalQuery, setLegalQuery] = useState('');
   const [translateVi, setTranslateVi] = useState<boolean>(true);
+
+  // Live IOC / IP / CVE Recon Scanner (Shodan InternetDB + NIST NVD 2.0)
+  const [iocQuery, setIocQuery] = useState('');
+  const [iocLoading, setIocLoading] = useState(false);
+  const [iocError, setIocError] = useState<string | null>(null);
+  const [iocResult, setIocResult] = useState<IocLookupResult | null>(null);
+
+  // Custom Keyword Watchlist Alerts (persisted in localStorage)
+  const [watchlistTerms, setWatchlistTerms] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('wm_watchlist_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed.slice(0, 10);
+      }
+    } catch {
+      // Ignore storage errors
+    }
+    return ['Biển Đông', 'Nghị quyết 57', 'Zero-Day', 'TSMC'];
+  });
+  const [newWatchTerm, setNewWatchTerm] = useState('');
+  const [selectedWatchTerm, setSelectedWatchTerm] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('wm_watchlist_v1', JSON.stringify(watchlistTerms));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [watchlistTerms]);
+
+  const runIocScan = useCallback(async (overrideQuery?: string) => {
+    const target = (overrideQuery ?? iocQuery).trim();
+    if (!target) return;
+    if (overrideQuery) setIocQuery(overrideQuery);
+    setIocLoading(true);
+    setIocError(null);
+    try {
+      const resp = await fetch(`/api/ioc-lookup?q=${encodeURIComponent(target)}`);
+      const body = (await resp.json()) as IocLookupResult & { error?: string };
+      if (!resp.ok || body.error) {
+        throw new Error(body.error || `HTTP ${resp.status}`);
+      }
+      setIocResult(body);
+    } catch (err) {
+      setIocResult(null);
+      setIocError(err instanceof Error ? err.message : 'Không thể quét IOC/CVE');
+    } finally {
+      setIocLoading(false);
+    }
+  }, [iocQuery]);
 
   const fxQuotes = useMemo(() => markets.quotes.filter((q) => q.group === 'fx'), [markets.quotes]);
   const indexAndCommodityQuotes = useMemo(
@@ -223,6 +282,17 @@ export function RightIntelPanel({
   const theaterPostures = useMemo(
     () => computeTheaterPostures({ military, vessels, geopolitics, cyberThreats }),
     [military, vessels, geopolitics, cyberThreats],
+  );
+
+  const globalThreat = useMemo(
+    () =>
+      computeGlobalThreatLevel({
+        theaterPostures,
+        cyberCount: cyberThreats.length,
+        earthquakeMajorCount: earthquakes.filter((e) => (e.magnitude ?? 0) >= 5.0).length,
+        geopoliticsCriticalCount: geopolitics.filter((g) => g.severity === 'critical').length,
+      }),
+    [theaterPostures, cyberThreats.length, earthquakes, geopolitics],
   );
 
   const ciiScores = useMemo(
@@ -239,6 +309,53 @@ export function RightIntelPanel({
     () => detectTrendingSpikes(news, techItems),
     [news, techItems],
   );
+
+  const watchlistHitsMap = useMemo(() => {
+    const out = new Map<
+      string,
+      Array<{ id: string; title: string; source: string; url: string; publishedAt: number }>
+    >();
+    for (const term of watchlistTerms) {
+      const q = term.trim().toLowerCase();
+      if (!q) continue;
+      const matches: Array<{ id: string; title: string; source: string; url: string; publishedAt: number }> = [];
+      for (const n of news) {
+        if (`${n.title} ${n.titleVi ?? ''} ${n.matchedLocation ?? ''}`.toLowerCase().includes(q)) {
+          matches.push({
+            id: `wl-n:${n.id}`,
+            title: translateVi ? n.titleVi || n.title : n.title,
+            source: n.source,
+            url: n.url,
+            publishedAt: n.publishedAt,
+          });
+        }
+      }
+      for (const t of techItems) {
+        if (`${t.title} ${t.titleVi ?? ''} ${t.cveId ?? ''}`.toLowerCase().includes(q)) {
+          matches.push({
+            id: `wl-t:${t.id}`,
+            title: translateVi ? t.titleVi || t.title : t.title,
+            source: t.source,
+            url: t.url,
+            publishedAt: t.publishedAt,
+          });
+        }
+      }
+      for (const p of policyLegal?.items ?? []) {
+        if (`${p.title} ${p.docCode ?? ''} ${p.sector}`.toLowerCase().includes(q)) {
+          matches.push({
+            id: `wl-p:${p.id}`,
+            title: p.title,
+            source: p.source,
+            url: p.pdfUrl ?? p.url,
+            publishedAt: p.publishedAt,
+          });
+        }
+      }
+      out.set(term, matches.sort((a, b) => b.publishedAt - a.publishedAt).slice(0, 8));
+    }
+    return out;
+  }, [watchlistTerms, news, techItems, policyLegal?.items, translateVi]);
 
   const bbcCount = useMemo(
     () => news.filter((n) => n.source.startsWith('BBC ')).length,
@@ -282,22 +399,25 @@ export function RightIntelPanel({
 
   const techCounts = useMemo(() => {
     let ai = 0;
+    let github_release = 0;
     let cyber = 0;
     let tech_infra = 0;
     let vn_tech = 0;
     for (const item of techItems) {
       if (item.subCategory === 'ai') ai += 1;
+      else if (item.subCategory === 'github_release') github_release += 1;
       else if (item.subCategory === 'cyber') cyber += 1;
       else if (item.subCategory === 'vn_tech') vn_tech += 1;
       else tech_infra += 1;
     }
-    return { ai, cyber, tech_infra, vn_tech };
+    return { ai, github_release, cyber, tech_infra, vn_tech };
   }, [techItems]);
 
   const filteredTech = useMemo(() => {
     const q = techQuery.trim().toLowerCase();
     return techItems.filter((item) => {
       if (techFilter !== 'all' && item.subCategory !== techFilter) return false;
+      if (mitreFilter && !(item.mitreTtps ?? []).some((t) => t.id === mitreFilter)) return false;
       if (
         q &&
         !`${item.title} ${item.titleVi ?? ''} ${item.source} ${item.cveId ?? ''} ${item.matchedLocation ?? ''}`
@@ -308,7 +428,7 @@ export function RightIntelPanel({
       }
       return true;
     });
-  }, [techItems, techFilter, techQuery]);
+  }, [techItems, techFilter, mitreFilter, techQuery]);
 
   const stablecoins = useMemo(
     () => markets.crypto.filter((c) => c.symbol === 'USDT' || c.symbol === 'USDC'),
@@ -425,12 +545,21 @@ export function RightIntelPanel({
       {/* Tab 1: WorldMonitor Live Intelligence (Theater Posture + Cyber Threats IOC + 6 Intel Topics + CII) */}
       {activeTab === 'intel' && (
         <div className="flex-1 space-y-3.5 overflow-y-auto p-2.5">
-          {/* Top Bar: Live Telemetry Summary + Translate Toggle */}
-          <div className="flex items-center justify-between rounded border border-fuchsia-500/30 bg-[#0d1524] px-2.5 py-1.5">
-            <div className="flex items-center gap-2 font-mono text-[10px]">
-              <span className="inline-flex items-center gap-1 font-semibold text-fuchsia-300">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-fuchsia-400" />
-                LIVE INTELLIGENCE
+          {/* Top Bar: Global Threat DEFCON + Live Telemetry Summary + Translate Toggle */}
+          <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-fuchsia-500/30 bg-[#0d1524] px-2.5 py-1.5">
+            <div className="flex flex-wrap items-center gap-1.5 font-mono text-[10px]">
+              <span
+                title={globalThreat.summary}
+                className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9.5px] font-bold ${
+                  globalThreat.defcon <= 2
+                    ? 'border-rose-500/55 bg-rose-500/20 text-rose-200'
+                    : globalThreat.defcon === 3
+                      ? 'border-amber-500/50 bg-amber-500/20 text-amber-200'
+                      : 'border-emerald-500/45 bg-emerald-500/15 text-emerald-200'
+                }`}
+              >
+                <Gauge size={11} weight="fill" />
+                DEFCON {globalThreat.defcon} · {globalThreat.score}/100
               </span>
               <span className="text-slate-400">
                 C2/APT <strong className="text-fuchsia-200">{cyberThreats.length}</strong> · MIL{' '}
@@ -756,7 +885,251 @@ export function RightIntelPanel({
             )}
           </section>
 
-          {/* 4. Surging Keywords & CVE Spike Detector */}
+          {/* 4. Custom Watchlist Keyword Alerts (pulse-world-monitor + CTI Radar pattern) */}
+          <section className="rounded border border-slate-800/95 bg-[#0d1524] p-2">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="flex items-center gap-1 font-mono text-[10px] font-semibold tracking-wider text-amber-200">
+                <Broadcast size={12} className="text-amber-400" weight="fill" />
+                <span>WATCHLIST TỪ KHÓA (CẢNH BÁO TỰ ĐỘNG)</span>
+              </h2>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const clean = newWatchTerm.trim();
+                  if (!clean) return;
+                  if (!watchlistTerms.some((t) => t.toLowerCase() === clean.toLowerCase())) {
+                    setWatchlistTerms((prev) => [...prev.slice(-8), clean]);
+                  }
+                  setNewWatchTerm('');
+                }}
+                className="flex items-center gap-1"
+              >
+                <input
+                  type="text"
+                  value={newWatchTerm}
+                  onChange={(e) => setNewWatchTerm(e.target.value)}
+                  placeholder="+ Thêm từ khóa..."
+                  className="w-28 rounded border border-slate-700/90 bg-[#070b12] px-1.5 py-0.5 font-mono text-[9.5px] text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                />
+              </form>
+            </div>
+
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {watchlistTerms.map((term) => {
+                const count = watchlistHitsMap.get(term)?.length ?? 0;
+                const active = selectedWatchTerm === term;
+                return (
+                  <span
+                    key={term}
+                    className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[9.5px] transition ${
+                      active
+                        ? 'border-amber-400/70 bg-amber-500/25 text-amber-100'
+                        : count > 0
+                          ? 'border-amber-500/40 bg-amber-500/12 text-amber-200'
+                          : 'border-slate-800 bg-slate-900 text-slate-400'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setSelectedWatchTerm((prev) => (prev === term ? null : term))}
+                      className="inline-flex items-center gap-1 font-semibold"
+                    >
+                      <span>{term}</span>
+                      <span className="rounded bg-black/30 px-1 text-[8.5px]">{count}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWatchlistTerms((prev) => prev.filter((x) => x !== term));
+                        if (selectedWatchTerm === term) setSelectedWatchTerm(null);
+                      }}
+                      title={`Xóa ${term}`}
+                      className="ml-0.5 text-slate-500 hover:text-rose-300"
+                    >
+                      ×
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+
+            {selectedWatchTerm && (
+              <div className="mt-2 max-h-[155px] divide-y divide-slate-800/80 overflow-y-auto rounded border border-amber-500/30 bg-[#090f1a] px-2 py-1">
+                {(watchlistHitsMap.get(selectedWatchTerm) ?? []).length === 0 ? (
+                  <div className="py-2 text-center text-[10.5px] text-slate-400">
+                    Chưa có tín hiệu mới khớp từ khóa &ldquo;{selectedWatchTerm}&rdquo;.
+                  </div>
+                ) : (
+                  (watchlistHitsMap.get(selectedWatchTerm) ?? []).map((hit) => (
+                    <a
+                      key={hit.id}
+                      href={hit.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block py-1.5 text-[11px] leading-snug text-slate-200 hover:text-amber-200"
+                    >
+                      <span className="mr-1.5 rounded bg-slate-800 px-1 py-0.2 font-mono text-[9px] text-amber-300">
+                        {hit.source}
+                      </span>
+                      <span>{hit.title}</span>
+                    </a>
+                  ))
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* 5. Live IOC / IP / CVE Recon Scanner (Shodan InternetDB + NIST NVD 2.0) */}
+          <section className="rounded border border-fuchsia-500/30 bg-[#0d1524] p-2">
+            <div className="flex items-center justify-between gap-1.5">
+              <h2 className="flex items-center gap-1 font-mono text-[10px] font-semibold tracking-wider text-fuchsia-200">
+                <ShieldWarning size={12} className="text-fuchsia-400" weight="fill" />
+                <span>QUÉT IOC / IP / CVE TRỰC TIẾP (SHODAN + NVD)</span>
+              </h2>
+              <div className="flex items-center gap-1 font-mono text-[8.5px]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const sampleIp =
+                      String(
+                        cyberThreats.find((c) => c.category === 'c2_ioc')?.meta.ipAddress ??
+                          '45.148.10.240',
+                      );
+                    void runIocScan(sampleIp);
+                  }}
+                  className="rounded border border-fuchsia-500/35 bg-fuchsia-500/12 px-1.5 py-0.2 text-fuchsia-200 hover:bg-fuchsia-500/25"
+                >
+                  Thử IP C2
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void runIocScan('CVE-2024-38477')}
+                  className="rounded border border-rose-500/35 bg-rose-500/12 px-1.5 py-0.2 text-rose-200 hover:bg-rose-500/25"
+                >
+                  Thử CVE
+                </button>
+              </div>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void runIocScan();
+              }}
+              className="mt-1.5 flex items-center gap-1.5"
+            >
+              <input
+                type="text"
+                value={iocQuery}
+                onChange={(e) => setIocQuery(e.target.value)}
+                placeholder="Nhập IP (45.148.10.240) hoặc CVE-2024-38477..."
+                className="min-w-0 flex-1 rounded border border-slate-700/95 bg-[#070b12] px-2 py-1 font-mono text-[10.5px] text-slate-100 placeholder:text-slate-500 focus:border-fuchsia-400 focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={iocLoading}
+                className="shrink-0 rounded border border-fuchsia-500/50 bg-fuchsia-500/20 px-2.5 py-1 font-mono text-[10px] font-semibold text-fuchsia-100 transition hover:bg-fuchsia-500/30 disabled:opacity-50"
+              >
+                {iocLoading ? 'Đang quét...' : 'Quét Live'}
+              </button>
+            </form>
+
+            {iocError && (
+              <div className="mt-1.5 rounded border border-rose-500/40 bg-rose-950/40 px-2 py-1 text-[10.5px] text-rose-200">
+                {iocError}
+              </div>
+            )}
+
+            {iocResult && (
+              <div className="mt-2 space-y-1.5 rounded border border-slate-800 bg-[#080d17] p-2 font-mono text-[10px]">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-slate-100">{iocResult.query}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`rounded px-1.5 py-0.2 text-[9px] font-bold uppercase ${
+                        iocResult.riskLevel === 'critical'
+                          ? 'bg-rose-500/25 text-rose-200 border border-rose-500/50'
+                          : iocResult.riskLevel === 'high'
+                            ? 'bg-amber-500/20 text-amber-200 border border-amber-500/45'
+                            : 'bg-cyan-500/15 text-cyan-200 border border-cyan-500/35'
+                      }`}
+                    >
+                      {iocResult.kind === 'cve' && iocResult.cvssScore !== undefined
+                        ? `CVSS ${iocResult.cvssScore} · ${iocResult.cvssSeverity}`
+                        : `RISK: ${iocResult.riskLevel}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIocResult(null)}
+                      className="text-slate-500 hover:text-slate-200"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+
+                {iocResult.kind === 'ip' ? (
+                  <>
+                    {(iocResult.country || iocResult.org) && (
+                      <div className="font-sans text-[10.5px] text-slate-300">
+                        {[iocResult.city, iocResult.country, iocResult.org].filter(Boolean).join(' · ')}
+                      </div>
+                    )}
+                    <div className="text-slate-300">
+                      <span className="text-slate-500">Cổng mở (Ports): </span>
+                      {iocResult.ports && iocResult.ports.length > 0
+                        ? iocResult.ports.join(', ')
+                        : 'Không phát hiện cổng công khai'}
+                    </div>
+                    {iocResult.vulns && iocResult.vulns.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="text-rose-300">Lỗ hổng ({iocResult.vulns.length}):</span>
+                        {iocResult.vulns.slice(0, 6).map((v) => (
+                          <button
+                            key={v}
+                            type="button"
+                            onClick={() => void runIocScan(v)}
+                            className="rounded border border-rose-500/40 bg-rose-500/15 px-1 py-0.2 text-[9px] text-rose-200 hover:bg-rose-500/30"
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {iocResult.cpes && iocResult.cpes.length > 0 && (
+                      <div className="truncate text-[9.5px] text-slate-400">
+                        CPE: {iocResult.cpes.slice(0, 3).join(' · ')}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="font-sans text-[11px] leading-snug text-slate-200">
+                      {translateVi
+                        ? iocResult.descriptionVi || iocResult.description
+                        : iocResult.description}
+                    </div>
+                    {iocResult.vectorString && (
+                      <div className="truncate text-[9px] text-slate-400">{iocResult.vectorString}</div>
+                    )}
+                  </>
+                )}
+
+                <div className="flex justify-end">
+                  <a
+                    href={iocResult.referenceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-0.5 text-[9.5px] text-fuchsia-300 hover:underline"
+                  >
+                    Mở hồ sơ gốc <ArrowSquareOut size={10} />
+                  </a>
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* 6. Surging Keywords & CVE Spike Detector */}
           {trendingSpikes.length > 0 && (
             <section>
               <h2 className="flex items-center gap-1 font-mono text-[10.5px] font-semibold tracking-wider text-slate-300">
@@ -841,15 +1214,27 @@ export function RightIntelPanel({
                     </div>
                     <div className="mt-1 text-xs font-semibold text-slate-100">{ioc.title}</div>
                     {ioc.subtitle && <div className="mt-0.5 text-[10.5px] text-slate-400">{ioc.subtitle}</div>}
-                    <div className="mt-1.5 flex items-center justify-between">
-                      <button
-                        type="button"
-                        onClick={() => onFlyToLocation(ioc.lat, ioc.lon, 6.0)}
-                        className="inline-flex items-center gap-1 rounded border border-fuchsia-500/35 bg-fuchsia-500/10 px-2 py-0.5 font-mono text-[9.5px] text-fuchsia-200 hover:bg-fuchsia-500/20"
-                      >
-                        <Crosshair size={10} />
-                        Định vị C2 trên bản đồ
-                      </button>
+                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => onFlyToLocation(ioc.lat, ioc.lon, 6.0)}
+                          className="inline-flex items-center gap-1 rounded border border-fuchsia-500/35 bg-fuchsia-500/10 px-2 py-0.5 font-mono text-[9.5px] text-fuchsia-200 hover:bg-fuchsia-500/20"
+                        >
+                          <Crosshair size={10} />
+                          Định vị C2
+                        </button>
+                        {typeof ioc.meta.ipAddress === 'string' && (
+                          <button
+                            type="button"
+                            onClick={() => void runIocScan(String(ioc.meta.ipAddress))}
+                            className="inline-flex items-center gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 font-mono text-[9.5px] text-cyan-200 hover:bg-cyan-500/20"
+                          >
+                            <MagnifyingGlass size={10} />
+                            Quét Shodan
+                          </button>
+                        )}
+                      </div>
                       {ioc.url && (
                         <a
                           href={ioc.url}
@@ -1014,16 +1399,20 @@ export function RightIntelPanel({
               {(
                 [
                   { id: 'all', label: `Tất cả (${techItems.length})` },
-                  { id: 'ai', label: `🤖 AI & Machine Learning (${techCounts.ai})` },
-                  { id: 'cyber', label: `🛡️ Cyber & CVE (${techCounts.cyber})` },
-                  { id: 'tech_infra', label: `💻 Chip · Cloud · BBC Tech (${techCounts.tech_infra})` },
+                  { id: 'ai', label: `🤖 AI & ML (${techCounts.ai})` },
+                  { id: 'github_release', label: `🚀 GitHub Releases (${techCounts.github_release})` },
+                  { id: 'cyber', label: `🛡️ Cyber · NVD (${techCounts.cyber})` },
+                  { id: 'tech_infra', label: `💻 Chip · Cloud (${techCounts.tech_infra})` },
                   { id: 'vn_tech', label: `🇻🇳 Công nghệ VN (${techCounts.vn_tech})` },
                 ] as const
               ).map((cat) => (
                 <button
                   key={cat.id}
                   type="button"
-                  onClick={() => setTechFilter(cat.id)}
+                  onClick={() => {
+                    setTechFilter(cat.id);
+                    if (cat.id === 'all') setMitreFilter(null);
+                  }}
                   className={`rounded px-2 py-1 text-[10.5px] font-medium transition ${
                     techFilter === cat.id
                       ? 'border border-violet-500/45 bg-violet-500/20 text-violet-200'
@@ -1034,6 +1423,19 @@ export function RightIntelPanel({
                 </button>
               ))}
             </div>
+
+            {mitreFilter && (
+              <div className="flex items-center justify-between rounded border border-rose-500/45 bg-rose-500/15 px-2.5 py-1 font-mono text-[10px] text-rose-200">
+                <span>Đang lọc theo kỹ thuật MITRE ATT&amp;CK: <strong>{mitreFilter}</strong></span>
+                <button
+                  type="button"
+                  onClick={() => setMitreFilter(null)}
+                  className="rounded border border-rose-400/40 px-1.5 py-0.2 hover:bg-rose-500/25"
+                >
+                  Xóa lọc ×
+                </button>
+              </div>
+            )}
 
             <div className="relative">
               <MagnifyingGlass
@@ -1072,10 +1474,19 @@ export function RightIntelPanel({
                           {item.source}
                         </span>
                         {item.cveId && (
-                          <span className="inline-flex shrink-0 items-center gap-0.5 rounded border border-rose-500/45 bg-rose-500/20 px-1.5 py-0.2 text-[9px] font-bold text-rose-200">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTab('intel');
+                              void runIocScan(item.cveId!);
+                            }}
+                            title="Bấm để tra cứu điểm CVSS & chi tiết trên NIST NVD"
+                            className="inline-flex shrink-0 items-center gap-0.5 rounded border border-rose-500/45 bg-rose-500/20 px-1.5 py-0.2 text-[9px] font-bold text-rose-200 hover:bg-rose-500/35"
+                          >
                             <ShieldWarning size={10} weight="fill" />
                             {item.cveId}
-                          </span>
+                            {item.cvssScore !== undefined ? ` · ${item.cvssScore}` : ''}
+                          </button>
                         )}
                         {translateVi && isTranslated && (
                           <span className="shrink-0 rounded bg-emerald-500/15 px-1 py-0.2 text-[9px] text-emerald-300">
@@ -1087,6 +1498,27 @@ export function RightIntelPanel({
                         {formatRelativeTime(item.publishedAt)}
                       </span>
                     </div>
+
+                    {item.mitreTtps && item.mitreTtps.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1 font-mono text-[8.5px]">
+                        {item.mitreTtps.map((ttp) => (
+                          <button
+                            key={ttp.id}
+                            type="button"
+                            onClick={() =>
+                              setMitreFilter((prev) => (prev === ttp.id ? null : ttp.id))
+                            }
+                            className={`rounded border px-1.5 py-0.2 font-semibold transition ${
+                              mitreFilter === ttp.id
+                                ? 'border-rose-400 bg-rose-500/30 text-rose-100'
+                                : 'border-rose-500/35 bg-rose-950/50 text-rose-300 hover:bg-rose-500/20'
+                            }`}
+                          >
+                            MITRE {ttp.id} · {ttp.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
 
                     <a
                       href={item.url}

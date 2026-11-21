@@ -2,6 +2,7 @@ export type MapLayerId =
   | 'military'
   | 'vessels'
   | 'cyberThreats'
+  | 'cyberArcs'
   | 'earthquakes'
   | 'natural'
   | 'geopolitics'
@@ -13,7 +14,7 @@ export type MapLayerId =
   | 'cables'
   | 'weatherRadar';
 
-export type PointLayerId = Exclude<MapLayerId, 'cables' | 'weatherRadar'> | 'sovereignty';
+export type PointLayerId = Exclude<MapLayerId, 'cables' | 'cyberArcs' | 'weatherRadar'> | 'sovereignty';
 
 export type SeverityLevel = 'low' | 'medium' | 'high' | 'critical' | 'info';
 
@@ -259,7 +260,12 @@ export interface NewsStreamStats {
   rssCount: number;
 }
 
-export type TechSubCategory = 'ai' | 'cyber' | 'tech_infra' | 'vn_tech';
+export type TechSubCategory = 'ai' | 'github_release' | 'cyber' | 'tech_infra' | 'vn_tech';
+
+export interface MitreTechniqueTag {
+  id: string; // e.g. 'T1190'
+  name: string; // e.g. 'Exploit Public App'
+}
 
 export interface TechCyberItem {
   id: string;
@@ -269,11 +275,36 @@ export interface TechCyberItem {
   subCategory: TechSubCategory;
   severity?: SeverityLevel;
   cveId?: string;
+  cvssScore?: number;
+  mitreTtps?: MitreTechniqueTag[];
   publishedAt: number;
   url: string;
   matchedLat?: number;
   matchedLon?: number;
   matchedLocation?: string;
+}
+
+export interface IocLookupResult {
+  kind: 'ip' | 'cve';
+  query: string;
+  riskLevel: SeverityLevel;
+  // IP fields (Shodan InternetDB + Geo/ASN)
+  ports?: number[];
+  vulns?: string[];
+  cpes?: string[];
+  hostnames?: string[];
+  tags?: string[];
+  country?: string;
+  city?: string;
+  org?: string;
+  // CVE fields (NIST NVD 2.0)
+  cvssScore?: number;
+  cvssSeverity?: string;
+  vectorString?: string;
+  description?: string;
+  descriptionVi?: string;
+  publishedAt?: string;
+  referenceUrl: string;
 }
 
 export type InfraStatusLevel = 'operational' | 'degraded' | 'outage';

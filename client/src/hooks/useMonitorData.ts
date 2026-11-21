@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { buildCyberAttackArcs } from '@shared/cyber-arcs';
 import type {
   BootstrapResponse,
   BreakingAlertItem,
@@ -48,6 +49,7 @@ const DEFAULT_ACTIVE_LAYERS: Record<MapLayerId, boolean> = {
   military: true,
   vessels: true,
   cyberThreats: true,
+  cyberArcs: true,
   earthquakes: true,
   natural: true,
   geopolitics: true,
@@ -419,6 +421,7 @@ export function useMonitorData() {
       military: enabled,
       vessels: enabled,
       cyberThreats: enabled,
+      cyberArcs: enabled,
       earthquakes: enabled,
       natural: enabled,
       geopolitics: enabled,
@@ -484,11 +487,17 @@ export function useMonitorData() {
     };
   }, [data, timeWindow]);
 
+  const cyberArcs = useMemo(
+    () => buildCyberAttackArcs(filteredData.cyberThreats),
+    [filteredData.cyberThreats],
+  );
+
   const layerCounts = useMemo<Record<MapLayerId, number>>(
     () => ({
       military: filteredData.military.length,
       vessels: filteredData.vessels.length,
       cyberThreats: filteredData.cyberThreats.length,
+      cyberArcs: cyberArcs.length,
       earthquakes: filteredData.earthquakes.length,
       natural: filteredData.natural.length,
       geopolitics: filteredData.geopolitics.length,
@@ -500,7 +509,7 @@ export function useMonitorData() {
       cables: filteredData.cables.length,
       weatherRadar: data?.weatherRadar ? data.weatherRadar.pastFrames.length : 0,
     }),
-    [filteredData, data?.weatherRadar],
+    [filteredData, cyberArcs.length, data?.weatherRadar],
   );
 
   const searchResults = useMemo<SearchHit[]>(() => {
@@ -662,6 +671,7 @@ export function useMonitorData() {
   return {
     data,
     filteredData,
+    cyberArcs,
     layerCounts,
     loading,
     error,

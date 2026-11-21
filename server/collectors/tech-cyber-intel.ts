@@ -1,4 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
+import { detectMitreTechniques } from '@shared/intelligence';
 import type {
   InfraStatusLevel,
   SeverityLevel,
@@ -37,12 +38,21 @@ export const TECH_CYBER_FEEDS: readonly TechFeedDefinition[] = [
   { name: 'NVIDIA Technical Blog', subCategory: 'ai', url: 'https://developer.nvidia.com/blog/feed/', maxItems: 3 },
   { name: 'Simon Willison AI', subCategory: 'ai', url: 'https://simonwillison.net/atom/everything/', maxItems: 3 },
   { name: 'MarkTechPost AI', subCategory: 'ai', url: 'https://www.marktechpost.com/feed/', maxItems: 3 },
-  {
-    name: 'ArXiv CS.AI & LLM',
+  { name: 'ArXiv CS.AI & LLM',
     subCategory: 'ai',
     url: 'https://export.arxiv.org/api/query?search_query=cat:cs.AI+OR+cat:cs.CL&sortBy=submittedDate&sortOrder=descending&max_results=8',
     maxItems: 3,
   },
+
+  // 1b. Frontier AI & Agent CLI GitHub Releases (fchchen/news-dashboard pattern — 8 feeds, 0 API keys)
+  { name: 'Release · Claude Code', subCategory: 'github_release', url: 'https://github.com/anthropics/claude-code/releases.atom', maxItems: 3 },
+  { name: 'Release · OpenAI Codex', subCategory: 'github_release', url: 'https://github.com/openai/codex/releases.atom', maxItems: 3 },
+  { name: 'Release · Gemini CLI', subCategory: 'github_release', url: 'https://github.com/google-gemini/gemini-cli/releases.atom', maxItems: 3 },
+  { name: 'Release · Ollama', subCategory: 'github_release', url: 'https://github.com/ollama/ollama/releases.atom', maxItems: 3 },
+  { name: 'Release · vLLM Engine', subCategory: 'github_release', url: 'https://github.com/vllm-project/vllm/releases.atom', maxItems: 3 },
+  { name: 'Release · llama.cpp', subCategory: 'github_release', url: 'https://github.com/ggml-org/llama.cpp/releases.atom', maxItems: 3 },
+  { name: 'Release · LangGraph', subCategory: 'github_release', url: 'https://github.com/langchain-ai/langgraph/releases.atom', maxItems: 2 },
+  { name: 'Release · Cline AI', subCategory: 'github_release', url: 'https://github.com/cline/cline/releases.atom', maxItems: 2 },
 
   // 2. Cybersecurity, Threat Intelligence & Zero-Days (16 feeds)
   { name: 'CISA Advisories', subCategory: 'cyber', url: 'https://www.cisa.gov/cybersecurity-advisories/all.xml', maxItems: 4 },
@@ -179,15 +189,21 @@ export function parseTechFeedXml(
 
     const cveMatch = /\b(CVE-\d{4}-\d{4,7})\b/i.exec(title);
     const loc = matchGeoLocation(title);
+    const mitreTtps = detectMitreTechniques(title);
+    const displayTitle =
+      feed.subCategory === 'github_release' && !title.toLowerCase().includes(feed.name.replace('Release · ', '').toLowerCase())
+        ? `${feed.name.replace('Release · ', '')} phát hành phiên bản ${title}`
+        : title;
 
     out.push({
       id: `tech:${feed.name}:${url}`,
-      title,
-      titleVi: feed.subCategory === 'vn_tech' ? title : undefined,
+      title: displayTitle,
+      titleVi: feed.subCategory === 'vn_tech' || feed.subCategory === 'github_release' ? displayTitle : undefined,
       source: feed.name,
       subCategory: feed.subCategory,
-      severity: inferTechSeverity(title, feed.subCategory),
+      severity: inferTechSeverity(displayTitle, feed.subCategory),
       cveId: cveMatch ? cveMatch[1].toUpperCase() : undefined,
+      ...(mitreTtps.length > 0 ? { mitreTtps } : {}),
       publishedAt,
       url,
       ...(loc
@@ -234,17 +250,76 @@ export function normalizeCisaKevCatalog(
     const parsedDate = v.dateAdded ? Date.parse(`${v.dateAdded}T12:00:00Z`) : Number.NaN;
     const publishedAt = Number.isFinite(parsedDate) ? parsedDate : fallbackNow;
 
+    const titleText = `${cveId} (${vendor}): ${vulnName}${isRansomware ? ' [Active Ransomware]' : ''}`;
+    const mitreTtps = detectMitreTechniques(`${titleText} ${v.shortDescription ?? ''}`);
+
     return {
       id: `cisa-kev:${cveId}`,
-      title: `${cveId} (${vendor}): ${vulnName}${isRansomware ? ' [Active Ransomware]' : ''}`,
+      title: titleText,
       source: 'CISA KEV Exploit',
       subCategory: 'cyber',
       severity: isRansomware ? 'critical' : 'high',
       cveId,
+      ...(mitreTtps.length > 0 ? { mitreTtps } : {}),
       publishedAt,
       url: `https://nvd.nist.gov/vuln/detail/${encodeURIComponent(cveId)}`,
     };
   });
+}
+
+async function fetchNvdRecentHighCves(now: number): Promise<TechCyberItem[]> {
+  const startIso = new Date(now - 3 * 86_400_000).toISOString().split('.')[0] + '.000';
+  const endIso = new Date(now).toISOString().split('.')[0] + '.000';
+  const url = `https://services.nvd.nist.gov/rest/json/cves/2.0?pubStartDate=${encodeURIComponent(startIso)}&pubEndDate=${encodeURIComponent(endIso)}&resultsPerPage=14`;
+
+  const payload = await fetchJsonWithTimeout<Record<string, any>>(url, {
+    timeoutMs: 7_500,
+    retries: 0,
+    userAgent: NAMED_APP_UA,
+  });
+
+  const vulns: any[] = Array.isArray(payload?.vulnerabilities) ? payload.vulnerabilities : [];
+  const out: TechCyberItem[] = [];
+
+  for (const row of vulns) {
+    const cve = row?.cve;
+    const cveId = String(cve?.id ?? '').trim().toUpperCase();
+    if (!cveId.startsWith('CVE-')) continue;
+
+    const descList: Array<{ lang?: string; value?: string }> = Array.isArray(cve?.descriptions)
+      ? cve.descriptions
+      : [];
+    const desc = (descList.find((d) => d.lang === 'en')?.value ?? descList[0]?.value ?? '').trim();
+    if (!desc) continue;
+
+    const metric =
+      cve?.metrics?.cvssMetricV31?.[0]?.cvssData ??
+      cve?.metrics?.cvssMetricV40?.[0]?.cvssData ??
+      cve?.metrics?.cvssMetricV30?.[0]?.cvssData;
+    const score = typeof metric?.baseScore === 'number' ? metric.baseScore : undefined;
+    if (score !== undefined && score < 6.5) continue;
+
+    const shortDesc = desc.length > 135 ? `${desc.slice(0, 135)}…` : desc;
+    const pubTs = cve?.published ? Date.parse(String(cve.published)) : now;
+    const mitreTtps = detectMitreTechniques(`${cveId} ${desc}`);
+
+    out.push({
+      id: `nvd:${cveId}`,
+      title: `${cveId}: ${shortDesc}`,
+      source: 'NIST NVD CVE 2.0',
+      subCategory: 'cyber',
+      severity: (score ?? 7.5) >= 9.0 ? 'critical' : 'high',
+      cveId,
+      ...(score !== undefined ? { cvssScore: score } : {}),
+      ...(mitreTtps.length > 0 ? { mitreTtps } : {}),
+      publishedAt: Number.isFinite(pubTs) ? pubTs : now,
+      url: `https://nvd.nist.gov/vuln/detail/${encodeURIComponent(cveId)}`,
+    });
+
+    if (out.length >= 6) break;
+  }
+
+  return out;
 }
 
 export interface StatuspageSummaryPayload {
@@ -298,7 +373,7 @@ export function mergeBalancedTechItems(
     out.push(item);
   }
 
-  return out.slice(0, 180);
+  return out.slice(0, 220);
 }
 
 async function mapWithConcurrency<T, R>(
@@ -328,7 +403,7 @@ async function mapWithConcurrency<T, R>(
 export async function fetchTechCyberIntelligence(): Promise<TechCyberSnapshot> {
   const now = Date.now();
 
-  const [feedResults, kevResult, hnResult, statusResults] = await Promise.all([
+  const [feedResults, kevResult, nvdItems, hnResult, statusResults] = await Promise.all([
     mapWithConcurrency(TECH_CYBER_FEEDS, 10, async (feed) => {
       const { text } = await fetchTextWithTimeout(feed.url, {
         timeoutMs: 6_500,
@@ -345,6 +420,7 @@ export async function fetchTechCyberIntelligence(): Promise<TechCyberSnapshot> {
       retries: 0,
       userAgent: NAMED_APP_UA,
     }).catch(() => null),
+    fetchNvdRecentHighCves(now).catch(() => []),
     fetchHackerNewsTop().catch(() => []),
     Promise.allSettled(
       INFRA_STATUS_TARGETS.map(async (target) => {
@@ -374,6 +450,11 @@ export async function fetchTechCyberIntelligence(): Promise<TechCyberSnapshot> {
       activeSourceCount += 1;
       rawItems.push(...kevItems);
     }
+  }
+
+  if (nvdItems.length > 0) {
+    activeSourceCount += 1;
+    rawItems.push(...nvdItems);
   }
 
   if (hnResult.length > 0) {

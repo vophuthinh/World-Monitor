@@ -114,7 +114,7 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector({
     id: 'cyber-threats',
-    label: 'Mối đe dọa Mạng C2/APT (Feodo + C2Intel + SANS)',
+    label: 'Đe dọa Mạng C2/APT (Feodo + C2Intel + SANS + FireHOL + SSH)',
     intervalMs: 300_000,
     retainMs: 6 * 3_600_000,
     countItems: (items) => items.length,
@@ -132,7 +132,7 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector({
     id: 'natural-events',
-    label: 'Thiên tai (NASA EONET + GDACS)',
+    label: 'Thiên tai & Điểm nhiệt ĐNÁ (EONET + GDACS + NASA FIRMS)',
     intervalMs: 600_000,
     retainMs: 18 * 3_600_000,
     countItems: (items) => items.length,
@@ -204,7 +204,7 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector<TechCyberSnapshot>({
     id: 'tech-cyber',
-    label: 'AI · Công nghệ · An ninh mạng (58 nguồn Koala73 + Bộ KH&CN)',
+    label: 'AI · GitHub Releases · Cyber NVD/KEV (67 nguồn)',
     intervalMs: 240_000,
     retainMs: 8 * 3_600_000,
     countItems: (snap) => snap.items.length,

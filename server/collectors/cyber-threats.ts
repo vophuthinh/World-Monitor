@@ -5,6 +5,9 @@ const FEODO_BLOCKLIST_URL = 'https://feodotracker.abuse.ch/downloads/ipblocklist
 const C2_INTEL_CSV_URL =
   'https://raw.githubusercontent.com/drb-ra/C2IntelFeeds/master/feeds/IPC2s-30day.csv';
 const SANS_TOP_ATTACKERS_URL = 'https://isc.sans.edu/api/sources/attacks/30?json';
+const FIREHOL_LEVEL1_URL =
+  'https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset';
+const BLOCKLIST_DE_SSH_URL = 'https://lists.blocklist.de/lists/ssh.txt';
 const IP_API_BATCH_URL =
   'http://ip-api.com/batch?fields=status,country,countryCode,city,lat,lon,isp,org,as,query';
 
@@ -282,6 +285,58 @@ export function parseSansTopAttackers(entries: unknown): RawCyberIocCandidate[] 
   return out;
 }
 
+function isPublicIpv4Host(ip: string): boolean {
+  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) return false;
+  if (
+    ip.startsWith('0.') ||
+    ip.startsWith('10.') ||
+    ip.startsWith('127.') ||
+    ip.startsWith('192.168.') ||
+    ip.startsWith('169.254.') ||
+    ip.startsWith('224.') ||
+    ip.startsWith('240.')
+  ) {
+    return false;
+  }
+  return true;
+}
+
+export function parseFireholNetset(rawText: string, maxItems = 18): RawCyberIocCandidate[] {
+  if (!rawText) return [];
+  const out: RawCyberIocCandidate[] = [];
+  for (const rawLine of rawText.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#') || line.includes('/')) continue;
+    if (!isPublicIpv4Host(line)) continue;
+    out.push({
+      ip: line,
+      iocLabel: 'FireHOL Botnet / Malicious Host',
+      sourceName: 'FireHOL Level-1 IPSet',
+      severity: 'high',
+    });
+    if (out.length >= maxItems) break;
+  }
+  return out;
+}
+
+export function parseBlocklistDeIps(rawText: string, maxItems = 18): RawCyberIocCandidate[] {
+  if (!rawText) return [];
+  const out: RawCyberIocCandidate[] = [];
+  for (const rawLine of rawText.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!isPublicIpv4Host(line)) continue;
+    out.push({
+      ip: line,
+      iocLabel: 'SSH Brute-Force Attacker :22',
+      sourceName: 'Blocklist.de Live SSH',
+      severity: 'high',
+      port: 22,
+    });
+    if (out.length >= maxItems) break;
+  }
+  return out;
+}
+
 export function buildCyberThreatFeatures(
   candidates: readonly RawCyberIocCandidate[],
   geoLookup: ReadonlyMap<string, IpGeoRecord>,
@@ -387,7 +442,7 @@ async function resolveIpGeolocations(ips: readonly string[]): Promise<Map<string
 
 export async function fetchCyberThreats(): Promise<GeoPointFeature[]> {
   const now = Date.now();
-  const [feodoRes, c2Res, sansRes] = await Promise.allSettled([
+  const [feodoRes, c2Res, sansRes, fireholRes, sshRes] = await Promise.allSettled([
     fetchJsonWithTimeout<unknown>(FEODO_BLOCKLIST_URL, {
       timeoutMs: 7_000,
       retries: 0,
@@ -399,6 +454,16 @@ export async function fetchCyberThreats(): Promise<GeoPointFeature[]> {
       userAgent: NAMED_APP_UA,
     }),
     fetchJsonWithTimeout<unknown>(SANS_TOP_ATTACKERS_URL, {
+      timeoutMs: 7_000,
+      retries: 0,
+      userAgent: NAMED_APP_UA,
+    }),
+    fetchTextWithTimeout(FIREHOL_LEVEL1_URL, {
+      timeoutMs: 7_000,
+      retries: 0,
+      userAgent: NAMED_APP_UA,
+    }),
+    fetchTextWithTimeout(BLOCKLIST_DE_SSH_URL, {
       timeoutMs: 7_000,
       retries: 0,
       userAgent: NAMED_APP_UA,
@@ -415,8 +480,14 @@ export async function fetchCyberThreats(): Promise<GeoPointFeature[]> {
   if (sansRes.status === 'fulfilled') {
     candidates.push(...parseSansTopAttackers(sansRes.value));
   }
+  if (fireholRes.status === 'fulfilled') {
+    candidates.push(...parseFireholNetset(fireholRes.value.text, 18));
+  }
+  if (sshRes.status === 'fulfilled') {
+    candidates.push(...parseBlocklistDeIps(sshRes.value.text, 18));
+  }
 
-  const uniqueIps = [...new Set(candidates.map((c) => c.ip))].slice(0, 85);
+  const uniqueIps = [...new Set(candidates.map((c) => c.ip))].slice(0, 100);
   const geoLookup = await resolveIpGeolocations(uniqueIps);
 
   return buildCyberThreatFeatures(candidates, geoLookup, now);

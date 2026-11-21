@@ -13,6 +13,7 @@ export function App() {
   const {
     data,
     filteredData,
+    cyberArcs,
     layerCounts,
     loading,
     error,
@@ -141,6 +142,7 @@ export function App() {
             military={filteredData.military}
             vessels={filteredData.vessels}
             cyberThreats={filteredData.cyberThreats}
+            cyberArcs={cyberArcs}
             militaryAnchorMs={militaryAnchorMs}
             vesselsAnchorMs={vesselsAnchorMs}
             deadReckoning={deadReckoning}
@@ -242,6 +244,7 @@ export function App() {
             policyLegal={data?.policyLegal}
             military={filteredData.military}
             vessels={filteredData.vessels}
+            earthquakes={filteredData.earthquakes}
             geopolitics={filteredData.geopolitics}
             cyberThreats={filteredData.cyberThreats}
             newsStreamStats={data?.newsStreamStats}
@@ -277,6 +280,7 @@ export function App() {
               policyLegal={data?.policyLegal}
               military={filteredData.military}
               vessels={filteredData.vessels}
+              earthquakes={filteredData.earthquakes}
               geopolitics={filteredData.geopolitics}
               cyberThreats={filteredData.cyberThreats}
               newsStreamStats={data?.newsStreamStats}

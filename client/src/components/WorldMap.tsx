@@ -1,6 +1,11 @@
 import { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import type { GeoJSONSource } from 'maplibre-gl';
+import {
+  type CyberArcPacketPoint,
+  type CyberAttackArc,
+  advanceCyberArcPackets,
+} from '@shared/cyber-arcs';
 import { advanceDeadReckoning } from '@shared/dead-reckoning';
 import type {
   BasemapTheme,
@@ -240,6 +245,43 @@ function seaLabelsToFeatureCollection(labels: VietnamSeaLabel[]): GeoJSON.Featur
   };
 }
 
+function cyberArcsToFeatureCollection(arcs: CyberAttackArc[]): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: arcs.map((arc) => ({
+      type: 'Feature',
+      geometry: {
+        type: 'MultiLineString',
+        coordinates: arc.coordinates,
+      },
+      properties: {
+        arcId: arc.id,
+        title: `${arc.attackerLabel} → ${arc.targetLabel}`,
+        severity: arc.severity,
+        isApt: arc.isApt ? 1 : 0,
+      },
+    })),
+  };
+}
+
+function cyberPacketsToFeatureCollection(packets: CyberArcPacketPoint[]): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: packets.map((pkt) => ({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [pkt.lon, pkt.lat],
+      },
+      properties: {
+        pktId: pkt.id,
+        title: pkt.label,
+        isApt: pkt.isApt ? 1 : 0,
+      },
+    })),
+  };
+}
+
 export interface WorldMapProps {
   isGlobe: boolean;
   basemap: BasemapTheme;
@@ -249,6 +291,7 @@ export interface WorldMapProps {
   military: GeoPointFeature[];
   vessels: GeoPointFeature[];
   cyberThreats: GeoPointFeature[];
+  cyberArcs: CyberAttackArc[];
   militaryAnchorMs: number;
   vesselsAnchorMs: number;
   deadReckoning: boolean;
@@ -295,6 +338,7 @@ export function WorldMap({
   military,
   vessels,
   cyberThreats,
+  cyberArcs,
   militaryAnchorMs,
   vesselsAnchorMs,
   deadReckoning,
@@ -330,6 +374,7 @@ export function WorldMap({
     military,
     vessels,
     cyberThreats,
+    cyberArcs,
     militaryAnchorMs,
     vesselsAnchorMs,
     deadReckoning,
@@ -356,6 +401,7 @@ export function WorldMap({
     military,
     vessels,
     cyberThreats,
+    cyberArcs,
     militaryAnchorMs,
     vesselsAnchorMs,
     deadReckoning,
@@ -816,7 +862,62 @@ export function WorldMap({
     if (map.getLayer('aidc-circle')) map.setLayoutProperty('aidc-circle', 'visibility', aidcVis);
     if (map.getLayer('aidc-label')) map.setLayoutProperty('aidc-label', 'visibility', aidcVis);
 
-    // 6d. Live Cyber Threats (Feodo C2 + C2IntelFeeds CobaltStrike + SANS DShield + APT Attribution)
+    // 6d. Live Cyber Threats & Geodesic Cyber Attack Arcs (Feodo + C2Intel + SANS + FireHOL + SSH + APT)
+    const cyberArcsGeo = cyberArcsToFeatureCollection(state.cyberArcs);
+    const existingArcs = map.getSource('cyber-arcs-src') as GeoJSONSource | undefined;
+    if (!existingArcs) {
+      map.addSource('cyber-arcs-src', { type: 'geojson', data: cyberArcsGeo });
+      map.addLayer({
+        id: 'cyber-arcs-glow',
+        type: 'line',
+        source: 'cyber-arcs-src',
+        paint: {
+          'line-color': ['case', ['==', ['get', 'isApt'], 1], '#f43f5e', '#d946ef'],
+          'line-width': ['case', ['==', ['get', 'isApt'], 1], 3.4, 2.2],
+          'line-opacity': 0.16,
+          'line-blur': 2,
+        },
+      });
+      map.addLayer({
+        id: 'cyber-arcs-line',
+        type: 'line',
+        source: 'cyber-arcs-src',
+        paint: {
+          'line-color': ['case', ['==', ['get', 'isApt'], 1], '#fb7185', '#e879f9'],
+          'line-width': ['case', ['==', ['get', 'isApt'], 1], 1.35, 0.95],
+          'line-opacity': 0.52,
+          'line-dasharray': [2.5, 2],
+        },
+      });
+    } else {
+      existingArcs.setData(cyberArcsGeo);
+    }
+
+    const cyberPktsGeo = cyberPacketsToFeatureCollection(advanceCyberArcPackets(state.cyberArcs, Date.now()));
+    const existingPkts = map.getSource('cyber-packets-src') as GeoJSONSource | undefined;
+    if (!existingPkts) {
+      map.addSource('cyber-packets-src', { type: 'geojson', data: cyberPktsGeo });
+      map.addLayer({
+        id: 'cyber-packets-layer',
+        type: 'circle',
+        source: 'cyber-packets-src',
+        paint: {
+          'circle-radius': ['case', ['==', ['get', 'isApt'], 1], 3.6, 2.8],
+          'circle-color': ['case', ['==', ['get', 'isApt'], 1], '#fda4af', '#f0abfc'],
+          'circle-stroke-width': 1.2,
+          'circle-stroke-color': '#ffffff',
+          'circle-opacity': 0.95,
+        },
+      });
+    } else {
+      existingPkts.setData(cyberPktsGeo);
+    }
+
+    const arcsVis = state.activeLayers.cyberArcs ? 'visible' : 'none';
+    if (map.getLayer('cyber-arcs-glow')) map.setLayoutProperty('cyber-arcs-glow', 'visibility', arcsVis);
+    if (map.getLayer('cyber-arcs-line')) map.setLayoutProperty('cyber-arcs-line', 'visibility', arcsVis);
+    if (map.getLayer('cyber-packets-layer')) map.setLayoutProperty('cyber-packets-layer', 'visibility', arcsVis);
+
     if (upsertPointSource('cyber-src', state.cyberThreats)) {
       map.addLayer({
         id: 'cyber-halo',
@@ -1106,6 +1207,13 @@ export function WorldMap({
           vslSrc.setData(pointsToFeatureCollection(advancedVessels));
         }
       }
+
+      if (state.activeLayers.cyberArcs && state.cyberArcs.length > 0) {
+        const pktSrc = map.getSource('cyber-packets-src') as GeoJSONSource | undefined;
+        if (pktSrc) {
+          pktSrc.setData(cyberPacketsToFeatureCollection(advanceCyberArcPackets(state.cyberArcs, now)));
+        }
+      }
     }, 1_000);
 
     return () => clearInterval(timer);
@@ -1134,6 +1242,7 @@ export function WorldMap({
     military,
     vessels,
     cyberThreats,
+    cyberArcs,
     deadReckoning,
     earthquakes,
     natural,

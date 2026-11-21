@@ -18,6 +18,7 @@ import type {
   WeatherRadarSnapshot,
 } from '@shared/types';
 import type { CollectorScheduler } from './cache/scheduler';
+import { lookupLiveIocOrCve } from './lib/ioc-scanner';
 import { RealtimeHub } from './realtime/hub';
 
 const STATIC_GEO_BUNDLE = buildStaticGeoBundle();
@@ -110,6 +111,22 @@ export function createApp(
 
   app.get('/api/health', (c) => {
     return c.json(store.getAllHealth());
+  });
+
+  app.get('/api/ioc-lookup', async (c) => {
+    const q = (c.req.query('q') ?? '').trim();
+    if (!q) {
+      return c.json({ error: 'Thiếu tham số q (IP hoặc mã CVE)' }, 400);
+    }
+    try {
+      const result = await lookupLiveIocOrCve(q);
+      return c.json(result);
+    } catch (err) {
+      return c.json(
+        { error: err instanceof Error ? err.message : 'Không thể tra cứu IOC/CVE' },
+        400,
+      );
+    }
   });
 
   app.get('/api/bootstrap', (c) => {

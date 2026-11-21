@@ -1,8 +1,10 @@
 import type { GeoPointFeature, SeverityLevel } from '@shared/types';
-import { NAMED_APP_UA, fetchJsonWithTimeout } from '../lib/http';
+import { NAMED_APP_UA, fetchJsonWithTimeout, fetchTextWithTimeout } from '../lib/http';
 
 const EONET_URL = 'https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=100';
 const GDACS_MAP_URL = 'https://www.gdacs.org/gdacsapi/api/events/geteventlist/MAP';
+const NASA_FIRMS_SEA_MODIS_URL =
+  'https://firms.modaps.eosdis.nasa.gov/data/active_fire/modis-c6.1/csv/MODIS_C6_1_SouthEast_Asia_24h.csv';
 const WILDFIRE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 
 interface EonetEvent {
@@ -213,9 +215,75 @@ export function normalizeGdacsEvents(payload: GdacsPayload, now = Date.now()): G
   return out;
 }
 
+export function parseNasaFirmsCsv(csvText: string, now = Date.now(), maxHotspots = 38): GeoPointFeature[] {
+  if (!csvText) return [];
+  const lines = csvText.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+
+  const cellBest = new Map<string, { feat: GeoPointFeature; frp: number }>();
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(',');
+    if (cols.length < 12) continue;
+    const lat = Number(cols[0]);
+    const lon = Number(cols[1]);
+    const brightness = Number(cols[2]);
+    const acqDate = cols[5]?.trim() ?? '';
+    const acqTime = cols[6]?.trim().padStart(4, '0') ?? '0000';
+    const satellite = cols[7]?.trim() || 'MODIS';
+    const confidence = Number(cols[8]);
+    const frp = Number(cols[11]);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    if ((Number.isFinite(confidence) ? confidence : 0) < 72 && (Number.isFinite(frp) ? frp : 0) < 25) {
+      continue;
+    }
+
+    // Deduplicate dense 1km satellite fire pixels into 0.25° (~27km) regional clusters
+    const gridKey = `${Math.round(lat * 4) / 4}:${Math.round(lon * 4) / 4}`;
+    const parsedTs = acqDate
+      ? Date.parse(`${acqDate}T${acqTime.slice(0, 2)}:${acqTime.slice(2, 4)}:00Z`)
+      : now;
+    const validTs = Number.isFinite(parsedTs) ? parsedTs : now;
+    const frpVal = Number.isFinite(frp) ? Math.round(frp * 10) / 10 : 10;
+    const severity: SeverityLevel = frpVal >= 120 ? 'critical' : frpVal >= 40 ? 'high' : 'medium';
+
+    const candidate: GeoPointFeature = {
+      id: `firms:${gridKey}`,
+      layer: 'natural',
+      title: `Điểm nhiệt Vệ tinh ĐNÁ (${frpVal} MW FRP)`,
+      subtitle: `NASA FIRMS ${satellite} · Độ tin cậy ${confidence}% · Độ sáng ${Math.round(brightness)}K`,
+      category: 'wildfires',
+      severity,
+      lat,
+      lon,
+      timestamp: validTs,
+      source: 'NASA FIRMS Satellite (ASEAN 24h)',
+      url: 'https://firms.modaps.eosdis.nasa.gov/map/',
+      magnitude: frpVal,
+      meta: {
+        provider: 'NASA FIRMS MODIS',
+        fireRadiativePowerMW: frpVal,
+        confidencePct: Number.isFinite(confidence) ? confidence : null,
+        satellite,
+      },
+    };
+
+    const existing = cellBest.get(gridKey);
+    if (!existing || frpVal > existing.frp) {
+      cellBest.set(gridKey, { feat: candidate, frp: frpVal });
+    }
+  }
+
+  return [...cellBest.values()]
+    .sort((a, b) => b.frp - a.frp)
+    .slice(0, maxHotspots)
+    .map((x) => x.feat);
+}
+
 export async function fetchNaturalEvents(): Promise<GeoPointFeature[]> {
   const now = Date.now();
-  const [eonetRes, gdacsRes] = await Promise.allSettled([
+  const [eonetRes, gdacsRes, firmsRes] = await Promise.allSettled([
     fetchJsonWithTimeout<EonetPayload>(EONET_URL, {
       timeoutMs: 12_000,
       retries: 1,
@@ -227,17 +295,23 @@ export async function fetchNaturalEvents(): Promise<GeoPointFeature[]> {
       // Named application UA avoids GDACS F5 HTML challenge
       userAgent: NAMED_APP_UA,
     }).then((data) => normalizeGdacsEvents(data, now)),
+    fetchTextWithTimeout(NASA_FIRMS_SEA_MODIS_URL, {
+      timeoutMs: 9_000,
+      retries: 0,
+      userAgent: NAMED_APP_UA,
+    }).then((res) => parseNasaFirmsCsv(res.text, now, 36)),
   ]);
 
-  if (eonetRes.status === 'rejected' && gdacsRes.status === 'rejected') {
+  if (eonetRes.status === 'rejected' && gdacsRes.status === 'rejected' && firmsRes.status === 'rejected') {
     throw new Error(
-      `Both EONET and GDACS failed: EONET=${eonetRes.reason?.message ?? eonetRes.reason}; GDACS=${gdacsRes.reason?.message ?? gdacsRes.reason}`,
+      `Natural event sources failed: EONET=${eonetRes.reason?.message ?? eonetRes.reason}; GDACS=${gdacsRes.reason?.message ?? gdacsRes.reason}`,
     );
   }
 
   const merged = [
     ...(gdacsRes.status === 'fulfilled' ? gdacsRes.value : []),
     ...(eonetRes.status === 'fulfilled' ? eonetRes.value : []),
+    ...(firmsRes.status === 'fulfilled' ? firmsRes.value : []),
   ];
 
   return merged.sort((a, b) => b.timestamp - a.timestamp);
