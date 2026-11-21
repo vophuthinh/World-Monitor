@@ -5,12 +5,17 @@ export interface ManagedCollector<T = unknown> extends CollectorRegistration<T> 
   fetcher: (previous: T | null) => Promise<T>;
 }
 
+export type CollectorSyncHook = (id: CollectorId, data: unknown) => void;
+
 export class CollectorScheduler {
   private readonly collectors = new Map<CollectorId, ManagedCollector<any>>();
   private readonly timers = new Map<CollectorId, ReturnType<typeof setInterval>>();
   private running = false;
 
-  constructor(private readonly store: SnapshotStore) {}
+  constructor(
+    private readonly store: SnapshotStore,
+    private readonly onSync?: CollectorSyncHook,
+  ) {}
 
   registerCollector<T>(collector: ManagedCollector<T>): void {
     this.store.register(collector);
@@ -31,7 +36,11 @@ export class CollectorScheduler {
       throw new Error(`Unknown collector: ${id}`);
     }
     const previous = this.store.get(id);
-    return this.store.refresh(id, () => collector.fetcher(previous));
+    const updated = await this.store.refresh(id, () => collector.fetcher(previous));
+    if (updated !== null && this.onSync) {
+      this.onSync(id, updated);
+    }
+    return updated;
   }
 
   startAll(options: { runImmediately?: boolean } = {}): void {

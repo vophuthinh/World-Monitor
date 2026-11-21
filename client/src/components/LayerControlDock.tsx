@@ -4,6 +4,7 @@ import {
   Anchor,
   Atom,
   Bank,
+  Boat,
   CaretLeft,
   CaretRight,
   CloudRain,
@@ -23,6 +24,7 @@ interface LayerControlDockProps {
   radarOpacity: number;
   onChangeRadarOpacity: (val: number) => void;
   weatherRadar: WeatherRadarSnapshot | null;
+  aisStreamConfigured?: boolean;
 }
 
 const LAYER_META: ReadonlyArray<{
@@ -32,6 +34,7 @@ const LAYER_META: ReadonlyArray<{
   Icon: typeof AirplaneTilt;
 }> = [
   { id: 'military', label: 'Máy bay Quân sự', dotColor: 'bg-cyan-400', Icon: AirplaneTilt },
+  { id: 'vessels', label: 'Tàu biển AIS Live', dotColor: 'bg-emerald-400', Icon: Boat },
   { id: 'earthquakes', label: 'Động đất USGS', dotColor: 'bg-rose-500', Icon: Pulse },
   { id: 'natural', label: 'Thiên tai EONET/GDACS', dotColor: 'bg-amber-400', Icon: Fire },
   { id: 'geopolitics', label: 'Điểm nóng GDELT', dotColor: 'bg-orange-500', Icon: Target },
@@ -48,7 +51,7 @@ const MILITARY_ROLE_LEGEND = [
   { label: 'AWACS', color: '#22d3ee' },
   { label: 'Recon/UAV', color: '#fb923c' },
   { label: 'Fighter', color: '#38bdf8' },
-  { label: 'Tanker', color: '#34d399' },
+  { label: 'Vessel AIS', color: '#34d399' },
 ];
 
 export function LayerControlDock({
@@ -59,9 +62,11 @@ export function LayerControlDock({
   radarOpacity,
   onChangeRadarOpacity,
   weatherRadar,
+  aisStreamConfigured,
 }: LayerControlDockProps) {
   const [collapsed, setCollapsed] = useState(false);
 
+  const totalCount = LAYER_META.length;
   const enabledCount = Object.values(activeLayers).filter(Boolean).length;
 
   if (collapsed) {
@@ -73,7 +78,9 @@ export function LayerControlDock({
           className="flex items-center gap-1.5 rounded-md border border-slate-700/80 bg-[#090f1a]/92 px-2.5 py-2 text-xs font-medium text-slate-200 shadow-xl backdrop-blur-md transition hover:border-cyan-500/40 hover:text-cyan-200"
         >
           <SlidersHorizontal size={15} className="text-cyan-400" />
-          <span>Lớp bản đồ ({enabledCount}/9)</span>
+          <span>
+            Lớp bản đồ ({enabledCount}/{totalCount})
+          </span>
           <CaretRight size={13} />
         </button>
       </div>
@@ -81,7 +88,7 @@ export function LayerControlDock({
   }
 
   return (
-    <div className="pointer-events-auto w-[248px] rounded-md border border-slate-800/95 bg-[#090f1a]/92 p-2.5 shadow-2xl backdrop-blur-md">
+    <div className="pointer-events-auto w-[252px] rounded-md border border-slate-800/95 bg-[#090f1a]/92 p-2.5 shadow-2xl backdrop-blur-md">
       <div className="flex items-center justify-between border-b border-slate-800/90 pb-2">
         <div className="flex items-center gap-1.5">
           <SlidersHorizontal size={14} className="text-cyan-400" />
@@ -92,10 +99,10 @@ export function LayerControlDock({
         <div className="flex items-center gap-1">
           <button
             type="button"
-            onClick={() => onSetAllLayers(enabledCount < 9)}
+            onClick={() => onSetAllLayers(enabledCount < totalCount)}
             className="rounded px-1.5 py-0.5 font-mono text-[10px] text-slate-400 transition hover:bg-slate-800 hover:text-cyan-300"
           >
-            {enabledCount < 9 ? 'Tất cả' : 'Ẩn hết'}
+            {enabledCount < totalCount ? 'Tất cả' : 'Ẩn hết'}
           </button>
           <button
             type="button"
@@ -144,6 +151,13 @@ export function LayerControlDock({
         })}
       </div>
 
+      {activeLayers.vessels && !aisStreamConfigured && (
+        <div className="mt-1.5 rounded border border-emerald-500/25 bg-emerald-950/30 px-2 py-1 font-mono text-[9.5px] text-emerald-300/90">
+          Open AIS đang bật · Thêm <code className="text-emerald-200">AISSTREAM_API_KEY</code> vào{' '}
+          <code className="text-emerald-200">.env</code> để mở thêm AIS Biển Đông/Hormuz.
+        </div>
+      )}
+
       {activeLayers.weatherRadar && (
         <div className="mt-2 rounded border border-slate-800/80 bg-[#0d1524] px-2.5 py-2">
           <div className="flex items-center justify-between font-mono text-[10px] text-slate-400">
@@ -174,7 +188,7 @@ export function LayerControlDock({
       {activeLayers.military && (
         <div className="mt-2 border-t border-slate-800/90 pt-2">
           <div className="font-mono text-[9.5px] uppercase tracking-wider text-slate-500">
-            PHÂN NHÓM QUÂN SỰ ADS-B
+            PHÂN NHÓM QUÂN SỰ &amp; HÀNG HẢI
           </div>
           <div className="mt-1 grid grid-cols-2 gap-x-2 gap-y-1">
             {MILITARY_ROLE_LEGEND.map((item) => (

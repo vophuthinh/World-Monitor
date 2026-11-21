@@ -1,5 +1,6 @@
 export type MapLayerId =
   | 'military'
+  | 'vessels'
   | 'earthquakes'
   | 'natural'
   | 'geopolitics'
@@ -19,6 +20,7 @@ export type BasemapTheme = 'dark-matter' | 'voyager' | 'positron';
 
 export type CollectorId =
   | 'military-flights'
+  | 'maritime-vessels'
   | 'earthquakes'
   | 'natural-events'
   | 'geopolitics-gdelt'
@@ -199,6 +201,7 @@ export interface TheaterViewPreset {
 
 export interface LiveDynamicLayers {
   military: GeoPointFeature[];
+  vessels: GeoPointFeature[];
   earthquakes: GeoPointFeature[];
   natural: GeoPointFeature[];
   geopolitics: GeoPointFeature[];
@@ -214,11 +217,13 @@ export interface BootstrapResponse {
   news: NewsItem[];
   theaters: TheaterViewPreset[];
   health: SourceHealth[];
+  aisStreamConfigured?: boolean;
 }
 
 export interface LiveFastResponse {
   serverTime: number;
   military: GeoPointFeature[];
+  vessels: GeoPointFeature[];
   earthquakes: GeoPointFeature[];
   weatherRadar: WeatherRadarSnapshot | null;
   quotes: MarketQuote[];
@@ -226,3 +231,53 @@ export interface LiveFastResponse {
   fearGreed: FearGreedSnapshot | null;
   health: SourceHealth[];
 }
+
+export interface LivePriceTick {
+  symbol: string; // e.g. 'BTC', 'ETH', 'SOL', 'Gold'
+  price: number;
+  changePercent24h: number;
+  volume24hUsd?: number;
+}
+
+export interface BreakingAlertItem {
+  id: string;
+  severity: 'high' | 'critical';
+  badge: string;
+  title: string;
+  subtitle: string;
+  lat: number;
+  lon: number;
+  timestamp: number;
+}
+
+export type RealtimeServerEvent =
+  | {
+      type: 'connected';
+      serverTime: number;
+      aisStreamConfigured: boolean;
+    }
+  | {
+      type: 'price_tick';
+      ticks: LivePriceTick[];
+      ts: number;
+    }
+  | {
+      type: 'military_update';
+      military: GeoPointFeature[];
+      ts: number;
+    }
+  | {
+      type: 'vessels_update';
+      vessels: GeoPointFeature[];
+      ts: number;
+    }
+  | {
+      type: 'collector_sync';
+      collectorId: CollectorId;
+      health: SourceHealth[];
+      ts: number;
+    }
+  | {
+      type: 'breaking_alert';
+      alert: BreakingAlertItem;
+    };

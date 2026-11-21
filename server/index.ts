@@ -3,39 +3,89 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
-import type { MarketSnapshot } from '@shared/types';
+import type { GeoPointFeature, MarketSnapshot } from '@shared/types';
 import { createApp } from './app';
 import { CollectorScheduler } from './cache/scheduler';
 import { SnapshotStore } from './cache/snapshot-store';
 import { fetchEarthquakes } from './collectors/earthquakes';
 import { fetchGeopoliticsGdelt } from './collectors/geopolitics-gdelt';
 import { fetchWorldBankMacro } from './collectors/macro-worldbank';
+import { MaritimeVesselStreamManager } from './collectors/maritime-vessels';
 import { fetchMarketsAndCrypto } from './collectors/markets-crypto';
 import { fetchMilitaryFlights } from './collectors/military-flights';
 import { fetchNaturalEvents } from './collectors/natural-events';
 import { fetchCuratedRssNews, fetchPolymarketPredictions } from './collectors/polymarket-news';
 import { fetchWeatherRadar } from './collectors/weather-radar';
+import { BinanceRealtimeStream } from './realtime/binance-stream';
+import { RealtimeHub } from './realtime/hub';
+
+for (const envName of ['.env.local', '.env']) {
+  const full = resolve(process.cwd(), envName);
+  if (existsSync(full) && typeof process.loadEnvFile === 'function') {
+    try {
+      process.loadEnvFile(full);
+    } catch {
+      // Ignore optional env load errors
+    }
+  }
+}
 
 const PORT = Number(process.env.PORT ?? 8787);
 const CACHE_DIR = resolve(process.cwd(), '.cache');
 
-export function buildProductionScheduler(cacheDir = CACHE_DIR): CollectorScheduler {
+export function buildProductionRuntime(cacheDir = CACHE_DIR) {
   const store = new SnapshotStore(cacheDir);
-  const scheduler = new CollectorScheduler(store);
+  const hub = new RealtimeHub();
+  const vesselManager = new MaritimeVesselStreamManager(hub, process.env.AISSTREAM_API_KEY);
 
+  const scheduler = new CollectorScheduler(store, (id, data) => {
+    const now = Date.now();
+    if (id === 'military-flights' && Array.isArray(data)) {
+      const flights = data as GeoPointFeature[];
+      hub.ingestForAlerts(id, flights);
+      hub.publish({ type: 'military_update', military: flights, ts: now });
+    } else if (id === 'maritime-vessels' && Array.isArray(data)) {
+      const vessels = data as GeoPointFeature[];
+      hub.ingestForAlerts(id, vessels);
+      hub.publish({ type: 'vessels_update', vessels, ts: now });
+    } else if ((id === 'earthquakes' || id === 'natural-events') && Array.isArray(data)) {
+      hub.ingestForAlerts(id, data as GeoPointFeature[]);
+    }
+
+    hub.publish({
+      type: 'collector_sync',
+      collectorId: id,
+      health: store.getAllHealth(now),
+      ts: now,
+    });
+  });
+
+  // 10s high-frequency ADS-B military aircraft polling + SSE push
   scheduler.registerCollector({
     id: 'military-flights',
-    label: 'Quân sự ADS-B (adsb.lol)',
-    intervalMs: 30_000,
+    label: 'Quân sự ADS-B (adsb.lol · 10s)',
+    intervalMs: 10_000,
     retainMs: 30 * 60_000,
     countItems: (items) => items.length,
     fetcher: () => fetchMilitaryFlights(),
   });
 
+  // 20s Open AIS + optional real-time AISStream Biển Đông/Hormuz WebSocket
+  scheduler.registerCollector({
+    id: 'maritime-vessels',
+    label: vesselManager.isAisStreamConfigured()
+      ? 'Tàu biển AIS (AISStream WS + Open AIS)'
+      : 'Tàu biển AIS (Open Maritime Live)',
+    intervalMs: 20_000,
+    retainMs: 60 * 60_000,
+    countItems: (items) => items.length,
+    fetcher: () => vesselManager.fetchSnapshot(),
+  });
+
   scheduler.registerCollector({
     id: 'earthquakes',
     label: 'Động đất Toàn cầu (USGS)',
-    intervalMs: 180_000,
+    intervalMs: 120_000,
     retainMs: 6 * 3_600_000,
     countItems: (items) => items.length,
     fetcher: () => fetchEarthquakes(),
@@ -52,8 +102,8 @@ export function buildProductionScheduler(cacheDir = CACHE_DIR): CollectorSchedul
 
   scheduler.registerCollector({
     id: 'geopolitics-gdelt',
-    label: 'Địa chính trị (GDELT Geo 2.0)',
-    intervalMs: 900_000,
+    label: 'Địa chính trị (GDELT v2 Live)',
+    intervalMs: 600_000,
     retainMs: 12 * 3_600_000,
     countItems: (items) => items.length,
     fetcher: () => fetchGeopoliticsGdelt(),
@@ -70,8 +120,8 @@ export function buildProductionScheduler(cacheDir = CACHE_DIR): CollectorSchedul
 
   scheduler.registerCollector<MarketSnapshot>({
     id: 'markets-crypto',
-    label: 'Tài chính, FX & Crypto',
-    intervalMs: 120_000,
+    label: 'Tài chính, FX & Crypto (+ Binance WS)',
+    intervalMs: 90_000,
     retainMs: 6 * 3_600_000,
     countItems: (snap) => snap.quotes.length + snap.crypto.length,
     fetcher: (prev) => fetchMarketsAndCrypto(prev),
@@ -89,7 +139,7 @@ export function buildProductionScheduler(cacheDir = CACHE_DIR): CollectorSchedul
   scheduler.registerCollector({
     id: 'polymarket',
     label: 'Thị trường Dự đoán (Polymarket)',
-    intervalMs: 180_000,
+    intervalMs: 120_000,
     retainMs: 6 * 3_600_000,
     countItems: (items) => items.length,
     fetcher: () => fetchPolymarketPredictions(),
@@ -98,21 +148,33 @@ export function buildProductionScheduler(cacheDir = CACHE_DIR): CollectorSchedul
   scheduler.registerCollector({
     id: 'rss-news',
     label: 'Tin nóng Quốc tế / Tài chính / VN (RSS)',
-    intervalMs: 300_000,
+    intervalMs: 240_000,
     retainMs: 6 * 3_600_000,
     countItems: (items) => items.length,
     fetcher: () => fetchCuratedRssNews(),
   });
 
-  return scheduler;
+  const binanceStream = new BinanceRealtimeStream(hub, store);
+
+  return {
+    store,
+    hub,
+    scheduler,
+    binanceStream,
+    vesselManager,
+  };
 }
 
 async function main(): Promise<void> {
-  const scheduler = buildProductionScheduler();
-  await scheduler.getStore().hydrateFromDisk();
+  const { store, hub, scheduler, binanceStream, vesselManager } = buildProductionRuntime();
+  await store.hydrateFromDisk();
   scheduler.startAll({ runImmediately: true });
+  binanceStream.start();
+  vesselManager.start();
 
-  const app = createApp(scheduler);
+  const app = createApp(scheduler, hub, {
+    aisStreamConfigured: vesselManager.isAisStreamConfigured(),
+  });
 
   const clientDistDir = resolve(process.cwd(), 'dist/client');
   if (process.env.NODE_ENV === 'production' && existsSync(clientDistDir)) {
@@ -127,12 +189,14 @@ async function main(): Promise<void> {
     },
     (info) => {
       console.log(
-        `[worldmonitor-api] Listening on http://localhost:${info.port} (cache: ${CACHE_DIR})`,
+        `[worldmonitor-api] Realtime Server on http://localhost:${info.port} (SSE /api/stream + Binance WS + 10s ADS-B + Open AIS)`,
       );
     },
   );
 
   const shutdown = () => {
+    binanceStream.stop();
+    vesselManager.stop();
     scheduler.stopAll();
     server.close(() => process.exit(0));
   };

@@ -39,6 +39,7 @@ const SEVERITY_BADGE: Record<SeverityLevel, { label: string; className: string }
 
 const LAYER_LABELS: Record<string, string> = {
   military: 'MÁY BAY QUÂN SỰ',
+  vessels: 'TÀU BIỂN HÀNG HẢI AIS',
   earthquakes: 'ĐỘNG ĐẤT ĐỊA CHẤN',
   natural: 'THIÊN TAI / KHÍ TƯỢNG',
   geopolitics: 'ĐỊA CHÍNH TRỊ GDELT',

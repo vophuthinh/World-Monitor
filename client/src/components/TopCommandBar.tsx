@@ -2,14 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ArrowClockwise,
   ArrowsClockwise,
+  Broadcast,
   CheckCircle,
   Clock,
   Compass,
   Cube,
   Globe,
+  Lightning,
   MagnifyingGlass,
   MapTrifold,
+  NavigationArrow,
   Pulse,
+  Television,
   WarningCircle,
   X,
 } from '@phosphor-icons/react';
@@ -18,14 +22,13 @@ import type {
   CollectorId,
   CryptoQuote,
   FearGreedSnapshot,
-  InspectableFeature,
   MapLayerId,
   MarketQuote,
   SourceHealth,
   TheaterViewPreset,
   TimeWindow,
 } from '@shared/types';
-import type { SearchHit } from '../hooks/useMonitorData';
+import type { FlashDirection, SearchHit } from '../hooks/useMonitorData';
 
 interface TopCommandBarProps {
   isGlobe: boolean;
@@ -48,7 +51,13 @@ interface TopCommandBarProps {
   crypto: CryptoQuote[];
   fearGreed: FearGreedSnapshot | null;
   layerCounts: Record<MapLayerId, number>;
-  onSelectInspectable?: (item: InspectableFeature) => void;
+  streamConnected: boolean;
+  liveTickCount: number;
+  priceFlashes: Record<string, FlashDirection>;
+  deadReckoning: boolean;
+  onToggleDeadReckoning: () => void;
+  liveTvOpen: boolean;
+  onToggleLiveTv: () => void;
 }
 
 const TIME_OPTIONS: ReadonlyArray<{ id: TimeWindow; label: string }> = [
@@ -79,6 +88,13 @@ export function TopCommandBar({
   crypto,
   fearGreed,
   layerCounts,
+  streamConnected,
+  liveTickCount,
+  priceFlashes,
+  deadReckoning,
+  onToggleDeadReckoning,
+  liveTvOpen,
+  onToggleLiveTv,
 }: TopCommandBarProps) {
   const [healthOpen, setHealthOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
@@ -132,22 +148,23 @@ export function TopCommandBar({
   const brent = findQuote('Brent Crude');
   const btc = crypto.find((c) => c.symbol === 'BTC');
   const eth = crypto.find((c) => c.symbol === 'ETH');
+  const sol = crypto.find((c) => c.symbol === 'SOL');
 
   const tickerItems = [
-    usdVnd && { label: 'USD/VND', price: usdVnd.price.toLocaleString('en-US'), chg: usdVnd.changePercent24h, highlight: true },
-    vnIdx && { label: vnIdx.symbol, price: vnIdx.price.toLocaleString('en-US'), chg: vnIdx.changePercent24h, highlight: true },
-    sp500 && { label: 'S&P 500', price: sp500.price.toLocaleString('en-US'), chg: sp500.changePercent24h },
-    gold && { label: 'GOLD', price: `$${gold.price.toLocaleString('en-US')}`, chg: gold.changePercent24h },
-    brent && { label: 'BRENT', price: `$${brent.price.toFixed(2)}`, chg: brent.changePercent24h },
-    btc && { label: 'BTC', price: `$${Math.round(btc.priceUsd).toLocaleString('en-US')}`, chg: btc.changePercent24h },
-    eth && { label: 'ETH', price: `$${Math.round(eth.priceUsd).toLocaleString('en-US')}`, chg: eth.changePercent24h },
+    usdVnd && { key: 'USD/VND', label: 'USD/VND', price: usdVnd.price.toLocaleString('en-US'), chg: usdVnd.changePercent24h, highlight: true },
+    vnIdx && { key: vnIdx.symbol, label: vnIdx.symbol, price: vnIdx.price.toLocaleString('en-US'), chg: vnIdx.changePercent24h, highlight: true },
+    btc && { key: 'BTC', label: 'BTC', price: `$${btc.priceUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, chg: btc.changePercent24h },
+    eth && { key: 'ETH', label: 'ETH', price: `$${eth.priceUsd.toLocaleString('en-US', { maximumFractionDigits: 2 })}`, chg: eth.changePercent24h },
+    sol && { key: 'SOL', label: 'SOL', price: `$${sol.priceUsd.toLocaleString('en-US', { maximumFractionDigits: 2 })}`, chg: sol.changePercent24h },
+    gold && { key: 'Gold', label: 'GOLD', price: `$${gold.price.toLocaleString('en-US', { maximumFractionDigits: 2 })}`, chg: gold.changePercent24h },
+    sp500 && { key: 'S&P 500', label: 'S&P 500', price: sp500.price.toLocaleString('en-US'), chg: sp500.changePercent24h },
+    brent && { key: 'Brent Crude', label: 'BRENT', price: `$${brent.price.toFixed(2)}`, chg: brent.changePercent24h },
   ].filter((x): x is NonNullable<typeof x> => Boolean(x));
 
   return (
     <header className="relative z-30 shrink-0 border-b border-slate-800/95 bg-[#090e18]/98 select-none">
       {/* Row 1: Primary Tactical Controls */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-        {/* Brand + Dual Clock */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded border border-cyan-500/40 bg-cyan-500/15 text-cyan-300">
@@ -158,8 +175,16 @@ export function TopCommandBar({
                 <span className="font-mono text-xs font-bold tracking-wider text-slate-100">
                   WORLD MONITOR
                 </span>
-                <span className="rounded border border-emerald-500/40 bg-emerald-500/15 px-1 py-0.2 font-mono text-[9.5px] font-semibold text-emerald-300">
-                  VN · DIRECT
+                <span
+                  className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.2 font-mono text-[9.5px] font-semibold ${
+                    streamConnected
+                      ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300'
+                      : 'border-amber-500/40 bg-amber-500/15 text-amber-300'
+                  }`}
+                  title="Luồng đẩy trực tiếp SSE + Binance WebSocket 1s + ADS-B 10s"
+                >
+                  <Broadcast size={11} className={streamConnected ? 'animate-pulse text-emerald-400' : ''} />
+                  {streamConnected ? `LIVE WS · ${liveTickCount}` : 'RECONNECTING'}
                 </span>
               </div>
               <div className="font-mono text-[10px] text-slate-400 tabular-nums">
@@ -168,8 +193,7 @@ export function TopCommandBar({
             </div>
           </div>
 
-          {/* Theater Quick Presets */}
-          <nav className="hidden items-center gap-1 border-l border-slate-800 pl-3 xl:flex" aria-label="Khung nhìn khu vực">
+          <nav className="hidden items-center gap-1 border-l border-slate-800 pl-3 2xl:flex" aria-label="Khung nhìn khu vực">
             {theaters.map((preset) => {
               const isActive = activeTheaterId === preset.id;
               return (
@@ -193,10 +217,9 @@ export function TopCommandBar({
           </nav>
         </div>
 
-        {/* Center/Right: Search, Time Window, 2D/3D, Basemap, Health */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           {/* Unified Instant Search */}
-          <div className="relative w-48 sm:w-64">
+          <div className="relative w-44 sm:w-56">
             <MagnifyingGlass
               size={14}
               className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
@@ -208,7 +231,7 @@ export function TopCommandBar({
               onFocus={() => setSearchFocused(true)}
               onBlur={() => setTimeout(() => setSearchFocused(false), 180)}
               onChange={(e) => onChangeSearch(e.target.value)}
-              placeholder="Tìm máy bay, eo biển, tin tức... (/)"
+              placeholder="Tìm máy bay, tàu AIS, tin... (/)"
               aria-label="Tìm kiếm toàn cục"
               className="w-full rounded border border-slate-700/85 bg-[#0d1524] py-1 pl-8 pr-7 text-xs text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
             />
@@ -273,6 +296,36 @@ export function TopCommandBar({
             ))}
           </div>
 
+          {/* Dead-Reckoning Live Motion Toggle */}
+          <button
+            type="button"
+            onClick={onToggleDeadReckoning}
+            title="Ngoại suy chuyển động mượt (Dead-Reckoning) cho Máy bay quân sự & Tàu AIS theo vận tốc thực"
+            className={`hidden items-center gap-1 rounded border px-2 py-1 font-mono text-[11px] font-medium transition sm:inline-flex ${
+              deadReckoning
+                ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300'
+                : 'border-slate-700/85 bg-[#0d1524] text-slate-400'
+            }`}
+          >
+            <NavigationArrow size={13} weight={deadReckoning ? 'fill' : 'regular'} />
+            <span>GLIDE</span>
+          </button>
+
+          {/* Live TV PiP Toggle */}
+          <button
+            type="button"
+            onClick={onToggleLiveTv}
+            title="Mở cửa sổ truyền hình tin tức quốc tế trực tiếp (DW / France24 / Al Jazeera)"
+            className={`inline-flex items-center gap-1 rounded border px-2 py-1 font-mono text-[11px] font-medium transition ${
+              liveTvOpen
+                ? 'border-rose-500/50 bg-rose-500/20 text-rose-200'
+                : 'border-slate-700/85 bg-[#0d1524] text-slate-300 hover:border-slate-600'
+            }`}
+          >
+            <Television size={14} />
+            <span className="hidden md:inline">LIVE TV</span>
+          </button>
+
           {/* 2D Mercator <-> 3D Globe Toggle */}
           <button
             type="button"
@@ -317,19 +370,19 @@ export function TopCommandBar({
                 }`}
               />
               <span className="tabular-nums">
-                {okCount}/{health.length || 9} UPSTREAM
+                {okCount}/{health.length || 10} UPSTREAM
               </span>
             </button>
 
             {healthOpen && (
-              <div className="absolute right-0 top-full z-50 mt-1.5 w-[350px] rounded-md border border-slate-700 bg-[#0a101d] p-3 shadow-2xl">
+              <div className="absolute right-0 top-full z-50 mt-1.5 w-[355px] rounded-md border border-slate-700 bg-[#0a101d] p-3 shadow-2xl">
                 <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                   <div>
                     <div className="font-mono text-xs font-semibold text-slate-100">
-                      TRẠNG THÁI NGUỒN DỮ LIỆU GỐC
+                      TRẠNG THÁI NGUỒN REALTIME &amp; UPSTREAM
                     </div>
                     <div className="text-[11px] text-slate-400">
-                      Cache 2 tầng RAM + .cache/*.json tự phục hồi
+                      SSE Push + Binance 1s WS + 10s ADS-B + Cache 2 tầng
                     </div>
                   </div>
                   <button
@@ -358,10 +411,7 @@ export function TopCommandBar({
                             <span className="truncate text-xs font-medium text-slate-200">{src.label}</span>
                           </div>
                           <div className="mt-0.5 font-mono text-[10px] text-slate-400 tabular-nums">
-                            {src.status.toUpperCase()} · {src.itemCount} mục
-                            {src.lastSuccessAt
-                              ? ` · ${new Date(src.lastSuccessAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
-                              : ''}
+                            {src.status.toUpperCase()} · {src.itemCount} mục · chu kỳ {Math.round(src.intervalMs / 1000)}s
                           </div>
                           {src.lastError && (
                             <div className="mt-0.5 truncate font-mono text-[9.5px] text-amber-400/90" title={src.lastError}>
@@ -392,8 +442,8 @@ export function TopCommandBar({
         </div>
       </div>
 
-      {/* Mobile/Tablet Quick Theater Strip */}
-      <div className="flex items-center gap-1 overflow-x-auto border-t border-slate-800/80 px-3 py-1 xl:hidden">
+      {/* Sub-2xl Theater Strip */}
+      <div className="flex items-center gap-1 overflow-x-auto border-t border-slate-800/80 px-3 py-1 2xl:hidden">
         {theaters.map((preset) => (
           <button
             key={preset.id}
@@ -404,7 +454,7 @@ export function TopCommandBar({
                 ? 'bg-cyan-500/20 text-cyan-200'
                 : preset.highlight
                   ? 'text-emerald-300'
-                  : 'text-slate-400'
+                  : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             {preset.shortLabel}
@@ -412,25 +462,41 @@ export function TopCommandBar({
         ))}
       </div>
 
-      {/* Row 2: Live Market & Tactical Telemetry Strip */}
+      {/* Row 2: Realtime Tick-Flash Market & Telemetry Strip */}
       <div className="flex items-center justify-between gap-3 overflow-x-auto border-t border-slate-800/80 bg-[#070b12] px-3 py-1 font-mono text-[11px] tabular-nums">
-        <div className="flex shrink-0 items-center gap-3">
-          {tickerItems.map((item) => (
-            <div key={item.label} className="flex items-center gap-1.5">
-              <span className={item.highlight ? 'font-semibold text-emerald-300' : 'text-slate-400'}>
-                {item.label}
-              </span>
-              <span className="font-medium text-slate-100">{item.price}</span>
-              {item.chg !== 0 && (
-                <span className={item.chg > 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                  {item.chg > 0 ? '+' : ''}
-                  {item.chg.toFixed(2)}%
+        <div className="flex shrink-0 items-center gap-2.5">
+          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-cyan-400">
+            <Lightning size={12} weight="fill" />
+            1S TICK
+          </span>
+          {tickerItems.map((item) => {
+            const flash = priceFlashes[item.key];
+            return (
+              <div
+                key={item.key}
+                className={`flex items-center gap-1.5 rounded px-1.5 py-0.2 transition-colors duration-300 ${
+                  flash === 'up'
+                    ? 'bg-emerald-500/25 text-emerald-100'
+                    : flash === 'down'
+                      ? 'bg-rose-500/25 text-rose-100'
+                      : ''
+                }`}
+              >
+                <span className={item.highlight ? 'font-semibold text-emerald-300' : 'text-slate-400'}>
+                  {item.label}
                 </span>
-              )}
-            </div>
-          ))}
+                <span className="font-medium text-slate-100">{item.price}</span>
+                {item.chg !== 0 && (
+                  <span className={item.chg > 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                    {item.chg > 0 ? '+' : ''}
+                    {item.chg.toFixed(2)}%
+                  </span>
+                )}
+              </div>
+            );
+          })}
           {fearGreed && (
-            <div className="flex items-center gap-1 border-l border-slate-800 pl-3">
+            <div className="flex items-center gap-1 border-l border-slate-800 pl-2.5">
               <span className="text-slate-400">F&amp;G</span>
               <span
                 className={`font-semibold ${
@@ -452,10 +518,10 @@ export function TopCommandBar({
             MIL <strong className="text-cyan-300">{layerCounts.military}</strong>
           </span>
           <span>
-            EQ <strong className="text-rose-400">{layerCounts.earthquakes}</strong>
+            AIS <strong className="text-emerald-300">{layerCounts.vessels}</strong>
           </span>
           <span>
-            NAT <strong className="text-amber-300">{layerCounts.natural}</strong>
+            EQ <strong className="text-rose-400">{layerCounts.earthquakes}</strong>
           </span>
           <span>
             GEO <strong className="text-orange-300">{layerCounts.geopolitics}</strong>

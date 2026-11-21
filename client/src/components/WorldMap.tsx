@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import type { GeoJSONSource } from 'maplibre-gl';
+import { advanceDeadReckoning } from '@shared/dead-reckoning';
 import type {
   BasemapTheme,
   GeoLineFeature,
@@ -27,6 +28,13 @@ const JET_PALETTE: Record<string, string> = {
   'jet-default': '#94a3b8',
 };
 
+const VESSEL_PALETTE: Record<string, string> = {
+  'ship-naval': '#f43f5e',
+  'ship-tanker': '#f59e0b',
+  'ship-cargo': '#34d399',
+  'ship-default': '#38bdf8',
+};
+
 function createJetSprite(fillColor: string): { width: number; height: number; data: Uint8Array } {
   const size = 44;
   const canvas = document.createElement('canvas');
@@ -36,7 +44,6 @@ function createJetSprite(fillColor: string): { width: number; height: number; da
 
   ctx.clearRect(0, 0, size, size);
   ctx.beginPath();
-  // Tactical swept-wing aircraft pointing North (0 deg)
   ctx.moveTo(22, 3);
   ctx.lineTo(25.5, 14);
   ctx.lineTo(40, 25);
@@ -69,6 +76,37 @@ function createJetSprite(fillColor: string): { width: number; height: number; da
   };
 }
 
+function createVesselSprite(fillColor: string): { width: number; height: number; data: Uint8Array } {
+  const size = 36;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.clearRect(0, 0, size, size);
+  ctx.beginPath();
+  // Pointed ship bow facing North (0 deg)
+  ctx.moveTo(18, 4);
+  ctx.lineTo(26, 15);
+  ctx.lineTo(25, 31);
+  ctx.lineTo(11, 31);
+  ctx.lineTo(10, 15);
+  ctx.closePath();
+
+  ctx.fillStyle = fillColor;
+  ctx.fill();
+  ctx.lineWidth = 2.2;
+  ctx.strokeStyle = '#040812';
+  ctx.stroke();
+
+  const imageData = ctx.getImageData(0, 0, size, size);
+  return {
+    width: size,
+    height: size,
+    data: new Uint8Array(imageData.data.buffer),
+  };
+}
+
 function pointsToFeatureCollection(points: GeoPointFeature[]): GeoJSON.FeatureCollection {
   return {
     type: 'FeatureCollection',
@@ -91,7 +129,7 @@ function pointsToFeatureCollection(points: GeoPointFeature[]): GeoJSON.FeatureCo
           (pt.meta.callsign as string | undefined) ??
           pt.title.split('(')[0].trim(),
         isVietnam:
-          pt.meta.country === 'VN' || pt.meta.tier === 'vietnam' ? 1 : 0,
+          pt.meta.country === 'VN' || pt.meta.country === 'Vietnam' || pt.meta.tier === 'vietnam' ? 1 : 0,
       },
     })),
   };
@@ -123,6 +161,10 @@ export interface WorldMapProps {
   radarOpacity: number;
   weatherRadar: WeatherRadarSnapshot | null;
   military: GeoPointFeature[];
+  vessels: GeoPointFeature[];
+  militaryAnchorMs: number;
+  vesselsAnchorMs: number;
+  deadReckoning: boolean;
   earthquakes: GeoPointFeature[];
   natural: GeoPointFeature[];
   geopolitics: GeoPointFeature[];
@@ -136,6 +178,7 @@ export interface WorldMapProps {
 
 const CLICKABLE_LAYERS = [
   'military-layer',
+  'vessels-layer',
   'earthquakes-circle',
   'natural-circle',
   'geopolitics-circle',
@@ -152,6 +195,10 @@ export function WorldMap({
   radarOpacity,
   weatherRadar,
   military,
+  vessels,
+  militaryAnchorMs,
+  vesselsAnchorMs,
+  deadReckoning,
   earthquakes,
   natural,
   geopolitics,
@@ -168,7 +215,6 @@ export function WorldMap({
   const appliedRadarPathRef = useRef<string | null>(null);
   const currentBasemapRef = useRef<BasemapTheme>(basemap);
 
-  // Latest lookups & state refs so style.load callbacks always read fresh props
   const pointLookupRef = useRef<Map<string, GeoPointFeature>>(new Map());
   const cableLookupRef = useRef<Map<string, GeoLineFeature>>(new Map());
   const latestPropsRef = useRef({
@@ -177,6 +223,10 @@ export function WorldMap({
     radarOpacity,
     weatherRadar,
     military,
+    vessels,
+    militaryAnchorMs,
+    vesselsAnchorMs,
+    deadReckoning,
     earthquakes,
     natural,
     geopolitics,
@@ -192,6 +242,10 @@ export function WorldMap({
     radarOpacity,
     weatherRadar,
     military,
+    vessels,
+    militaryAnchorMs,
+    vesselsAnchorMs,
+    deadReckoning,
     earthquakes,
     natural,
     geopolitics,
@@ -203,7 +257,16 @@ export function WorldMap({
 
   useEffect(() => {
     const ptMap = new Map<string, GeoPointFeature>();
-    for (const list of [military, earthquakes, natural, geopolitics, chokepoints, nuclear, financeCenters]) {
+    for (const list of [
+      military,
+      vessels,
+      earthquakes,
+      natural,
+      geopolitics,
+      chokepoints,
+      nuclear,
+      financeCenters,
+    ]) {
       for (const item of list) ptMap.set(item.id, item);
     }
     pointLookupRef.current = ptMap;
@@ -211,7 +274,7 @@ export function WorldMap({
     const cbMap = new Map<string, GeoLineFeature>();
     for (const cb of cables) cbMap.set(cb.id, cb);
     cableLookupRef.current = cbMap;
-  }, [military, earthquakes, natural, geopolitics, chokepoints, nuclear, financeCenters, cables]);
+  }, [military, vessels, earthquakes, natural, geopolitics, chokepoints, nuclear, financeCenters, cables]);
 
   const ensureLayersAndData = (map: maplibregl.Map) => {
     if (!map.isStyleLoaded()) return;
@@ -220,12 +283,17 @@ export function WorldMap({
     try {
       map.setProjection({ type: state.isGlobe ? 'globe' : 'mercator' });
     } catch {
-      // Fallback safely if WebGL driver lacks globe support
+      // Safe fallback
     }
 
     for (const [iconName, color] of Object.entries(JET_PALETTE)) {
       if (!map.hasImage(iconName)) {
         map.addImage(iconName, createJetSprite(color), { pixelRatio: 2 });
+      }
+    }
+    for (const [iconName, color] of Object.entries(VESSEL_PALETTE)) {
+      if (!map.hasImage(iconName)) {
+        map.addImage(iconName, createVesselSprite(color), { pixelRatio: 2 });
       }
     }
 
@@ -277,28 +345,12 @@ export function WorldMap({
           visibility: state.activeLayers.cables ? 'visible' : 'none',
         },
         paint: {
-          'line-color': [
-            'case',
-            ['==', ['get', 'vietnamConnected'], 1],
-            '#2dd4bf',
-            '#0284c7',
-          ],
-          'line-width': [
-            'case',
-            ['==', ['get', 'vietnamConnected'], 1],
-            2.1,
-            1.25,
-          ],
-          'line-opacity': [
-            'case',
-            ['==', ['get', 'vietnamConnected'], 1],
-            0.85,
-            0.48,
-          ],
+          'line-color': ['case', ['==', ['get', 'vietnamConnected'], 1], '#2dd4bf', '#0284c7'],
+          'line-width': ['case', ['==', ['get', 'vietnamConnected'], 1], 2.1, 1.25],
+          'line-opacity': ['case', ['==', ['get', 'vietnamConnected'], 1], 0.85, 0.48],
           'line-dasharray': [2, 1.5],
         },
       });
-      // Invisible wider hit target for easy clicking
       map.addLayer({
         id: 'cables-hit-layer',
         type: 'line',
@@ -319,7 +371,6 @@ export function WorldMap({
       if (map.getLayer('cables-hit-layer')) map.setLayoutProperty('cables-hit-layer', 'visibility', vis);
     }
 
-    // Helper for point sources
     const upsertPointSource = (id: string, pts: GeoPointFeature[]) => {
       const fc = pointsToFeatureCollection(pts);
       const src = map.getSource(id) as GeoJSONSource | undefined;
@@ -367,7 +418,7 @@ export function WorldMap({
     if (map.getLayer('chokepoints-circle')) map.setLayoutProperty('chokepoints-circle', 'visibility', chokeVis);
     if (map.getLayer('chokepoints-label')) map.setLayoutProperty('chokepoints-label', 'visibility', chokeVis);
 
-    // 4. Finance Centers (highlighting Vietnam HOSE/HNX/SBV)
+    // 4. Finance Centers
     if (upsertPointSource('finance-src', state.financeCenters)) {
       map.addLayer({
         id: 'finance-circle',
@@ -409,24 +460,8 @@ export function WorldMap({
         type: 'circle',
         source: 'nuclear-src',
         paint: {
-          'circle-radius': [
-            'match',
-            ['get', 'severity'],
-            'critical',
-            7.5,
-            'high',
-            6,
-            4.8,
-          ],
-          'circle-color': [
-            'match',
-            ['get', 'severity'],
-            'critical',
-            '#ef4444',
-            'high',
-            '#eab308',
-            '#fde047',
-          ],
+          'circle-radius': ['match', ['get', 'severity'], 'critical', 7.5, 'high', 6, 4.8],
+          'circle-color': ['match', ['get', 'severity'], 'critical', '#ef4444', 'high', '#eab308', '#fde047'],
           'circle-stroke-width': 1.8,
           'circle-stroke-color': '#090d16',
           'circle-opacity': 0.9,
@@ -444,24 +479,8 @@ export function WorldMap({
         type: 'circle',
         source: 'geopolitics-src',
         paint: {
-          'circle-radius': [
-            'interpolate',
-            ['linear'],
-            ['get', 'magnitude'],
-            1,
-            4.5,
-            30,
-            9.5,
-          ],
-          'circle-color': [
-            'match',
-            ['get', 'severity'],
-            'critical',
-            '#f97316',
-            'high',
-            '#fb923c',
-            '#fdba74',
-          ],
+          'circle-radius': ['interpolate', ['linear'], ['get', 'magnitude'], 1, 4.5, 30, 9.5],
+          'circle-color': ['match', ['get', 'severity'], 'critical', '#f97316', 'high', '#fb923c', '#fdba74'],
           'circle-opacity': 0.76,
           'circle-stroke-width': 1.2,
           'circle-stroke-color': '#431407',
@@ -472,31 +491,15 @@ export function WorldMap({
       map.setLayoutProperty('geopolitics-circle', 'visibility', state.activeLayers.geopolitics ? 'visible' : 'none');
     }
 
-    // 7. Natural Events (NASA EONET + GDACS)
+    // 7. Natural Events
     if (upsertPointSource('natural-src', state.natural)) {
       map.addLayer({
         id: 'natural-circle',
         type: 'circle',
         source: 'natural-src',
         paint: {
-          'circle-radius': [
-            'match',
-            ['get', 'severity'],
-            'critical',
-            8.5,
-            'high',
-            6.8,
-            5.2,
-          ],
-          'circle-color': [
-            'match',
-            ['get', 'severity'],
-            'critical',
-            '#ec4899',
-            'high',
-            '#f59e0b',
-            '#a855f7',
-          ],
+          'circle-radius': ['match', ['get', 'severity'], 'critical', 8.5, 'high', 6.8, 5.2],
+          'circle-color': ['match', ['get', 'severity'], 'critical', '#ec4899', 'high', '#f59e0b', '#a855f7'],
           'circle-stroke-width': 1.8,
           'circle-stroke-color': '#ffffff',
           'circle-opacity': 0.88,
@@ -507,33 +510,15 @@ export function WorldMap({
       map.setLayoutProperty('natural-circle', 'visibility', state.activeLayers.natural ? 'visible' : 'none');
     }
 
-    // 8. Earthquakes (USGS)
+    // 8. Earthquakes
     if (upsertPointSource('earthquakes-src', state.earthquakes)) {
       map.addLayer({
         id: 'earthquakes-halo',
         type: 'circle',
         source: 'earthquakes-src',
         paint: {
-          'circle-radius': [
-            'interpolate',
-            ['linear'],
-            ['get', 'magnitude'],
-            2.5,
-            6,
-            5.0,
-            14,
-            7.0,
-            26,
-          ],
-          'circle-color': [
-            'match',
-            ['get', 'severity'],
-            'critical',
-            '#f43f5e',
-            'high',
-            '#fb7185',
-            '#f97316',
-          ],
+          'circle-radius': ['interpolate', ['linear'], ['get', 'magnitude'], 2.5, 6, 5.0, 14, 7.0, 26],
+          'circle-color': ['match', ['get', 'severity'], 'critical', '#f43f5e', 'high', '#fb7185', '#f97316'],
           'circle-opacity': 0.22,
         },
       });
@@ -542,17 +527,7 @@ export function WorldMap({
         type: 'circle',
         source: 'earthquakes-src',
         paint: {
-          'circle-radius': [
-            'interpolate',
-            ['linear'],
-            ['get', 'magnitude'],
-            2.5,
-            3.5,
-            5.0,
-            7.5,
-            7.0,
-            13,
-          ],
+          'circle-radius': ['interpolate', ['linear'], ['get', 'magnitude'], 2.5, 3.5, 5.0, 7.5, 7.0, 13],
           'circle-color': [
             'match',
             ['get', 'severity'],
@@ -574,8 +549,44 @@ export function WorldMap({
     if (map.getLayer('earthquakes-halo')) map.setLayoutProperty('earthquakes-halo', 'visibility', eqVis);
     if (map.getLayer('earthquakes-circle')) map.setLayoutProperty('earthquakes-circle', 'visibility', eqVis);
 
-    // 9. Military Aircraft (Topmost directional tactical layer)
-    if (upsertPointSource('military-src', state.military)) {
+    // 9. Maritime AIS Live Vessels
+    const initialVessels = state.deadReckoning
+      ? advanceDeadReckoning(state.vessels, Date.now(), 30, state.vesselsAnchorMs)
+      : state.vessels;
+    if (upsertPointSource('vessels-src', initialVessels)) {
+      map.addLayer({
+        id: 'vessels-layer',
+        type: 'symbol',
+        source: 'vessels-src',
+        layout: {
+          'icon-image': [
+            'match',
+            ['get', 'category'],
+            'naval_patrol',
+            'ship-naval',
+            'tanker',
+            'ship-tanker',
+            'cargo',
+            'ship-cargo',
+            'ship-default',
+          ],
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 1.5, 0.5, 5, 0.72, 9, 0.9],
+          'icon-rotate': ['get', 'heading'],
+          'icon-rotation-alignment': 'map',
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+        },
+      });
+    }
+    if (map.getLayer('vessels-layer')) {
+      map.setLayoutProperty('vessels-layer', 'visibility', state.activeLayers.vessels ? 'visible' : 'none');
+    }
+
+    // 10. Military Aircraft (Topmost directional tactical layer)
+    const initialMilitary = state.deadReckoning
+      ? advanceDeadReckoning(state.military, Date.now(), 22, state.militaryAnchorMs)
+      : state.military;
+    if (upsertPointSource('military-src', initialMilitary)) {
       map.addLayer({
         id: 'military-layer',
         type: 'symbol',
@@ -598,17 +609,7 @@ export function WorldMap({
             'jet-tanker',
             'jet-default',
           ],
-          'icon-size': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            1.5,
-            0.55,
-            5,
-            0.78,
-            8,
-            0.95,
-          ],
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 1.5, 0.55, 5, 0.78, 8, 0.95],
           'icon-rotate': ['get', 'heading'],
           'icon-rotation-alignment': 'map',
           'icon-allow-overlap': true,
@@ -621,14 +622,13 @@ export function WorldMap({
     }
   };
 
-  // Mount MapLibre GL v5 instance once
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: CARTO_STYLE_URLS[basemap],
-      center: [108.5, 16.0], // Start centered near Vietnam & Indo-Pacific / East Sea
+      center: [108.5, 16.0],
       zoom: 3.2,
       attributionControl: { compact: true },
     });
@@ -709,7 +709,35 @@ export function WorldMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Switch basemap theme dynamically
+  // Continuous Dead-Reckoning interpolation loop (smooth real-time gliding of aircraft & ships)
+  useEffect(() => {
+    if (!deadReckoning) return;
+    const timer = setInterval(() => {
+      const map = mapRef.current;
+      if (!map || !map.isStyleLoaded()) return;
+      const state = latestPropsRef.current;
+      const now = Date.now();
+
+      if (state.activeLayers.military && state.military.length > 0) {
+        const milSrc = map.getSource('military-src') as GeoJSONSource | undefined;
+        if (milSrc) {
+          const advanced = advanceDeadReckoning(state.military, now, 22, state.militaryAnchorMs);
+          milSrc.setData(pointsToFeatureCollection(advanced));
+        }
+      }
+
+      if (state.activeLayers.vessels && state.vessels.length > 0) {
+        const vslSrc = map.getSource('vessels-src') as GeoJSONSource | undefined;
+        if (vslSrc) {
+          const advancedVessels = advanceDeadReckoning(state.vessels, now, 30, state.vesselsAnchorMs);
+          vslSrc.setData(pointsToFeatureCollection(advancedVessels));
+        }
+      }
+    }, 1_000);
+
+    return () => clearInterval(timer);
+  }, [deadReckoning]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map || currentBasemapRef.current === basemap) return;
@@ -718,7 +746,6 @@ export function WorldMap({
     map.setStyle(CARTO_STYLE_URLS[basemap]);
   }, [basemap]);
 
-  // Update projection, visibility, opacity, and GeoJSON data whenever props change
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -731,6 +758,8 @@ export function WorldMap({
     radarOpacity,
     weatherRadar,
     military,
+    vessels,
+    deadReckoning,
     earthquakes,
     natural,
     geopolitics,
@@ -740,7 +769,6 @@ export function WorldMap({
     cables,
   ]);
 
-  // Smooth camera flyTo
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !cameraTarget) return;

@@ -3,6 +3,7 @@ import { ArrowsClockwise, SidebarSimple, WarningDiamond } from '@phosphor-icons/
 import type { BasemapTheme, TheaterViewPreset } from '@shared/types';
 import { FeatureInspector } from './components/FeatureInspector';
 import { LayerControlDock } from './components/LayerControlDock';
+import { LiveAlertStack, LiveTvPipWindow } from './components/LiveOverlays';
 import { RightIntelPanel } from './components/RightIntelPanel';
 import { TopCommandBar } from './components/TopCommandBar';
 import { WorldMap } from './components/WorldMap';
@@ -16,6 +17,16 @@ export function App() {
     loading,
     error,
     refreshingIds,
+    streamConnected,
+    liveTickCount,
+    priceFlashes,
+    breakingAlerts,
+    dismissAlert,
+    setAlertsMuted,
+    deadReckoning,
+    setDeadReckoning,
+    militaryAnchorMs,
+    vesselsAnchorMs,
     activeLayers,
     toggleLayer,
     setAllLayers,
@@ -38,6 +49,7 @@ export function App() {
   const [basemap, setBasemap] = useState<BasemapTheme>('dark-matter');
   const [activeTheaterId, setActiveTheaterId] = useState<string>('east-sea-vn');
   const [mobileIntelOpen, setMobileIntelOpen] = useState<boolean>(false);
+  const [liveTvOpen, setLiveTvOpen] = useState<boolean>(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -89,6 +101,13 @@ export function App() {
         crypto={data?.markets.crypto ?? []}
         fearGreed={data?.markets.fearGreed ?? null}
         layerCounts={layerCounts}
+        streamConnected={streamConnected}
+        liveTickCount={liveTickCount}
+        priceFlashes={priceFlashes}
+        deadReckoning={deadReckoning}
+        onToggleDeadReckoning={() => setDeadReckoning((v) => !v)}
+        liveTvOpen={liveTvOpen}
+        onToggleLiveTv={() => setLiveTvOpen((v) => !v)}
       />
 
       {error && (
@@ -118,6 +137,10 @@ export function App() {
             radarOpacity={radarOpacity}
             weatherRadar={data?.weatherRadar ?? null}
             military={filteredData.military}
+            vessels={filteredData.vessels}
+            militaryAnchorMs={militaryAnchorMs}
+            vesselsAnchorMs={vesselsAnchorMs}
+            deadReckoning={deadReckoning}
             earthquakes={filteredData.earthquakes}
             natural={filteredData.natural}
             geopolitics={filteredData.geopolitics}
@@ -139,6 +162,19 @@ export function App() {
               radarOpacity={radarOpacity}
               onChangeRadarOpacity={setRadarOpacity}
               weatherRadar={data?.weatherRadar ?? null}
+              aisStreamConfigured={data?.aisStreamConfigured}
+            />
+          </div>
+
+          {/* Floating Top-Right Breaking Alert Stack */}
+          <div className="pointer-events-none absolute right-3 top-14 z-20 lg:top-3">
+            <LiveAlertStack
+              alerts={breakingAlerts}
+              onDismiss={dismissAlert}
+              onMuteAll={() => {
+                setAlertsMuted(true);
+              }}
+              onFlyTo={flyTo}
             />
           </div>
 
@@ -153,12 +189,17 @@ export function App() {
             </div>
           )}
 
+          {/* Floating Bottom-Right Live News TV PiP */}
+          <div className="pointer-events-none absolute bottom-10 right-12 z-20">
+            <LiveTvPipWindow open={liveTvOpen} onClose={() => setLiveTvOpen(false)} />
+          </div>
+
           {/* Initial Boot Loading Skeleton Badge */}
           {loading && !data && (
             <div className="pointer-events-none absolute inset-x-0 top-14 z-20 flex justify-center">
               <div className="flex items-center gap-2 rounded-md border border-cyan-500/40 bg-[#090f1a]/95 px-4 py-2 font-mono text-xs text-cyan-200 shadow-2xl">
                 <ArrowsClockwise size={15} className="animate-spin text-cyan-400" />
-                Đang đồng bộ dữ liệu trực tiếp từ các trạm Upstream toàn cầu...
+                Đang đồng bộ luồng dữ liệu Realtime từ các trạm Upstream toàn cầu...
               </div>
             </div>
           )}
@@ -188,6 +229,8 @@ export function App() {
             }
             predictions={filteredData.predictions}
             news={filteredData.news}
+            priceFlashes={priceFlashes}
+            streamConnected={streamConnected}
             onFlyToLocation={(lat, lon, zoom) => {
               flyTo(lat, lon, zoom ?? 5.5);
             }}
@@ -209,6 +252,8 @@ export function App() {
               }
               predictions={filteredData.predictions}
               news={filteredData.news}
+              priceFlashes={priceFlashes}
+              streamConnected={streamConnected}
               onFlyToLocation={(lat, lon, zoom) => {
                 setMobileIntelOpen(false);
                 flyTo(lat, lon, zoom ?? 5.5);

@@ -10,18 +10,94 @@ import type {
   MarketSnapshot,
   NewsItem,
   PredictionItem,
+  RealtimeServerEvent,
   WeatherRadarSnapshot,
 } from '@shared/types';
 import type { CollectorScheduler } from './cache/scheduler';
+import { RealtimeHub } from './realtime/hub';
 
 const STATIC_GEO_BUNDLE = buildStaticGeoBundle();
+const encoder = new TextEncoder();
 
-export function createApp(scheduler: CollectorScheduler): Hono {
+export function createApp(
+  scheduler: CollectorScheduler,
+  hub: RealtimeHub = new RealtimeHub(),
+  options: { aisStreamConfigured?: boolean } = {},
+): Hono {
   const app = new Hono();
   const store = scheduler.getStore();
 
   app.use('/api/*', cors());
-  app.use('/api/*', compress());
+
+  // Never apply gzip/deflate middleware to /api/stream, as compression buffers small SSE frames
+  const gzipMiddleware = compress();
+  app.use('/api/*', async (c, next) => {
+    if (c.req.path === '/api/stream') {
+      await next();
+      return;
+    }
+    return gzipMiddleware(c, next);
+  });
+
+  app.get('/api/stream', (c) => {
+    const abortSignal = c.req.raw.signal;
+    let cleanupFn: (() => void) | null = null;
+
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const sendEvent = (event: RealtimeServerEvent) => {
+          try {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+          } catch {
+            // Stream closed
+          }
+        };
+
+        sendEvent({
+          type: 'connected',
+          serverTime: Date.now(),
+          aisStreamConfigured: Boolean(options.aisStreamConfigured),
+        });
+
+        const unsubscribe = hub.subscribe(sendEvent);
+        const heartbeat = setInterval(() => {
+          try {
+            controller.enqueue(encoder.encode(`: ping ${Date.now()}\n\n`));
+          } catch {
+            // Closed
+          }
+        }, 15_000);
+        if (typeof heartbeat.unref === 'function') {
+          heartbeat.unref();
+        }
+
+        cleanupFn = () => {
+          unsubscribe();
+          clearInterval(heartbeat);
+          try {
+            controller.close();
+          } catch {
+            // Already closed
+          }
+        };
+
+        abortSignal.addEventListener('abort', cleanupFn, { once: true });
+      },
+      cancel() {
+        cleanupFn?.();
+      },
+    });
+
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      },
+    });
+  });
 
   app.get('/api/health', (c) => {
     return c.json(store.getAllHealth());
@@ -36,6 +112,7 @@ export function createApp(scheduler: CollectorScheduler): Hono {
       serverTime: now,
       layers: {
         military: store.get<GeoPointFeature[]>('military-flights', now) ?? [],
+        vessels: store.get<GeoPointFeature[]>('maritime-vessels', now) ?? [],
         earthquakes: store.get<GeoPointFeature[]>('earthquakes', now) ?? [],
         natural: store.get<GeoPointFeature[]>('natural-events', now) ?? [],
         geopolitics: store.get<GeoPointFeature[]>('geopolitics-gdelt', now) ?? [],
@@ -53,6 +130,7 @@ export function createApp(scheduler: CollectorScheduler): Hono {
       news: store.get<NewsItem[]>('rss-news', now) ?? [],
       theaters: [...THEATER_PRESETS],
       health: store.getAllHealth(now),
+      aisStreamConfigured: Boolean(options.aisStreamConfigured),
     };
 
     return c.json(payload);
@@ -65,6 +143,7 @@ export function createApp(scheduler: CollectorScheduler): Hono {
     const payload: LiveFastResponse = {
       serverTime: now,
       military: store.get<GeoPointFeature[]>('military-flights', now) ?? [],
+      vessels: store.get<GeoPointFeature[]>('maritime-vessels', now) ?? [],
       earthquakes: store.get<GeoPointFeature[]>('earthquakes', now) ?? [],
       weatherRadar: store.get<WeatherRadarSnapshot>('weather-radar', now),
       quotes: rawMarkets?.quotes ?? [],

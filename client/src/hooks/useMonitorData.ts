@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   BootstrapResponse,
+  BreakingAlertItem,
   CollectorId,
   GeoLineFeature,
   GeoPointFeature,
   InspectableFeature,
   LiveFastResponse,
+  LivePriceTick,
   MapLayerId,
   NewsItem,
   PredictionItem,
+  RealtimeServerEvent,
   TimeWindow,
 } from '@shared/types';
 
@@ -31,6 +34,8 @@ export interface SearchHit {
   inspectable?: InspectableFeature;
 }
 
+export type FlashDirection = 'up' | 'down';
+
 const TIME_WINDOW_MS: Record<Exclude<TimeWindow, 'all'>, number> = {
   '6h': 6 * 3_600_000,
   '24h': 24 * 3_600_000,
@@ -39,6 +44,7 @@ const TIME_WINDOW_MS: Record<Exclude<TimeWindow, 'all'>, number> = {
 
 const DEFAULT_ACTIVE_LAYERS: Record<MapLayerId, boolean> = {
   military: true,
+  vessels: true,
   earthquakes: true,
   natural: true,
   geopolitics: true,
@@ -53,8 +59,17 @@ export function useMonitorData() {
   const [data, setData] = useState<BootstrapResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [lastSyncAt, setLastSyncAt] = useState<number>(0);
   const [refreshingIds, setRefreshingIds] = useState<Set<string>>(new Set());
+
+  // Realtime SSE + WebSocket telemetry state
+  const [streamConnected, setStreamConnected] = useState<boolean>(false);
+  const [liveTickCount, setLiveTickCount] = useState<number>(0);
+  const [priceFlashes, setPriceFlashes] = useState<Record<string, FlashDirection>>({});
+  const [breakingAlerts, setBreakingAlerts] = useState<BreakingAlertItem[]>([]);
+  const [alertsMuted, setAlertsMuted] = useState<boolean>(false);
+  const [deadReckoning, setDeadReckoning] = useState<boolean>(true);
+  const [militaryAnchorMs, setMilitaryAnchorMs] = useState<number>(() => Date.now());
+  const [vesselsAnchorMs, setVesselsAnchorMs] = useState<number>(() => Date.now());
 
   const [activeLayers, setActiveLayers] = useState<Record<MapLayerId, boolean>>(DEFAULT_ACTIVE_LAYERS);
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('24h');
@@ -64,6 +79,9 @@ export function useMonitorData() {
   const [cameraTarget, setCameraTarget] = useState<CameraTarget | null>(null);
 
   const mountedRef = useRef(true);
+  const alertsMutedRef = useRef(alertsMuted);
+  alertsMutedRef.current = alertsMuted;
+  const flashTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const loadBootstrap = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -72,9 +90,11 @@ export function useMonitorData() {
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const json = (await resp.json()) as BootstrapResponse;
       if (!mountedRef.current) return json;
+      const now = Date.now();
       setData(json);
+      setMilitaryAnchorMs(now);
+      setVesselsAnchorMs(now);
       setError(null);
-      setLastSyncAt(Date.now());
       return json;
     } catch (err) {
       if (mountedRef.current && !silent) {
@@ -94,6 +114,9 @@ export function useMonitorData() {
       if (!resp.ok) return;
       const fast = (await resp.json()) as LiveFastResponse;
       if (!mountedRef.current) return;
+      const now = Date.now();
+      setMilitaryAnchorMs(now);
+      setVesselsAnchorMs(now);
       setData((prev) => {
         if (!prev) return prev;
         return {
@@ -102,6 +125,7 @@ export function useMonitorData() {
           layers: {
             ...prev.layers,
             military: fast.military,
+            vessels: fast.vessels,
             earthquakes: fast.earthquakes,
           },
           weatherRadar: fast.weatherRadar ?? prev.weatherRadar,
@@ -115,42 +139,177 @@ export function useMonitorData() {
           health: fast.health,
         };
       });
-      setLastSyncAt(Date.now());
     } catch {
-      // Silent background poll miss; health state remains intact
+      // Silent fallback poll miss
     }
   }, []);
 
-  useEffect(() => {
-    mountedRef.current = true;
-    let followup1: ReturnType<typeof setTimeout> | undefined;
-    let followup2: ReturnType<typeof setTimeout> | undefined;
+  const applyPriceTicks = useCallback((ticks: LivePriceTick[], ts: number) => {
+    const newDirections: Record<string, FlashDirection> = {};
 
-    void loadBootstrap(false).then((initial) => {
-      // If server just cold-started and collectors are still warming, run quick follow-up syncs
-      const hasWarming = initial?.health.some((h) => h.status === 'warming');
-      if (hasWarming) {
-        followup1 = setTimeout(() => void loadBootstrap(true), 3_500);
-        followup2 = setTimeout(() => void loadBootstrap(true), 9_500);
+    setData((prev) => {
+      if (!prev) return prev;
+      const tickMap = new Map(ticks.map((t) => [t.symbol, t]));
+
+      const updatedCrypto = prev.markets.crypto.map((coin) => {
+        const live = tickMap.get(coin.symbol);
+        if (!live) return coin;
+        if (live.price > coin.priceUsd) newDirections[coin.symbol] = 'up';
+        else if (live.price < coin.priceUsd) newDirections[coin.symbol] = 'down';
+        return {
+          ...coin,
+          priceUsd: live.price,
+          changePercent24h: live.changePercent24h,
+          updatedAt: ts,
+        };
+      });
+
+      const goldTick = tickMap.get('Gold');
+      let updatedQuotes = prev.markets.quotes;
+      if (goldTick) {
+        const idx = prev.markets.quotes.findIndex((q) => q.symbol === 'Gold');
+        if (idx >= 0) {
+          const prevGold = prev.markets.quotes[idx];
+          if (goldTick.price > prevGold.price) newDirections.Gold = 'up';
+          else if (goldTick.price < prevGold.price) newDirections.Gold = 'down';
+          updatedQuotes = [...prev.markets.quotes];
+          updatedQuotes[idx] = {
+            ...prevGold,
+            price: goldTick.price,
+            changePercent24h: goldTick.changePercent24h,
+            updatedAt: ts,
+          };
+        } else {
+          updatedQuotes = [
+            ...prev.markets.quotes,
+            {
+              symbol: 'Gold',
+              name: 'Vàng giao ngay (PAXG/USD Live)',
+              group: 'commodity',
+              price: goldTick.price,
+              changePercent24h: goldTick.changePercent24h,
+              unit: 'USD/oz',
+              updatedAt: ts,
+              source: 'Binance PAXG/USDT Realtime',
+            },
+          ];
+        }
       }
+
+      return {
+        ...prev,
+        markets: {
+          ...prev.markets,
+          crypto: updatedCrypto,
+          quotes: updatedQuotes,
+          updatedAt: ts,
+        },
+      };
     });
 
-    const fastTimer = setInterval(() => {
-      void loadLiveFast();
-    }, 30_000);
+    const changedSymbols = Object.keys(newDirections);
+    if (changedSymbols.length > 0) {
+      setPriceFlashes((prev) => ({ ...prev, ...newDirections }));
+      for (const sym of changedSymbols) {
+        const existingTimer = flashTimersRef.current.get(sym);
+        if (existingTimer) clearTimeout(existingTimer);
+        const timer = setTimeout(() => {
+          if (!mountedRef.current) return;
+          setPriceFlashes((curr) => {
+            const copy = { ...curr };
+            delete copy[sym];
+            return copy;
+          });
+          flashTimersRef.current.delete(sym);
+        }, 680);
+        flashTimersRef.current.set(sym, timer);
+      }
+    }
+  }, []);
 
-    const fullTimer = setInterval(() => {
-      void loadBootstrap(true);
-    }, 180_000);
+  // Connect EventSource (/api/stream) for real-time sub-second push
+  useEffect(() => {
+    mountedRef.current = true;
+    void loadBootstrap(false);
+
+    let es: EventSource | null = null;
+    if (typeof EventSource !== 'undefined') {
+      es = new EventSource('/api/stream');
+
+      es.onopen = () => {
+        if (mountedRef.current) setStreamConnected(true);
+      };
+
+      es.onerror = () => {
+        if (mountedRef.current) setStreamConnected(false);
+      };
+
+      es.onmessage = (msg) => {
+        if (!mountedRef.current) return;
+        try {
+          const ev = JSON.parse(msg.data) as RealtimeServerEvent;
+          if (ev.type === 'connected') {
+            setStreamConnected(true);
+            setData((prev) =>
+              prev ? { ...prev, aisStreamConfigured: ev.aisStreamConfigured } : prev,
+            );
+          } else if (ev.type === 'price_tick') {
+            setLiveTickCount((c) => c + 1);
+            applyPriceTicks(ev.ticks, ev.ts);
+          } else if (ev.type === 'military_update') {
+            setMilitaryAnchorMs(Date.now());
+            setData((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    layers: { ...prev.layers, military: ev.military },
+                  }
+                : prev,
+            );
+          } else if (ev.type === 'vessels_update') {
+            setVesselsAnchorMs(Date.now());
+            setData((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    layers: { ...prev.layers, vessels: ev.vessels },
+                  }
+                : prev,
+            );
+          } else if (ev.type === 'collector_sync') {
+            setData((prev) => (prev ? { ...prev, health: ev.health } : prev));
+            // Pull updated layer/news/predictions immediately when slower collectors finish
+            if (ev.collectorId !== 'military-flights' && ev.collectorId !== 'maritime-vessels') {
+              void loadBootstrap(true);
+            }
+          } else if (ev.type === 'breaking_alert' && !alertsMutedRef.current) {
+            setBreakingAlerts((prev) => [ev.alert, ...prev.filter((a) => a.id !== ev.alert.id)].slice(0, 4));
+          }
+        } catch {
+          // Ignore malformed frame
+        }
+      };
+    }
+
+    // Safety fallback poll every 60s in case SSE reconnects
+    const safetyTimer = setInterval(() => {
+      void loadLiveFast();
+    }, 60_000);
 
     return () => {
       mountedRef.current = false;
-      clearInterval(fastTimer);
-      clearInterval(fullTimer);
-      if (followup1) clearTimeout(followup1);
-      if (followup2) clearTimeout(followup2);
+      es?.close();
+      clearInterval(safetyTimer);
+      for (const timer of flashTimersRef.current.values()) {
+        clearTimeout(timer);
+      }
+      flashTimersRef.current.clear();
     };
-  }, [loadBootstrap, loadLiveFast]);
+  }, [applyPriceTicks, loadBootstrap, loadLiveFast]);
+
+  const dismissAlert = useCallback((id: string) => {
+    setBreakingAlerts((prev) => prev.filter((a) => a.id !== id));
+  }, []);
 
   const forceRefresh = useCallback(
     async (collectorId: CollectorId | 'polymarket-news') => {
@@ -178,6 +337,7 @@ export function useMonitorData() {
   const setAllLayers = useCallback((enabled: boolean) => {
     setActiveLayers({
       military: enabled,
+      vessels: enabled,
       earthquakes: enabled,
       natural: enabled,
       geopolitics: enabled,
@@ -197,6 +357,7 @@ export function useMonitorData() {
     if (!data) {
       return {
         military: [] as GeoPointFeature[],
+        vessels: [] as GeoPointFeature[],
         earthquakes: [] as GeoPointFeature[],
         natural: [] as GeoPointFeature[],
         geopolitics: [] as GeoPointFeature[],
@@ -211,12 +372,11 @@ export function useMonitorData() {
 
     const now = Date.now();
     const maxAge = timeWindow === 'all' ? Number.POSITIVE_INFINITY : TIME_WINDOW_MS[timeWindow];
-
     const withinWindow = (ts: number) => ts <= 0 || now - ts <= maxAge;
 
     return {
-      // Military flights represent live airborne traffic; always keep active snapshot
       military: data.layers.military,
+      vessels: data.layers.vessels ?? [],
       earthquakes: data.layers.earthquakes.filter((f) => withinWindow(f.timestamp)),
       natural: data.layers.natural.filter((f) => withinWindow(f.timestamp)),
       geopolitics: data.layers.geopolitics.filter((f) => withinWindow(f.timestamp)),
@@ -232,6 +392,7 @@ export function useMonitorData() {
   const layerCounts = useMemo<Record<MapLayerId, number>>(
     () => ({
       military: filteredData.military.length,
+      vessels: filteredData.vessels.length,
       earthquakes: filteredData.earthquakes.length,
       natural: filteredData.natural.length,
       geopolitics: filteredData.geopolitics.length,
@@ -252,6 +413,7 @@ export function useMonitorData() {
 
     const allPoints: Array<{ badge: string; list: GeoPointFeature[] }> = [
       { badge: 'MIL', list: filteredData.military },
+      { badge: 'AIS', list: filteredData.vessels },
       { badge: 'EQ', list: filteredData.earthquakes },
       { badge: 'NAT', list: filteredData.natural },
       { badge: 'GEO', list: filteredData.geopolitics },
@@ -336,8 +498,18 @@ export function useMonitorData() {
     layerCounts,
     loading,
     error,
-    lastSyncAt,
     refreshingIds,
+    streamConnected,
+    liveTickCount,
+    priceFlashes,
+    breakingAlerts,
+    dismissAlert,
+    alertsMuted,
+    setAlertsMuted,
+    deadReckoning,
+    setDeadReckoning,
+    militaryAnchorMs,
+    vesselsAnchorMs,
     activeLayers,
     toggleLayer,
     setAllLayers,

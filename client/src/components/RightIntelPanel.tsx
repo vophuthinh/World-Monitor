@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   ArrowSquareOut,
+  Broadcast,
   ChartBar,
   ChartLineUp,
   Crosshair,
@@ -17,6 +18,7 @@ import type {
   PredictionCategory,
   PredictionItem,
 } from '@shared/types';
+import type { FlashDirection } from '../hooks/useMonitorData';
 
 type RightTabId = 'markets' | 'predictions' | 'news';
 
@@ -24,6 +26,8 @@ interface RightIntelPanelProps {
   markets: MarketSnapshot;
   predictions: PredictionItem[];
   news: NewsItem[];
+  priceFlashes: Record<string, FlashDirection>;
+  streamConnected: boolean;
   onFlyToLocation: (lat: number, lon: number, zoom?: number) => void;
 }
 
@@ -48,6 +52,8 @@ export function RightIntelPanel({
   markets,
   predictions,
   news,
+  priceFlashes,
+  streamConnected,
   onFlyToLocation,
 }: RightIntelPanelProps) {
   const [activeTab, setActiveTab] = useState<RightTabId>('markets');
@@ -179,11 +185,18 @@ export function RightIntelPanel({
               {indexAndCommodityQuotes.map((q) => {
                 const up = q.changePercent24h >= 0;
                 const isVn = q.symbol.includes('VN');
+                const flash = priceFlashes[q.symbol];
                 return (
                   <div
                     key={q.symbol}
-                    className={`flex items-center justify-between px-2.5 py-2 ${
-                      isVn ? 'bg-emerald-500/8' : ''
+                    className={`flex items-center justify-between px-2.5 py-2 transition-colors duration-300 ${
+                      flash === 'up'
+                        ? 'bg-emerald-500/25'
+                        : flash === 'down'
+                          ? 'bg-rose-500/25'
+                          : isVn
+                            ? 'bg-emerald-500/8'
+                            : ''
                     }`}
                   >
                     <div className="min-w-0">
@@ -192,6 +205,9 @@ export function RightIntelPanel({
                         <span className="rounded bg-slate-800 px-1 py-0.2 font-mono text-[9.5px] uppercase text-slate-400">
                           {q.group}
                         </span>
+                        {q.symbol === 'Gold' && streamConnected && (
+                          <span className="font-mono text-[9px] text-emerald-400">LIVE 1S</span>
+                        )}
                       </div>
                       <div className="truncate text-[10.5px] text-slate-400">{q.name}</div>
                     </div>
@@ -219,8 +235,14 @@ export function RightIntelPanel({
           {/* Crypto & Fear & Greed Sentiment */}
           <section>
             <div className="flex items-center justify-between">
-              <h2 className="font-mono text-[11px] font-semibold tracking-wider text-slate-300">
-                TIỀN SỐ &amp; TÂM LÝ THỊ TRƯỜNG
+              <h2 className="flex items-center gap-1.5 font-mono text-[11px] font-semibold tracking-wider text-slate-300">
+                <span>TIỀN SỐ REALTIME</span>
+                {streamConnected && (
+                  <span className="inline-flex items-center gap-1 rounded bg-emerald-500/15 px-1.5 py-0.2 text-[9.5px] text-emerald-300">
+                    <Broadcast size={10} className="animate-pulse" />
+                    WS 1S
+                  </span>
+                )}
               </h2>
               {markets.fearGreed && (
                 <span className="inline-flex items-center gap-1 font-mono text-[10.5px] text-cyan-300 tabular-nums">
@@ -252,14 +274,32 @@ export function RightIntelPanel({
             <div className="mt-1.5 divide-y divide-slate-800/80 rounded border border-slate-800/95 bg-[#0d1524]">
               {markets.crypto.map((coin) => {
                 const up = coin.changePercent24h >= 0;
+                const flash = priceFlashes[coin.symbol];
                 return (
-                  <div key={coin.id} className="flex items-center justify-between px-2.5 py-1.5">
+                  <div
+                    key={coin.id}
+                    className={`flex items-center justify-between px-2.5 py-1.5 transition-colors duration-300 ${
+                      flash === 'up'
+                        ? 'bg-emerald-500/22'
+                        : flash === 'down'
+                          ? 'bg-rose-500/22'
+                          : ''
+                    }`}
+                  >
                     <div>
                       <span className="font-mono text-xs font-semibold text-slate-100">{coin.symbol}</span>
                       <span className="ml-1.5 text-[11px] text-slate-400">{coin.name}</span>
                     </div>
                     <div className="text-right font-mono tabular-nums">
-                      <div className="text-xs font-semibold text-slate-100">
+                      <div
+                        className={`text-xs font-semibold ${
+                          flash === 'up'
+                            ? 'text-emerald-200'
+                            : flash === 'down'
+                              ? 'text-rose-200'
+                              : 'text-slate-100'
+                        }`}
+                      >
                         $
                         {coin.priceUsd.toLocaleString('en-US', {
                           maximumFractionDigits: coin.priceUsd >= 10 ? 2 : 4,
