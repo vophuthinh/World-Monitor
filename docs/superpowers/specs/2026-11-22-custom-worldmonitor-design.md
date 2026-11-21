@@ -1,4 +1,4 @@
-# Thiết kế Kiến trúc — Hệ thống World Monitor Độc lập (`my-worldmonitor`)
+# Thiết kế Kiến trúc — Hệ thống World Monitor Độc lập (`worldmonitor`)
 
 - **Ngày lập:** 2026-11-22
 - **Phạm vi:** Giai đoạn 1 (Core Live Tactical Dashboard + Kinh tế, Tài chính & Thị trường Dự đoán — chạy ngay 100% không cần API key trả phí)
@@ -36,10 +36,10 @@
 
 ## 2. Cấu trúc Thư mục Dự án
 
-Dự án đặt tại `/Users/vophuthinh/Code/Test repo Github/my-worldmonitor`:
+Dự án đặt tại `/Users/vophuthinh/Code/worldmonitor`:
 
 ```text
-my-worldmonitor/
+worldmonitor/
 ├── package.json                 # Workspace scripts: dev, build, start, test, typecheck
 ├── tsconfig.base.json           # Cấu hình TypeScript strict chung
 ├── LICENSE                      # AGPL-3.0 (tương thích dữ liệu tham khảo từ koala73)

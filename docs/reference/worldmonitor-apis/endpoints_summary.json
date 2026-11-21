@@ -1,0 +1,3044 @@
+{
+  "base_url": "https://api.worldmonitor.app",
+  "total_openapi_endpoints": 248,
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/aviation/v1/get-airport-ops-summary",
+      "service": "AviationService",
+      "query_params": [
+        "airports",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetAirportOpsSummary"
+    },
+    {
+      "method": "GET",
+      "path": "/api/aviation/v1/get-carrier-ops",
+      "service": "AviationService",
+      "query_params": [
+        "airports",
+        "min_flights",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCarrierOps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/aviation/v1/get-flight-status",
+      "service": "AviationService",
+      "query_params": [
+        "flight_number*",
+        "date*",
+        "origin",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetFlightStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/api/aviation/v1/get-youtube-live-stream-info",
+      "service": "AviationService",
+      "query_params": [
+        "channel",
+        "video_id",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetYoutubeLiveStreamInfo"
+    },
+    {
+      "method": "GET",
+      "path": "/api/aviation/v1/list-aircraft-emergencies",
+      "service": "AviationService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListAircraftEmergencies"
+    },
+    {
+      "method": "GET",
+      "path": "/api/aviation/v1/list-airport-delays",
+      "service": "AviationService",
+      "query_params": [
+        "P",
+        "P2",
+        "region",
+        "min_severity",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListAirportDelays"
+    },
+    {
+      "method": "GET",
+      "path": "/api/aviation/v1/list-airport-flights",
+      "service": "AviationService",
+      "query_params": [
+        "airport*",
+        "direction",
+        "limit",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListAirportFlights"
+    },
+    {
+      "method": "GET",
+      "path": "/api/aviation/v1/list-aviation-news",
+      "service": "AviationService",
+      "query_params": [
+        "entities",
+        "window_hours",
+        "max_items",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListAviationNews"
+    },
+    {
+      "method": "GET",
+      "path": "/api/aviation/v1/search-flight-prices",
+      "service": "AviationService",
+      "query_params": [
+        "origin*",
+        "destination*",
+        "departure_date*",
+        "return_date",
+        "adults",
+        "cabin",
+        "nonstop_only",
+        "max_results",
+        "currency",
+        "market",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "SearchFlightPrices"
+    },
+    {
+      "method": "GET",
+      "path": "/api/aviation/v1/search-google-dates",
+      "service": "AviationService",
+      "query_params": [
+        "P3",
+        "P4",
+        "start_date",
+        "end_date",
+        "trip_duration",
+        "is_round_trip",
+        "P5",
+        "P6",
+        "P7",
+        "P8",
+        "sort_by_price",
+        "P9",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "SearchGoogleDates"
+    },
+    {
+      "method": "GET",
+      "path": "/api/aviation/v1/search-google-flights",
+      "service": "AviationService",
+      "query_params": [
+        "P3",
+        "P4",
+        "departure_date",
+        "return_date",
+        "P5",
+        "P6",
+        "P7",
+        "P8",
+        "sort_by",
+        "P9",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "SearchGoogleFlights"
+    },
+    {
+      "method": "GET",
+      "path": "/api/aviation/v1/track-aircraft",
+      "service": "AviationService",
+      "query_params": [
+        "icao24",
+        "callsign",
+        "sw_lat",
+        "sw_lon",
+        "ne_lat",
+        "ne_lon",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "TrackAircraft"
+    },
+    {
+      "method": "POST",
+      "path": "/api/batch/v1/execute",
+      "service": "BatchService",
+      "query_params": [
+        "P10"
+      ],
+      "has_json_body": true,
+      "auth": "API Key / Session",
+      "summary": "ExecuteBatch"
+    },
+    {
+      "method": "GET",
+      "path": "/api/climate/v1/get-co2-monitoring",
+      "service": "ClimateService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCo2Monitoring"
+    },
+    {
+      "method": "GET",
+      "path": "/api/climate/v1/get-ocean-ice-data",
+      "service": "ClimateService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetOceanIceData"
+    },
+    {
+      "method": "GET",
+      "path": "/api/climate/v1/list-air-quality-data",
+      "service": "ClimateService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListAirQualityData"
+    },
+    {
+      "method": "GET",
+      "path": "/api/climate/v1/list-climate-anomalies",
+      "service": "ClimateService",
+      "query_params": [
+        "P",
+        "P2",
+        "min_severity",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListClimateAnomalies"
+    },
+    {
+      "method": "GET",
+      "path": "/api/climate/v1/list-climate-disasters",
+      "service": "ClimateService",
+      "query_params": [
+        "P11",
+        "P12"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListClimateDisasters"
+    },
+    {
+      "method": "GET",
+      "path": "/api/climate/v1/list-climate-news",
+      "service": "ClimateService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListClimateNews"
+    },
+    {
+      "method": "GET",
+      "path": "/api/climate/v1/list-reservoir-levels",
+      "service": "ClimateService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListReservoirLevels"
+    },
+    {
+      "method": "POST",
+      "path": "/api/company-monitoring/v1/create-monitored-company",
+      "service": "CompanyMonitoringService",
+      "query_params": [
+        "P10"
+      ],
+      "has_json_body": true,
+      "auth": "API Key / Session",
+      "summary": "CreateMonitoredCompany"
+    },
+    {
+      "method": "GET",
+      "path": "/api/company-monitoring/v1/get-company-coverage",
+      "service": "CompanyMonitoringService",
+      "query_params": [
+        "company_id*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCompanyCoverage"
+    },
+    {
+      "method": "GET",
+      "path": "/api/company-monitoring/v1/get-company-material-event",
+      "service": "CompanyMonitoringService",
+      "query_params": [
+        "impact_id*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCompanyMaterialEvent"
+    },
+    {
+      "method": "GET",
+      "path": "/api/company-monitoring/v1/get-company-monitoring-status",
+      "service": "CompanyMonitoringService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCompanyMonitoringStatus"
+    },
+    {
+      "method": "POST",
+      "path": "/api/company-monitoring/v1/import-monitored-company-batch",
+      "service": "CompanyMonitoringService",
+      "query_params": [],
+      "has_json_body": true,
+      "auth": "API Key / Session",
+      "summary": "ImportMonitoredCompanyBatch"
+    },
+    {
+      "method": "GET",
+      "path": "/api/company-monitoring/v1/list-company-event-changes",
+      "service": "CompanyMonitoringService",
+      "query_params": [
+        "cursor*",
+        "page_size",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListCompanyEventChanges"
+    },
+    {
+      "method": "GET",
+      "path": "/api/company-monitoring/v1/list-company-event-impacts",
+      "service": "CompanyMonitoringService",
+      "query_params": [
+        "company_id",
+        "direction",
+        "lifecycle",
+        "P13",
+        "P14",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListCompanyEventImpacts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/company-monitoring/v1/list-monitored-companies",
+      "service": "CompanyMonitoringService",
+      "query_params": [
+        "lifecycle",
+        "coverage",
+        "P13",
+        "P14",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListMonitoredCompanies"
+    },
+    {
+      "method": "POST",
+      "path": "/api/company-monitoring/v1/set-monitored-company-state",
+      "service": "CompanyMonitoringService",
+      "query_params": [
+        "P10"
+      ],
+      "has_json_body": true,
+      "auth": "API Key / Session",
+      "summary": "SetMonitoredCompanyState"
+    },
+    {
+      "method": "POST",
+      "path": "/api/company-monitoring/v1/update-monitored-company",
+      "service": "CompanyMonitoringService",
+      "query_params": [
+        "P10"
+      ],
+      "has_json_body": true,
+      "auth": "API Key / Session",
+      "summary": "UpdateMonitoredCompany"
+    },
+    {
+      "method": "GET",
+      "path": "/api/conflict/v1/get-humanitarian-summary",
+      "service": "ConflictService",
+      "query_params": [
+        "country_code*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetHumanitarianSummary"
+    },
+    {
+      "method": "POST",
+      "path": "/api/conflict/v1/get-humanitarian-summary-batch",
+      "service": "ConflictService",
+      "query_params": [
+        "P10"
+      ],
+      "has_json_body": true,
+      "auth": "API Key / Session",
+      "summary": "GetHumanitarianSummaryBatch"
+    },
+    {
+      "method": "GET",
+      "path": "/api/conflict/v1/list-acled-events",
+      "service": "ConflictService",
+      "query_params": [
+        "P15",
+        "P16",
+        "P",
+        "P2",
+        "P17"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListAcledEvents"
+    },
+    {
+      "method": "GET",
+      "path": "/api/conflict/v1/list-iran-events",
+      "service": "ConflictService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListIranEvents"
+    },
+    {
+      "method": "GET",
+      "path": "/api/conflict/v1/list-ucdp-events",
+      "service": "ConflictService",
+      "query_params": [
+        "P18",
+        "P19",
+        "P",
+        "P2",
+        "P17"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListUcdpEvents"
+    },
+    {
+      "method": "GET",
+      "path": "/api/consumer-prices/v1/get-consumer-price-basket-series",
+      "service": "ConsumerPricesService",
+      "query_params": [
+        "market_code",
+        "basket_slug",
+        "P20",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetConsumerPriceBasketSeries"
+    },
+    {
+      "method": "GET",
+      "path": "/api/consumer-prices/v1/get-consumer-price-freshness",
+      "service": "ConsumerPricesService",
+      "query_params": [
+        "market_code",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetConsumerPriceFreshness"
+    },
+    {
+      "method": "GET",
+      "path": "/api/consumer-prices/v1/get-consumer-price-overview",
+      "service": "ConsumerPricesService",
+      "query_params": [
+        "market_code",
+        "basket_slug",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetConsumerPriceOverview"
+    },
+    {
+      "method": "GET",
+      "path": "/api/consumer-prices/v1/list-consumer-price-categories",
+      "service": "ConsumerPricesService",
+      "query_params": [
+        "P21",
+        "basket_slug",
+        "P20",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListConsumerPriceCategories"
+    },
+    {
+      "method": "GET",
+      "path": "/api/consumer-prices/v1/list-consumer-price-movers",
+      "service": "ConsumerPricesService",
+      "query_params": [
+        "P21",
+        "range",
+        "limit*",
+        "category_slug",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListConsumerPriceMovers"
+    },
+    {
+      "method": "GET",
+      "path": "/api/consumer-prices/v1/list-retailer-price-spreads",
+      "service": "ConsumerPricesService",
+      "query_params": [
+        "P21",
+        "basket_slug",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListRetailerPriceSpreads"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cyber/v1/list-cyber-threats",
+      "service": "CyberService",
+      "query_params": [
+        "P18",
+        "P19",
+        "P11",
+        "P12",
+        "type",
+        "source",
+        "min_severity",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListCyberThreats"
+    },
+    {
+      "method": "GET",
+      "path": "/api/displacement/v1/get-cross-border-movements",
+      "service": "DisplacementService",
+      "query_params": [
+        "country_code",
+        "route",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCrossBorderMovements"
+    },
+    {
+      "method": "GET",
+      "path": "/api/displacement/v1/get-displacement-summary",
+      "service": "DisplacementService",
+      "query_params": [
+        "year",
+        "country_limit",
+        "flow_limit",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetDisplacementSummary"
+    },
+    {
+      "method": "GET",
+      "path": "/api/displacement/v1/get-internal-displacement",
+      "service": "DisplacementService",
+      "query_params": [
+        "country_code",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetInternalDisplacement"
+    },
+    {
+      "method": "GET",
+      "path": "/api/displacement/v1/get-population-exposure",
+      "service": "DisplacementService",
+      "query_params": [
+        "mode",
+        "lat",
+        "lon",
+        "radius",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetPopulationExposure"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-bis-credit",
+      "service": "EconomicService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetBisCredit"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-bis-exchange-rates",
+      "service": "EconomicService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetBisExchangeRates"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-bis-policy-rates",
+      "service": "EconomicService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetBisPolicyRates"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-bls-series",
+      "service": "EconomicService",
+      "query_params": [
+        "series_id",
+        "limit",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetBlsSeries"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-china-activity-nowcast",
+      "service": "EconomicService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetChinaActivityNowcast"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-china-macro-snapshot",
+      "service": "EconomicService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetChinaMacroSnapshot"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-crude-inventories",
+      "service": "EconomicService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCrudeInventories"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-ecb-fx-rates",
+      "service": "EconomicService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetEcbFxRates"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-economic-calendar",
+      "service": "EconomicService",
+      "query_params": [
+        "P23",
+        "P24"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetEconomicCalendar"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-economic-stress",
+      "service": "EconomicService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetEconomicStress"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-energy-capacity",
+      "service": "EconomicService",
+      "query_params": [
+        "energy_sources",
+        "years",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetEnergyCapacity"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-energy-crisis-policies",
+      "service": "EconomicService",
+      "query_params": [
+        "country_code",
+        "category",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetEnergyCrisisPolicies"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-energy-prices",
+      "service": "EconomicService",
+      "query_params": [
+        "commodities",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetEnergyPrices"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-eu-fsi",
+      "service": "EconomicService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetEuFsi"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-eu-gas-storage",
+      "service": "EconomicService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetEuGasStorage"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-eu-yield-curve",
+      "service": "EconomicService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetEuYieldCurve"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-eurostat-country-data",
+      "service": "EconomicService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetEurostatCountryData"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-fao-food-price-index",
+      "service": "EconomicService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetFaoFoodPriceIndex"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-fred-series",
+      "service": "EconomicService",
+      "query_params": [
+        "series_id*",
+        "limit",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetFredSeries"
+    },
+    {
+      "method": "POST",
+      "path": "/api/economic/v1/get-fred-series-batch",
+      "service": "EconomicService",
+      "query_params": [
+        "P10"
+      ],
+      "has_json_body": true,
+      "auth": "API Key / Session",
+      "summary": "GetFredSeriesBatch"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-government-yield-curve",
+      "service": "EconomicService",
+      "query_params": [
+        "country*",
+        "history",
+        "P25",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetGovernmentYieldCurve"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-macro-signals",
+      "service": "EconomicService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetMacroSignals"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-nat-gas-storage",
+      "service": "EconomicService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetNatGasStorage"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-national-debt",
+      "service": "EconomicService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetNationalDebt"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-no2-activity",
+      "service": "EconomicService",
+      "query_params": [
+        "country_code",
+        "region_id",
+        "kind",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetNo2Activity"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-oil-inventories",
+      "service": "EconomicService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetOilInventories"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-oil-stocks-analysis",
+      "service": "EconomicService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetOilStocksAnalysis"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-us-cpi-monthly",
+      "service": "EconomicService",
+      "query_params": [
+        "history",
+        "P25",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetUsCpiMonthly"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-us-interest-rates",
+      "service": "EconomicService",
+      "query_params": [
+        "history",
+        "P25",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetUsInterestRates"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-us-treasury-par-yield-curve",
+      "service": "EconomicService",
+      "query_params": [
+        "history",
+        "P25",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetUsTreasuryParYieldCurve"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/get-world-cpi-monthly",
+      "service": "EconomicService",
+      "query_params": [
+        "history",
+        "country",
+        "P25",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetWorldCpiMonthly"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/list-bigmac-prices",
+      "service": "EconomicService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListBigMacPrices"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/list-fuel-prices",
+      "service": "EconomicService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListFuelPrices"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/list-global-tenders",
+      "service": "EconomicService",
+      "query_params": [
+        "country",
+        "countries",
+        "region",
+        "source",
+        "status",
+        "deadline_from",
+        "deadline_to",
+        "min_value",
+        "max_value",
+        "currency",
+        "category",
+        "query",
+        "page_size",
+        "cursor",
+        "sort",
+        "buyer",
+        "published_from",
+        "published_to",
+        "min_automation_score",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListGlobalTenders"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/list-grocery-basket-prices",
+      "service": "EconomicService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListGroceryBasketPrices"
+    },
+    {
+      "method": "GET",
+      "path": "/api/economic/v1/list-world-bank-indicators",
+      "service": "EconomicService",
+      "query_params": [
+        "indicator_code*",
+        "country_code",
+        "year",
+        "P22",
+        "P2",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListWorldBankIndicators"
+    },
+    {
+      "method": "GET",
+      "path": "/api/forecast/v1/get-forecast-scorecard",
+      "service": "ForecastService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetForecastScorecard"
+    },
+    {
+      "method": "GET",
+      "path": "/api/forecast/v1/get-forecasts",
+      "service": "ForecastService",
+      "query_params": [
+        "domain",
+        "region",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetForecasts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/forecast/v1/get-simulation-outcome",
+      "service": "ForecastService",
+      "query_params": [
+        "runId",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetSimulationOutcome"
+    },
+    {
+      "method": "GET",
+      "path": "/api/forecast/v1/get-simulation-package",
+      "service": "ForecastService",
+      "query_params": [
+        "runId",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetSimulationPackage"
+    },
+    {
+      "method": "POST",
+      "path": "/api/forecast/v1/trigger-simulation",
+      "service": "ForecastService",
+      "query_params": [
+        "P10"
+      ],
+      "has_json_body": true,
+      "auth": "API Key / Session",
+      "summary": "TriggerSimulation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/giving/v1/get-giving-summary",
+      "service": "GivingService",
+      "query_params": [
+        "platform_limit",
+        "category_limit",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetGivingSummary"
+    },
+    {
+      "method": "GET",
+      "path": "/api/health/v1/list-air-quality-alerts",
+      "service": "HealthService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListAirQualityAlerts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/health/v1/list-disease-outbreaks",
+      "service": "HealthService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListDiseaseOutbreaks"
+    },
+    {
+      "method": "GET",
+      "path": "/api/imagery/v1/search-imagery",
+      "service": "ImageryService",
+      "query_params": [
+        "bbox",
+        "datetime",
+        "source",
+        "limit",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "SearchImagery"
+    },
+    {
+      "method": "GET",
+      "path": "/api/infrastructure/v1/get-bootstrap-data",
+      "service": "InfrastructureService",
+      "query_params": [
+        "tier",
+        "keys",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetBootstrapData"
+    },
+    {
+      "method": "GET",
+      "path": "/api/infrastructure/v1/get-cable-health",
+      "service": "InfrastructureService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCableHealth"
+    },
+    {
+      "method": "GET",
+      "path": "/api/infrastructure/v1/get-ip-geo",
+      "service": "InfrastructureService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetIpGeo"
+    },
+    {
+      "method": "GET",
+      "path": "/api/infrastructure/v1/get-temporal-baseline",
+      "service": "InfrastructureService",
+      "query_params": [
+        "type*",
+        "region",
+        "count",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetTemporalBaseline"
+    },
+    {
+      "method": "GET",
+      "path": "/api/infrastructure/v1/list-internet-ddos-attacks",
+      "service": "InfrastructureService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListInternetDdosAttacks"
+    },
+    {
+      "method": "GET",
+      "path": "/api/infrastructure/v1/list-internet-outages",
+      "service": "InfrastructureService",
+      "query_params": [
+        "P15",
+        "P16",
+        "P22",
+        "P2",
+        "P17"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListInternetOutages"
+    },
+    {
+      "method": "GET",
+      "path": "/api/infrastructure/v1/list-internet-traffic-anomalies",
+      "service": "InfrastructureService",
+      "query_params": [
+        "country",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListInternetTrafficAnomalies"
+    },
+    {
+      "method": "GET",
+      "path": "/api/infrastructure/v1/list-service-statuses",
+      "service": "InfrastructureService",
+      "query_params": [
+        "status",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListServiceStatuses"
+    },
+    {
+      "method": "GET",
+      "path": "/api/infrastructure/v1/list-temporal-anomalies",
+      "service": "InfrastructureService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListTemporalAnomalies"
+    },
+    {
+      "method": "POST",
+      "path": "/api/infrastructure/v1/record-baseline-snapshot",
+      "service": "InfrastructureService",
+      "query_params": [
+        "P10"
+      ],
+      "has_json_body": true,
+      "auth": "API Key / Session",
+      "summary": "RecordBaselineSnapshot"
+    },
+    {
+      "method": "GET",
+      "path": "/api/infrastructure/v1/reverse-geocode",
+      "service": "InfrastructureService",
+      "query_params": [
+        "lat",
+        "lon",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ReverseGeocode"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/classify-event",
+      "service": "IntelligenceService",
+      "query_params": [
+        "title*",
+        "description",
+        "source",
+        "country",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ClassifyEvent"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/compute-energy-shock",
+      "service": "IntelligenceService",
+      "query_params": [
+        "country_code",
+        "chokepoint_id",
+        "disruption_pct",
+        "fuel_mode",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ComputeEnergyShockScenario"
+    },
+    {
+      "method": "POST",
+      "path": "/api/intelligence/v1/deduct-situation",
+      "service": "IntelligenceService",
+      "query_params": [
+        "P10"
+      ],
+      "has_json_body": true,
+      "auth": "API Key / Session",
+      "summary": "DeductSituation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/get-china-decision-signals",
+      "service": "IntelligenceService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "Public",
+      "summary": "GetChinaDecisionSignals"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/get-company-enrichment",
+      "service": "IntelligenceService",
+      "query_params": [
+        "domain",
+        "name",
+        "P27",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCompanyEnrichment"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/get-country-coverage",
+      "service": "IntelligenceService",
+      "query_params": [
+        "P26",
+        "window_hours",
+        "limit",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCountryCoverage"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/get-country-energy-profile",
+      "service": "IntelligenceService",
+      "query_params": [
+        "country_code",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCountryEnergyProfile"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/get-country-facts",
+      "service": "IntelligenceService",
+      "query_params": [
+        "country_code*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCountryFacts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/get-country-history",
+      "service": "IntelligenceService",
+      "query_params": [
+        "country*",
+        "days",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCountryHistory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/get-country-intel-brief",
+      "service": "IntelligenceService",
+      "query_params": [
+        "P26",
+        "framework",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCountryIntelBrief"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/get-country-port-activity",
+      "service": "IntelligenceService",
+      "query_params": [
+        "country_code",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCountryPortActivity"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/get-country-risk",
+      "service": "IntelligenceService",
+      "query_params": [
+        "P26"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCountryRisk"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/get-gdelt-topic-timeline",
+      "service": "IntelligenceService",
+      "query_params": [
+        "topic",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetGdeltTopicTimeline"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/get-intel-timeline",
+      "service": "IntelligenceService",
+      "query_params": [
+        "domain",
+        "country",
+        "from",
+        "to",
+        "limit",
+        "cursor",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetIntelTimeline"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/get-regime-history",
+      "service": "IntelligenceService",
+      "query_params": [
+        "P28",
+        "limit",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetRegimeHistory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/get-regional-brief",
+      "service": "IntelligenceService",
+      "query_params": [
+        "region_id*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetRegionalBrief"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/get-regional-snapshot",
+      "service": "IntelligenceService",
+      "query_params": [
+        "P28"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetRegionalSnapshot"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/get-risk-scores",
+      "service": "IntelligenceService",
+      "query_params": [
+        "region",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetRiskScores"
+    },
+    {
+      "method": "POST",
+      "path": "/api/intelligence/v1/get-similar-events",
+      "service": "IntelligenceService",
+      "query_params": [
+        "P10"
+      ],
+      "has_json_body": true,
+      "auth": "API Key / Session",
+      "summary": "GetSimilarEvents"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/get-social-velocity",
+      "service": "IntelligenceService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetSocialVelocity"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/list-company-signals",
+      "service": "IntelligenceService",
+      "query_params": [
+        "company",
+        "domain",
+        "P27",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListCompanySignals"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/list-cross-source-signals",
+      "service": "IntelligenceService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListCrossSourceSignals"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/list-gps-interference",
+      "service": "IntelligenceService",
+      "query_params": [
+        "region",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListGpsInterference"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/list-market-implications",
+      "service": "IntelligenceService",
+      "query_params": [
+        "frameworkId",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListMarketImplications"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/list-material-events",
+      "service": "IntelligenceService",
+      "query_params": [
+        "item_code",
+        "limit",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListMaterialEvents"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/list-oref-alerts",
+      "service": "IntelligenceService",
+      "query_params": [
+        "mode",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListOrefAlerts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/list-satellites",
+      "service": "IntelligenceService",
+      "query_params": [
+        "country",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListSatellites"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/list-security-advisories",
+      "service": "IntelligenceService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListSecurityAdvisories"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/list-telegram-feed",
+      "service": "IntelligenceService",
+      "query_params": [
+        "limit",
+        "topic",
+        "channel",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListTelegramFeed"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/list-wsb-tickers",
+      "service": "IntelligenceService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListWsbTickers"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/list-x-feed",
+      "service": "IntelligenceService",
+      "query_params": [
+        "limit",
+        "topic",
+        "account",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListXFeed"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/search-gdelt-documents",
+      "service": "IntelligenceService",
+      "query_params": [
+        "query*",
+        "max_records",
+        "timespan",
+        "tone_filter",
+        "sort",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "SearchGdeltDocuments"
+    },
+    {
+      "method": "POST",
+      "path": "/api/intelligence/v1/search-intel-history",
+      "service": "IntelligenceService",
+      "query_params": [
+        "P10"
+      ],
+      "has_json_body": true,
+      "auth": "API Key / Session",
+      "summary": "SearchIntelHistory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/intelligence/v1/search-sec-filings",
+      "service": "IntelligenceService",
+      "query_params": [
+        "query*",
+        "forms",
+        "start_date",
+        "end_date",
+        "limit",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "SearchSecFilings"
+    },
+    {
+      "method": "POST",
+      "path": "/api/leads/v1/register-interest",
+      "service": "LeadsService",
+      "query_params": [
+        "P10"
+      ],
+      "has_json_body": true,
+      "auth": "Public",
+      "summary": "RegisterInterest"
+    },
+    {
+      "method": "POST",
+      "path": "/api/leads/v1/submit-contact",
+      "service": "LeadsService",
+      "query_params": [
+        "P10"
+      ],
+      "has_json_body": true,
+      "auth": "Public",
+      "summary": "SubmitContact"
+    },
+    {
+      "method": "GET",
+      "path": "/api/maritime/v1/get-vessel-snapshot",
+      "service": "MaritimeService",
+      "query_params": [
+        "P29",
+        "P30",
+        "P31",
+        "P32",
+        "include_candidates",
+        "include_tankers",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetVesselSnapshot"
+    },
+    {
+      "method": "GET",
+      "path": "/api/maritime/v1/list-navigational-warnings",
+      "service": "MaritimeService",
+      "query_params": [
+        "P",
+        "P2",
+        "area",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListNavigationalWarnings"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/analyze-stock",
+      "service": "MarketService",
+      "query_params": [
+        "symbol*",
+        "P34",
+        "include_news",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "AnalyzeStock"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/backtest-stock",
+      "service": "MarketService",
+      "query_params": [
+        "symbol*",
+        "P34",
+        "eval_window_days",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "BacktestStock"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/get-cot-positioning",
+      "service": "MarketService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCotPositioning"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/get-country-stock-index",
+      "service": "MarketService",
+      "query_params": [
+        "country_code*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCountryStockIndex"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/get-fear-greed-index",
+      "service": "MarketService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetFearGreedIndex"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/get-gold-intelligence",
+      "service": "MarketService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetGoldIntelligence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/get-hyperliquid-flow",
+      "service": "MarketService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetHyperliquidFlow"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/get-insider-transactions",
+      "service": "MarketService",
+      "query_params": [
+        "symbol*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetInsiderTransactions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/get-market-breadth-history",
+      "service": "MarketService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetMarketBreadthHistory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/get-physical-divergence-index",
+      "service": "MarketService",
+      "query_params": [
+        "P33"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetPhysicalDivergenceIndex"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/get-physical-premiums",
+      "service": "MarketService",
+      "query_params": [
+        "P33"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetPhysicalPremiums"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/get-price-history",
+      "service": "MarketService",
+      "query_params": [
+        "symbols*",
+        "range",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetPriceHistory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/get-sector-summary",
+      "service": "MarketService",
+      "query_params": [
+        "period",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetSectorSummary"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/get-stock-analysis-history",
+      "service": "MarketService",
+      "query_params": [
+        "symbols",
+        "limit_per_symbol",
+        "include_news",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetStockAnalysisHistory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/list-ai-tokens",
+      "service": "MarketService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListAiTokens"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/list-commodity-quotes",
+      "service": "MarketService",
+      "query_params": [
+        "symbols",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListCommodityQuotes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/list-crypto-quotes",
+      "service": "MarketService",
+      "query_params": [
+        "ids",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListCryptoQuotes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/list-crypto-sectors",
+      "service": "MarketService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListCryptoSectors"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/list-defi-tokens",
+      "service": "MarketService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListDefiTokens"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/list-earnings-calendar",
+      "service": "MarketService",
+      "query_params": [
+        "P23",
+        "P24"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListEarningsCalendar"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/list-etf-flows",
+      "service": "MarketService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListEtfFlows"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/list-gulf-quotes",
+      "service": "MarketService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListGulfQuotes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/list-market-quotes",
+      "service": "MarketService",
+      "query_params": [
+        "symbols",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListMarketQuotes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/list-other-tokens",
+      "service": "MarketService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListOtherTokens"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/list-stablecoin-markets",
+      "service": "MarketService",
+      "query_params": [
+        "coins",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListStablecoinMarkets"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market/v1/list-stored-stock-backtests",
+      "service": "MarketService",
+      "query_params": [
+        "symbols",
+        "eval_window_days",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListStoredStockBacktests"
+    },
+    {
+      "method": "GET",
+      "path": "/api/military/v1/get-aircraft-details",
+      "service": "MilitaryService",
+      "query_params": [
+        "icao24*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetAircraftDetails"
+    },
+    {
+      "method": "POST",
+      "path": "/api/military/v1/get-aircraft-details-batch",
+      "service": "MilitaryService",
+      "query_params": [
+        "P10"
+      ],
+      "has_json_body": true,
+      "auth": "API Key / Session",
+      "summary": "GetAircraftDetailsBatch"
+    },
+    {
+      "method": "GET",
+      "path": "/api/military/v1/get-defense-industrial-base",
+      "service": "MilitaryService",
+      "query_params": [
+        "P26"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetDefenseIndustrialBase"
+    },
+    {
+      "method": "GET",
+      "path": "/api/military/v1/get-theater-posture",
+      "service": "MilitaryService",
+      "query_params": [
+        "theater",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetTheaterPosture"
+    },
+    {
+      "method": "GET",
+      "path": "/api/military/v1/get-usni-fleet-report",
+      "service": "MilitaryService",
+      "query_params": [
+        "force_refresh",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetUSNIFleetReport"
+    },
+    {
+      "method": "GET",
+      "path": "/api/military/v1/get-wingbits-live-flight",
+      "service": "MilitaryService",
+      "query_params": [
+        "icao24*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetWingbitsLiveFlight"
+    },
+    {
+      "method": "GET",
+      "path": "/api/military/v1/get-wingbits-status",
+      "service": "MilitaryService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetWingbitsStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/api/military/v1/list-defense-patents",
+      "service": "MilitaryService",
+      "query_params": [
+        "cpc_code",
+        "assignee",
+        "limit",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListDefensePatents"
+    },
+    {
+      "method": "GET",
+      "path": "/api/military/v1/list-military-bases",
+      "service": "MilitaryService",
+      "query_params": [
+        "ne_lat",
+        "ne_lon",
+        "sw_lat",
+        "sw_lon",
+        "zoom",
+        "type",
+        "kind",
+        "country",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListMilitaryBases"
+    },
+    {
+      "method": "GET",
+      "path": "/api/military/v1/list-military-flights",
+      "service": "MilitaryService",
+      "query_params": [
+        "page_size",
+        "cursor",
+        "P29",
+        "P30",
+        "P31",
+        "P32",
+        "operator",
+        "aircraft_type",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListMilitaryFlights"
+    },
+    {
+      "method": "GET",
+      "path": "/api/natural/v1/list-natural-events",
+      "service": "NaturalService",
+      "query_params": [
+        "days",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListNaturalEvents"
+    },
+    {
+      "method": "GET",
+      "path": "/api/news/v1/list-country-headlines",
+      "service": "NewsService",
+      "query_params": [
+        "country_codes*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListCountryHeadlines"
+    },
+    {
+      "method": "GET",
+      "path": "/api/news/v1/list-feed-digest",
+      "service": "NewsService",
+      "query_params": [
+        "variant",
+        "lang",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListFeedDigest"
+    },
+    {
+      "method": "GET",
+      "path": "/api/news/v1/list-media-perspective",
+      "service": "NewsService",
+      "query_params": [
+        "subject_country*",
+        "outlet_countries",
+        "audience",
+        "window_hours",
+        "outlet_regions",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListMediaPerspective"
+    },
+    {
+      "method": "GET",
+      "path": "/api/news/v1/list-news-pool",
+      "service": "NewsService",
+      "query_params": [
+        "languages",
+        "editions",
+        "category",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListNewsPool"
+    },
+    {
+      "method": "GET",
+      "path": "/api/news/v1/list-sent-alerts",
+      "service": "NewsService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListSentAlerts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/news/v1/summarize-article",
+      "service": "NewsService",
+      "query_params": [
+        "P10"
+      ],
+      "has_json_body": true,
+      "auth": "API Key / Session",
+      "summary": "SummarizeArticle"
+    },
+    {
+      "method": "GET",
+      "path": "/api/news/v1/summarize-article-cache",
+      "service": "NewsService",
+      "query_params": [
+        "cache_key",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetSummarizeArticleCache"
+    },
+    {
+      "method": "GET",
+      "path": "/api/positive-events/v1/list-positive-geo-events",
+      "service": "PositiveEventsService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListPositiveGeoEvents"
+    },
+    {
+      "method": "GET",
+      "path": "/api/prediction/v1/list-prediction-markets",
+      "service": "PredictionService",
+      "query_params": [
+        "P11",
+        "P2",
+        "category",
+        "query",
+        "min_liquidity",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListPredictionMarkets"
+    },
+    {
+      "method": "GET",
+      "path": "/api/radiation/v1/list-radiation-observations",
+      "service": "RadiationService",
+      "query_params": [
+        "max_items",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListRadiationObservations"
+    },
+    {
+      "method": "GET",
+      "path": "/api/research/v1/list-arxiv-papers",
+      "service": "ResearchService",
+      "query_params": [
+        "P11",
+        "P2",
+        "category",
+        "query",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListArxivPapers"
+    },
+    {
+      "method": "GET",
+      "path": "/api/research/v1/list-hackernews-items",
+      "service": "ResearchService",
+      "query_params": [
+        "P11",
+        "P12",
+        "feed_type",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListHackernewsItems"
+    },
+    {
+      "method": "GET",
+      "path": "/api/research/v1/list-tech-events",
+      "service": "ResearchService",
+      "query_params": [
+        "type",
+        "mappable",
+        "limit",
+        "days",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListTechEvents"
+    },
+    {
+      "method": "GET",
+      "path": "/api/research/v1/list-trending-repos",
+      "service": "ResearchService",
+      "query_params": [
+        "P11",
+        "P12",
+        "language",
+        "period",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListTrendingRepos"
+    },
+    {
+      "method": "GET",
+      "path": "/api/resilience/v1/get-demographics-capability",
+      "service": "ResilienceService",
+      "query_params": [
+        "P35"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetDemographicsCapability"
+    },
+    {
+      "method": "GET",
+      "path": "/api/resilience/v1/get-food-stocks",
+      "service": "ResilienceService",
+      "query_params": [
+        "countryCode",
+        "commodity",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetFoodStocks"
+    },
+    {
+      "method": "GET",
+      "path": "/api/resilience/v1/get-resilience-indicators",
+      "service": "ResilienceService",
+      "query_params": [
+        "P35"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetResilienceIndicators"
+    },
+    {
+      "method": "GET",
+      "path": "/api/resilience/v1/get-resilience-ranking",
+      "service": "ResilienceService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetResilienceRanking"
+    },
+    {
+      "method": "GET",
+      "path": "/api/resilience/v1/get-resilience-score",
+      "service": "ResilienceService",
+      "query_params": [
+        "countryCode*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetResilienceScore"
+    },
+    {
+      "method": "GET",
+      "path": "/api/resilience/v1/get-runtime-manifest",
+      "service": "ResilienceService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "Public",
+      "summary": "GetResilienceRuntimeManifest"
+    },
+    {
+      "method": "GET",
+      "path": "/api/safety/v1/get-toronto-safety",
+      "service": "SafetyService",
+      "query_params": [
+        "dataset",
+        "limit",
+        "division",
+        "neighbourhood",
+        "offence",
+        "year",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetTorontoSafety"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sanctions/v1/list-sanctions-pressure",
+      "service": "SanctionsService",
+      "query_params": [
+        "max_items",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListSanctionsPressure"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sanctions/v1/lookup-sanction-entity",
+      "service": "SanctionsService",
+      "query_params": [
+        "q",
+        "max_results",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "LookupSanctionEntity"
+    },
+    {
+      "method": "GET",
+      "path": "/api/scenario/v1/get-scenario-status",
+      "service": "ScenarioService",
+      "query_params": [
+        "jobId*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetScenarioStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/api/scenario/v1/list-scenario-templates",
+      "service": "ScenarioService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListScenarioTemplates"
+    },
+    {
+      "method": "POST",
+      "path": "/api/scenario/v1/run-scenario",
+      "service": "ScenarioService",
+      "query_params": [
+        "P10"
+      ],
+      "has_json_body": true,
+      "auth": "API Key / Session",
+      "summary": "RunScenario"
+    },
+    {
+      "method": "GET",
+      "path": "/api/scorecard/v1/get-bloc-scorecard",
+      "service": "ScorecardService",
+      "query_params": [
+        "preset",
+        "members",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "Public",
+      "summary": "GetBlocScorecard"
+    },
+    {
+      "method": "GET",
+      "path": "/api/scorecard/v1/get-five-factor-scorecard",
+      "service": "ScorecardService",
+      "query_params": [
+        "countryCode*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "Public",
+      "summary": "GetFiveFactorScorecard"
+    },
+    {
+      "method": "GET",
+      "path": "/api/scorecard/v1/list-five-factor-scorecards",
+      "service": "ScorecardService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "Public",
+      "summary": "ListFiveFactorScorecards"
+    },
+    {
+      "method": "GET",
+      "path": "/api/seismology/v1/list-earthquakes",
+      "service": "SeismologyService",
+      "query_params": [
+        "P18",
+        "P19",
+        "page_size",
+        "P2",
+        "min_magnitude",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListEarthquakes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/get-bypass-options",
+      "service": "SupplyChainService",
+      "query_params": [
+        "chokepointId*",
+        "cargoType",
+        "closurePct",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetBypassOptions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/get-china-corridor-control-towers",
+      "service": "SupplyChainService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetChinaCorridorControlTowers"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/get-chokepoint-dependencies",
+      "service": "SupplyChainService",
+      "query_params": [
+        "chokepointId*",
+        "pageSize",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetChokepointDependencies"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/get-chokepoint-history",
+      "service": "SupplyChainService",
+      "query_params": [
+        "chokepointId*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetChokepointHistory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/get-chokepoint-status",
+      "service": "SupplyChainService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetChokepointStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/get-country-chokepoint-index",
+      "service": "SupplyChainService",
+      "query_params": [
+        "iso2*",
+        "hs2",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCountryChokepointIndex"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/get-country-cost-shock",
+      "service": "SupplyChainService",
+      "query_params": [
+        "P36",
+        "P37",
+        "hs2",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCountryCostShock"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/get-country-products",
+      "service": "SupplyChainService",
+      "query_params": [
+        "iso2*",
+        "hs4",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCountryProducts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/get-country-vulnerabilities",
+      "service": "SupplyChainService",
+      "query_params": [
+        "iso2*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCountryVulnerabilities"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/get-critical-minerals",
+      "service": "SupplyChainService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCriticalMinerals"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/get-fuel-shortage-detail",
+      "service": "SupplyChainService",
+      "query_params": [
+        "shortageId*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetFuelShortageDetail"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/get-mineral-production",
+      "service": "SupplyChainService",
+      "query_params": [
+        "commodity",
+        "iso2",
+        "stage",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetMineralProduction"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/get-multi-sector-cost-shock",
+      "service": "SupplyChainService",
+      "query_params": [
+        "P36",
+        "P37",
+        "closureDays",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetMultiSectorCostShock"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/get-pipeline-detail",
+      "service": "SupplyChainService",
+      "query_params": [
+        "pipelineId*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetPipelineDetail"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/get-route-explorer-lane",
+      "service": "SupplyChainService",
+      "query_params": [
+        "fromIso2*",
+        "toIso2*",
+        "hs2*",
+        "cargoType*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetRouteExplorerLane"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/get-route-impact",
+      "service": "SupplyChainService",
+      "query_params": [
+        "fromIso2*",
+        "toIso2*",
+        "hs2*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetRouteImpact"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/get-sector-dependency",
+      "service": "SupplyChainService",
+      "query_params": [
+        "iso2*",
+        "hs2*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetSectorDependency"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/get-shipping-rates",
+      "service": "SupplyChainService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetShippingRates"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/get-shipping-stress",
+      "service": "SupplyChainService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetShippingStress"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/get-storage-facility-detail",
+      "service": "SupplyChainService",
+      "query_params": [
+        "facilityId*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetStorageFacilityDetail"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/list-energy-disruptions",
+      "service": "SupplyChainService",
+      "query_params": [
+        "assetId",
+        "assetType",
+        "ongoingOnly",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListEnergyDisruptions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/list-fuel-shortages",
+      "service": "SupplyChainService",
+      "query_params": [
+        "country",
+        "product",
+        "severity",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListFuelShortages"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/list-pipelines",
+      "service": "SupplyChainService",
+      "query_params": [
+        "commodityType",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListPipelines"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/list-storage-facilities",
+      "service": "SupplyChainService",
+      "query_params": [
+        "facilityType",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListStorageFacilities"
+    },
+    {
+      "method": "GET",
+      "path": "/api/supply-chain/v1/list-vulnerability-rankings",
+      "service": "SupplyChainService",
+      "query_params": [
+        "commodityId",
+        "band",
+        "state",
+        "pageSize",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListVulnerabilityRankings"
+    },
+    {
+      "method": "GET",
+      "path": "/api/thermal/v1/list-thermal-escalations",
+      "service": "ThermalService",
+      "query_params": [
+        "max_items",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListThermalEscalations"
+    },
+    {
+      "method": "GET",
+      "path": "/api/trade/v1/get-bilateral-tariff",
+      "service": "TradeService",
+      "query_params": [
+        "reporting_country*",
+        "partner_country*",
+        "hs_code*",
+        "year",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetBilateralTariff"
+    },
+    {
+      "method": "GET",
+      "path": "/api/trade/v1/get-customs-revenue",
+      "service": "TradeService",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetCustomsRevenue"
+    },
+    {
+      "method": "GET",
+      "path": "/api/trade/v1/get-tariff-trends",
+      "service": "TradeService",
+      "query_params": [
+        "P40",
+        "partner_country",
+        "product_sector",
+        "P41",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetTariffTrends"
+    },
+    {
+      "method": "GET",
+      "path": "/api/trade/v1/get-trade-barriers",
+      "service": "TradeService",
+      "query_params": [
+        "P38",
+        "measure_type",
+        "P39",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetTradeBarriers"
+    },
+    {
+      "method": "GET",
+      "path": "/api/trade/v1/get-trade-flows",
+      "service": "TradeService",
+      "query_params": [
+        "P40",
+        "partner_country",
+        "P41",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetTradeFlows"
+    },
+    {
+      "method": "GET",
+      "path": "/api/trade/v1/get-trade-restrictions",
+      "service": "TradeService",
+      "query_params": [
+        "P38",
+        "P39"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetTradeRestrictions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/trade/v1/get-us-import-duty",
+      "service": "TradeService",
+      "query_params": [
+        "hs_code*",
+        "partner_country*",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetUsImportDuty"
+    },
+    {
+      "method": "GET",
+      "path": "/api/trade/v1/list-comtrade-flows",
+      "service": "TradeService",
+      "query_params": [
+        "reporter_code",
+        "cmd_code",
+        "anomalies_only",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListComtradeFlows"
+    },
+    {
+      "method": "GET",
+      "path": "/api/unrest/v1/list-unrest-events",
+      "service": "UnrestService",
+      "query_params": [
+        "P15",
+        "P16",
+        "P",
+        "P2",
+        "P17",
+        "min_severity",
+        "ne_lat",
+        "ne_lon",
+        "sw_lat",
+        "sw_lon",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListUnrestEvents"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v2/shipping/route-intelligence",
+      "service": "ShippingV2Service",
+      "query_params": [
+        "fromIso2*",
+        "toIso2*",
+        "cargoType",
+        "hs2",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "RouteIntelligence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v2/shipping/webhooks",
+      "service": "ShippingV2Service",
+      "query_params": [],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListWebhooks"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v2/shipping/webhooks",
+      "service": "ShippingV2Service",
+      "query_params": [
+        "P10"
+      ],
+      "has_json_body": true,
+      "auth": "API Key / Session",
+      "summary": "RegisterWebhook"
+    },
+    {
+      "method": "GET",
+      "path": "/api/webcam/v1/get-webcam-image",
+      "service": "WebcamService",
+      "query_params": [
+        "webcam_id",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "GetWebcamImage"
+    },
+    {
+      "method": "GET",
+      "path": "/api/webcam/v1/list-webcams",
+      "service": "WebcamService",
+      "query_params": [
+        "zoom",
+        "bound_w",
+        "bound_s",
+        "bound_e",
+        "bound_n",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListWebcams"
+    },
+    {
+      "method": "GET",
+      "path": "/api/wildfire/v1/list-fire-detections",
+      "service": "WildfireService",
+      "query_params": [
+        "P18",
+        "P19",
+        "P",
+        "P2",
+        "ne_lat",
+        "ne_lon",
+        "sw_lat",
+        "sw_lon",
+        "J"
+      ],
+      "has_json_body": false,
+      "auth": "API Key / Session",
+      "summary": "ListFireDetections"
+    }
+  ]
+}
