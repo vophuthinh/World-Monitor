@@ -148,6 +148,9 @@ export function App() {
             nuclear={filteredData.nuclear}
             financeCenters={filteredData.financeCenters}
             cables={filteredData.cables}
+            vietnamSovereignty={filteredData.vietnamSovereignty}
+            vietnamZones={filteredData.vietnamZones}
+            vietnamSeaLabels={filteredData.vietnamSeaLabels}
             cameraTarget={cameraTarget}
             onSelectFeature={setSelectedFeature}
           />

@@ -22,7 +22,7 @@ const encoder = new TextEncoder();
 export function createApp(
   scheduler: CollectorScheduler,
   hub: RealtimeHub = new RealtimeHub(),
-  options: { aisStreamConfigured?: boolean } = {},
+  options: { aisStreamConfigured?: boolean; getLiveVessels?: () => GeoPointFeature[] } = {},
 ): Hono {
   const app = new Hono();
   const store = scheduler.getStore();
@@ -108,11 +108,17 @@ export function createApp(
     const rawMarkets = store.get<MarketSnapshot>('markets-crypto', now);
     const macro = store.get<MacroCountryIndicator[]>('macro-worldbank', now) ?? rawMarkets?.macro ?? [];
 
+    const liveWsVessels = options.getLiveVessels?.();
+    const resolvedVessels =
+      liveWsVessels && liveWsVessels.length > 0
+        ? liveWsVessels
+        : store.get<GeoPointFeature[]>('maritime-vessels', now) ?? [];
+
     const payload: BootstrapResponse = {
       serverTime: now,
       layers: {
         military: store.get<GeoPointFeature[]>('military-flights', now) ?? [],
-        vessels: store.get<GeoPointFeature[]>('maritime-vessels', now) ?? [],
+        vessels: resolvedVessels,
         earthquakes: store.get<GeoPointFeature[]>('earthquakes', now) ?? [],
         natural: store.get<GeoPointFeature[]>('natural-events', now) ?? [],
         geopolitics: store.get<GeoPointFeature[]>('geopolitics-gdelt', now) ?? [],
@@ -140,10 +146,16 @@ export function createApp(
     const now = Date.now();
     const rawMarkets = store.get<MarketSnapshot>('markets-crypto', now);
 
+    const liveWsVessels = options.getLiveVessels?.();
+    const resolvedVessels =
+      liveWsVessels && liveWsVessels.length > 0
+        ? liveWsVessels
+        : store.get<GeoPointFeature[]>('maritime-vessels', now) ?? [];
+
     const payload: LiveFastResponse = {
       serverTime: now,
       military: store.get<GeoPointFeature[]>('military-flights', now) ?? [],
-      vessels: store.get<GeoPointFeature[]>('maritime-vessels', now) ?? [],
+      vessels: resolvedVessels,
       earthquakes: store.get<GeoPointFeature[]>('earthquakes', now) ?? [],
       weatherRadar: store.get<WeatherRadarSnapshot>('weather-radar', now),
       quotes: rawMarkets?.quotes ?? [],

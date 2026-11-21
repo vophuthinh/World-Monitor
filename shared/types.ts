@@ -10,7 +10,7 @@ export type MapLayerId =
   | 'cables'
   | 'weatherRadar';
 
-export type PointLayerId = Exclude<MapLayerId, 'cables' | 'weatherRadar'>;
+export type PointLayerId = Exclude<MapLayerId, 'cables' | 'weatherRadar'> | 'sovereignty';
 
 export type SeverityLevel = 'low' | 'medium' | 'high' | 'critical' | 'info';
 
@@ -73,11 +73,33 @@ export type InspectableFeature =
   | { kind: 'point'; feature: GeoPointFeature }
   | { kind: 'cable'; feature: GeoLineFeature };
 
+export interface VietnamArchipelagoZone {
+  id: string;
+  name: string;
+  province: string;
+  labelLat: number;
+  labelLon: number;
+  /** Closed [lon, lat][] polygon ring */
+  polygon: [number, number][];
+}
+
+export interface VietnamSeaLabel {
+  id: string;
+  name: string;
+  subtitle?: string;
+  lat: number;
+  lon: number;
+  minZoom: number;
+}
+
 export interface StaticGeoBundle {
   chokepoints: GeoPointFeature[];
   nuclear: GeoPointFeature[];
   financeCenters: GeoPointFeature[];
   cables: GeoLineFeature[];
+  vietnamSovereignty: GeoPointFeature[];
+  vietnamZones: VietnamArchipelagoZone[];
+  vietnamSeaLabels: VietnamSeaLabel[];
 }
 
 export interface WeatherRadarFrame {

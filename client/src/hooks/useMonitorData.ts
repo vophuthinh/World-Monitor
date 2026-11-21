@@ -13,6 +13,8 @@ import type {
   PredictionItem,
   RealtimeServerEvent,
   TimeWindow,
+  VietnamArchipelagoZone,
+  VietnamSeaLabel,
 } from '@shared/types';
 
 export interface CameraTarget {
@@ -365,6 +367,9 @@ export function useMonitorData() {
         nuclear: [] as GeoPointFeature[],
         financeCenters: [] as GeoPointFeature[],
         cables: [] as GeoLineFeature[],
+        vietnamSovereignty: [] as GeoPointFeature[],
+        vietnamZones: [] as VietnamArchipelagoZone[],
+        vietnamSeaLabels: [] as VietnamSeaLabel[],
         news: [] as NewsItem[],
         predictions: [] as PredictionItem[],
       };
@@ -384,6 +389,9 @@ export function useMonitorData() {
       nuclear: data.staticGeo.nuclear,
       financeCenters: data.staticGeo.financeCenters,
       cables: data.staticGeo.cables,
+      vietnamSovereignty: data.staticGeo.vietnamSovereignty ?? [],
+      vietnamZones: data.staticGeo.vietnamZones ?? [],
+      vietnamSeaLabels: data.staticGeo.vietnamSeaLabels ?? [],
       news: data.news.filter((n) => withinWindow(n.publishedAt)),
       predictions: data.predictions,
     };
@@ -412,6 +420,7 @@ export function useMonitorData() {
     const hits: SearchHit[] = [];
 
     const allPoints: Array<{ badge: string; list: GeoPointFeature[] }> = [
+      { badge: 'VN', list: filteredData.vietnamSovereignty },
       { badge: 'MIL', list: filteredData.military },
       { badge: 'AIS', list: filteredData.vessels },
       { badge: 'EQ', list: filteredData.earthquakes },

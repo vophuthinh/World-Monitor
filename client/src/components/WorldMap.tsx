@@ -8,6 +8,8 @@ import type {
   GeoPointFeature,
   InspectableFeature,
   MapLayerId,
+  VietnamArchipelagoZone,
+  VietnamSeaLabel,
   WeatherRadarSnapshot,
 } from '@shared/types';
 import type { CameraTarget } from '../hooks/useMonitorData';
@@ -85,7 +87,6 @@ function createVesselSprite(fillColor: string): { width: number; height: number;
 
   ctx.clearRect(0, 0, size, size);
   ctx.beginPath();
-  // Pointed ship bow facing North (0 deg)
   ctx.moveTo(18, 4);
   ctx.lineTo(26, 15);
   ctx.lineTo(25, 31);
@@ -98,6 +99,54 @@ function createVesselSprite(fillColor: string): { width: number; height: number;
   ctx.lineWidth = 2.2;
   ctx.strokeStyle = '#040812';
   ctx.stroke();
+
+  const imageData = ctx.getImageData(0, 0, size, size);
+  return {
+    width: size,
+    height: size,
+    data: new Uint8Array(imageData.data.buffer),
+  };
+}
+
+function createVietnamStarSprite(): { width: number; height: number; data: Uint8Array } {
+  const size = 44;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  const cx = size / 2;
+  const cy = size / 2;
+
+  ctx.clearRect(0, 0, size, size);
+
+  // Red sovereign circular badge with gold ring
+  ctx.beginPath();
+  ctx.arc(cx, cy, 17, 0, Math.PI * 2);
+  ctx.fillStyle = '#da251d';
+  ctx.fill();
+  ctx.lineWidth = 2.6;
+  ctx.strokeStyle = '#ffcd00';
+  ctx.stroke();
+
+  // Five-pointed gold star
+  const spikes = 5;
+  const outerRadius = 10.2;
+  const innerRadius = 4.1;
+  let rot = (Math.PI / 2) * 3;
+  const step = Math.PI / spikes;
+
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - outerRadius);
+  for (let i = 0; i < spikes; i++) {
+    ctx.lineTo(cx + Math.cos(rot) * outerRadius, cy + Math.sin(rot) * outerRadius);
+    rot += step;
+    ctx.lineTo(cx + Math.cos(rot) * innerRadius, cy + Math.sin(rot) * innerRadius);
+    rot += step;
+  }
+  ctx.closePath();
+  ctx.fillStyle = '#ffcd00';
+  ctx.fill();
 
   const imageData = ctx.getImageData(0, 0, size, size);
   return {
@@ -154,6 +203,43 @@ function cablesToFeatureCollection(cables: GeoLineFeature[]): GeoJSON.FeatureCol
   };
 }
 
+function zonesToFeatureCollection(zones: VietnamArchipelagoZone[]): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: zones.map((z) => ({
+      type: 'Feature',
+      geometry: {
+        type: 'Polygon',
+        coordinates: [z.polygon],
+      },
+      properties: {
+        zoneId: z.id,
+        name: z.name,
+        province: z.province,
+      },
+    })),
+  };
+}
+
+function seaLabelsToFeatureCollection(labels: VietnamSeaLabel[]): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: labels.map((l) => ({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [l.lon, l.lat],
+      },
+      properties: {
+        labelId: l.id,
+        name: l.name,
+        subtitle: l.subtitle ?? '',
+        minZoom: l.minZoom,
+      },
+    })),
+  };
+}
+
 export interface WorldMapProps {
   isGlobe: boolean;
   basemap: BasemapTheme;
@@ -172,6 +258,9 @@ export interface WorldMapProps {
   nuclear: GeoPointFeature[];
   financeCenters: GeoPointFeature[];
   cables: GeoLineFeature[];
+  vietnamSovereignty: GeoPointFeature[];
+  vietnamZones: VietnamArchipelagoZone[];
+  vietnamSeaLabels: VietnamSeaLabel[];
   cameraTarget: CameraTarget | null;
   onSelectFeature: (item: InspectableFeature) => void;
 }
@@ -179,6 +268,9 @@ export interface WorldMapProps {
 const CLICKABLE_LAYERS = [
   'military-layer',
   'vessels-layer',
+  'vn-archipelago-symbol',
+  'vn-islands-circle',
+  'vn-islands-label',
   'earthquakes-circle',
   'natural-circle',
   'geopolitics-circle',
@@ -206,6 +298,9 @@ export function WorldMap({
   nuclear,
   financeCenters,
   cables,
+  vietnamSovereignty,
+  vietnamZones,
+  vietnamSeaLabels,
   cameraTarget,
   onSelectFeature,
 }: WorldMapProps) {
@@ -219,6 +314,7 @@ export function WorldMap({
   const cableLookupRef = useRef<Map<string, GeoLineFeature>>(new Map());
   const latestPropsRef = useRef({
     isGlobe,
+    basemap,
     activeLayers,
     radarOpacity,
     weatherRadar,
@@ -234,10 +330,14 @@ export function WorldMap({
     nuclear,
     financeCenters,
     cables,
+    vietnamSovereignty,
+    vietnamZones,
+    vietnamSeaLabels,
   });
 
   latestPropsRef.current = {
     isGlobe,
+    basemap,
     activeLayers,
     radarOpacity,
     weatherRadar,
@@ -253,11 +353,15 @@ export function WorldMap({
     nuclear,
     financeCenters,
     cables,
+    vietnamSovereignty,
+    vietnamZones,
+    vietnamSeaLabels,
   };
 
   useEffect(() => {
     const ptMap = new Map<string, GeoPointFeature>();
     for (const list of [
+      vietnamSovereignty,
       military,
       vessels,
       earthquakes,
@@ -274,11 +378,23 @@ export function WorldMap({
     const cbMap = new Map<string, GeoLineFeature>();
     for (const cb of cables) cbMap.set(cb.id, cb);
     cableLookupRef.current = cbMap;
-  }, [military, vessels, earthquakes, natural, geopolitics, chokepoints, nuclear, financeCenters, cables]);
+  }, [
+    vietnamSovereignty,
+    military,
+    vessels,
+    earthquakes,
+    natural,
+    geopolitics,
+    chokepoints,
+    nuclear,
+    financeCenters,
+    cables,
+  ]);
 
   const ensureLayersAndData = (map: maplibregl.Map) => {
     if (!map.isStyleLoaded()) return;
     const state = latestPropsRef.current;
+    const isLight = state.basemap !== 'dark-matter';
 
     try {
       map.setProjection({ type: state.isGlobe ? 'globe' : 'mercator' });
@@ -296,8 +412,11 @@ export function WorldMap({
         map.addImage(iconName, createVesselSprite(color), { pixelRatio: 2 });
       }
     }
+    if (!map.hasImage('vn-star-badge')) {
+      map.addImage('vn-star-badge', createVietnamStarSprite(), { pixelRatio: 2 });
+    }
 
-    // 1. Weather Radar Raster Overlay
+    // 1. Weather Radar Raster Overlay — maxzoom: 7 prevents RainViewer z>=8 "Zoom Level Not Supported" watermark tiles
     const desiredTile = state.weatherRadar?.tileUrlTemplate ?? null;
     if (desiredTile && appliedRadarPathRef.current !== desiredTile) {
       if (map.getLayer('radar-layer')) map.removeLayer('radar-layer');
@@ -306,6 +425,7 @@ export function WorldMap({
         type: 'raster',
         tiles: [desiredTile],
         tileSize: 256,
+        maxzoom: 7,
         attribution: 'RainViewer',
       });
       map.addLayer({
@@ -318,6 +438,7 @@ export function WorldMap({
         paint: {
           'raster-opacity': state.radarOpacity,
           'raster-fade-duration': 200,
+          'raster-resampling': 'linear',
         },
       });
       appliedRadarPathRef.current = desiredTile;
@@ -330,7 +451,62 @@ export function WorldMap({
       map.setPaintProperty('radar-layer', 'raster-opacity', state.radarOpacity);
     }
 
-    // 2. Submarine Cables
+    // 2. Permanent Vietnam Maritime Sovereignty Zones & Cartography (Hoàng Sa, Trường Sa, Biển Đông)
+    const vnZonesGeo = zonesToFeatureCollection(state.vietnamZones);
+    const existingVnZones = map.getSource('vn-zones-src') as GeoJSONSource | undefined;
+    if (!existingVnZones) {
+      map.addSource('vn-zones-src', { type: 'geojson', data: vnZonesGeo });
+      map.addLayer({
+        id: 'vn-zones-fill',
+        type: 'fill',
+        source: 'vn-zones-src',
+        paint: {
+          'fill-color': isLight ? '#dc2626' : '#f59e0b',
+          'fill-opacity': isLight ? 0.06 : 0.05,
+        },
+      });
+      map.addLayer({
+        id: 'vn-zones-outline',
+        type: 'line',
+        source: 'vn-zones-src',
+        paint: {
+          'line-color': isLight ? '#dc2626' : '#fbbf24',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 2, 1.0, 5, 1.55, 9, 2.1],
+          'line-opacity': isLight ? 0.65 : 0.68,
+          'line-dasharray': [3, 2],
+        },
+      });
+    } else {
+      existingVnZones.setData(vnZonesGeo);
+    }
+
+    const vnSeaGeo = seaLabelsToFeatureCollection(state.vietnamSeaLabels);
+    const existingVnSea = map.getSource('vn-sea-src') as GeoJSONSource | undefined;
+    if (!existingVnSea) {
+      map.addSource('vn-sea-src', { type: 'geojson', data: vnSeaGeo });
+      map.addLayer({
+        id: 'vn-sea-label',
+        type: 'symbol',
+        source: 'vn-sea-src',
+        filter: ['>=', ['zoom'], ['get', 'minZoom']],
+        layout: {
+          'text-field': ['get', 'name'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 2.4, 10.5, 5, 14.5, 8, 18],
+          'text-letter-spacing': 0.28,
+          'text-allow-overlap': true,
+        },
+        paint: {
+          'text-color': isLight ? '#0369a1' : '#38bdf8',
+          'text-halo-color': isLight ? '#f8fafc' : '#05080f',
+          'text-halo-width': 1.9,
+          'text-opacity': 0.88,
+        },
+      });
+    } else {
+      existingVnSea.setData(vnSeaGeo);
+    }
+
+    // 3. Submarine Cables
     const cablesGeo = cablesToFeatureCollection(state.cables);
     const existingCables = map.getSource('cables-src') as GeoJSONSource | undefined;
     if (!existingCables) {
@@ -382,7 +558,68 @@ export function WorldMap({
       return false;
     };
 
-    // 3. Chokepoints
+    // 3b. Vietnam Sovereignty Archipelago Anchors & Individual Islands (Hoàng Sa, Trường Sa, DK1, Lý Sơn, Côn Đảo, Phú Quốc...)
+    const archipelagoAnchors = state.vietnamSovereignty.filter((f) => f.category === 'archipelago');
+    const individualIslands = state.vietnamSovereignty.filter((f) => f.category !== 'archipelago');
+
+    if (upsertPointSource('vn-islands-src', individualIslands)) {
+      map.addLayer({
+        id: 'vn-islands-circle',
+        type: 'circle',
+        source: 'vn-islands-src',
+        minzoom: 4.1,
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 4.1, 3.3, 6.5, 5.0, 9.5, 6.8],
+          'circle-color': '#da251d',
+          'circle-stroke-width': 1.8,
+          'circle-stroke-color': '#ffcd00',
+          'circle-opacity': 0.95,
+        },
+      });
+      map.addLayer({
+        id: 'vn-islands-label',
+        type: 'symbol',
+        source: 'vn-islands-src',
+        minzoom: 4.8,
+        layout: {
+          'text-field': ['get', 'shortLabel'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 4.8, 9.5, 7, 11.2, 10, 13],
+          'text-offset': [0, 0.95],
+          'text-anchor': 'top',
+        },
+        paint: {
+          'text-color': isLight ? '#991b1b' : '#fef08a',
+          'text-halo-color': isLight ? '#ffffff' : '#05080f',
+          'text-halo-width': 1.6,
+        },
+      });
+    }
+
+    if (upsertPointSource('vn-archipelago-src', archipelagoAnchors)) {
+      map.addLayer({
+        id: 'vn-archipelago-symbol',
+        type: 'symbol',
+        source: 'vn-archipelago-src',
+        minzoom: 2.0,
+        layout: {
+          'icon-image': 'vn-star-badge',
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 2, 0.55, 5, 0.78, 8, 0.92],
+          'icon-allow-overlap': true,
+          'text-field': ['concat', ['get', 'shortLabel'], '\n(VIỆT NAM)'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 2.2, 9.5, 4.8, 12, 8, 14],
+          'text-offset': [0, 1.15],
+          'text-anchor': 'top',
+          'text-allow-overlap': true,
+        },
+        paint: {
+          'text-color': isLight ? '#b91c1c' : '#fde047',
+          'text-halo-color': isLight ? '#ffffff' : '#05080f',
+          'text-halo-width': 2.0,
+        },
+      });
+    }
+
+    // 4. Chokepoints
     if (upsertPointSource('chokepoints-src', state.chokepoints)) {
       map.addLayer({
         id: 'chokepoints-circle',
@@ -418,7 +655,7 @@ export function WorldMap({
     if (map.getLayer('chokepoints-circle')) map.setLayoutProperty('chokepoints-circle', 'visibility', chokeVis);
     if (map.getLayer('chokepoints-label')) map.setLayoutProperty('chokepoints-label', 'visibility', chokeVis);
 
-    // 4. Finance Centers
+    // 5. Finance Centers
     if (upsertPointSource('finance-src', state.financeCenters)) {
       map.addLayer({
         id: 'finance-circle',
@@ -453,7 +690,7 @@ export function WorldMap({
     if (map.getLayer('finance-circle')) map.setLayoutProperty('finance-circle', 'visibility', finVis);
     if (map.getLayer('finance-label')) map.setLayoutProperty('finance-label', 'visibility', finVis);
 
-    // 5. Nuclear Sites
+    // 6. Nuclear Sites
     if (upsertPointSource('nuclear-src', state.nuclear)) {
       map.addLayer({
         id: 'nuclear-circle',
@@ -472,7 +709,7 @@ export function WorldMap({
       map.setLayoutProperty('nuclear-circle', 'visibility', state.activeLayers.nuclear ? 'visible' : 'none');
     }
 
-    // 6. Geopolitics GDELT
+    // 7. Geopolitics GDELT
     if (upsertPointSource('geopolitics-src', state.geopolitics)) {
       map.addLayer({
         id: 'geopolitics-circle',
@@ -491,7 +728,7 @@ export function WorldMap({
       map.setLayoutProperty('geopolitics-circle', 'visibility', state.activeLayers.geopolitics ? 'visible' : 'none');
     }
 
-    // 7. Natural Events
+    // 8. Natural Events
     if (upsertPointSource('natural-src', state.natural)) {
       map.addLayer({
         id: 'natural-circle',
@@ -510,7 +747,7 @@ export function WorldMap({
       map.setLayoutProperty('natural-circle', 'visibility', state.activeLayers.natural ? 'visible' : 'none');
     }
 
-    // 8. Earthquakes
+    // 9. Earthquakes
     if (upsertPointSource('earthquakes-src', state.earthquakes)) {
       map.addLayer({
         id: 'earthquakes-halo',
@@ -549,7 +786,7 @@ export function WorldMap({
     if (map.getLayer('earthquakes-halo')) map.setLayoutProperty('earthquakes-halo', 'visibility', eqVis);
     if (map.getLayer('earthquakes-circle')) map.setLayoutProperty('earthquakes-circle', 'visibility', eqVis);
 
-    // 9. Maritime AIS Live Vessels
+    // 10. Maritime AIS Live Vessels
     const initialVessels = state.deadReckoning
       ? advanceDeadReckoning(state.vessels, Date.now(), 30, state.vesselsAnchorMs)
       : state.vessels;
@@ -582,7 +819,7 @@ export function WorldMap({
       map.setLayoutProperty('vessels-layer', 'visibility', state.activeLayers.vessels ? 'visible' : 'none');
     }
 
-    // 10. Military Aircraft (Topmost directional tactical layer)
+    // 11. Military Aircraft (Topmost directional tactical layer)
     const initialMilitary = state.deadReckoning
       ? advanceDeadReckoning(state.military, Date.now(), 22, state.militaryAnchorMs)
       : state.military;
@@ -628,8 +865,8 @@ export function WorldMap({
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: CARTO_STYLE_URLS[basemap],
-      center: [108.5, 16.0],
-      zoom: 3.2,
+      center: [109.5, 14.8],
+      zoom: 4.5,
       attributionControl: { compact: true },
     });
 
@@ -754,6 +991,7 @@ export function WorldMap({
     }
   }, [
     isGlobe,
+    basemap,
     activeLayers,
     radarOpacity,
     weatherRadar,
@@ -767,6 +1005,9 @@ export function WorldMap({
     nuclear,
     financeCenters,
     cables,
+    vietnamSovereignty,
+    vietnamZones,
+    vietnamSeaLabels,
   ]);
 
   useEffect(() => {

@@ -151,12 +151,18 @@ export function LayerControlDock({
         })}
       </div>
 
-      {activeLayers.vessels && !aisStreamConfigured && (
-        <div className="mt-1.5 rounded border border-emerald-500/25 bg-emerald-950/30 px-2 py-1 font-mono text-[9.5px] text-emerald-300/90">
-          Open AIS đang bật · Thêm <code className="text-emerald-200">AISSTREAM_API_KEY</code> vào{' '}
-          <code className="text-emerald-200">.env</code> để mở thêm AIS Biển Đông/Hormuz.
-        </div>
-      )}
+      {activeLayers.vessels &&
+        (aisStreamConfigured ? (
+          <div className="mt-1.5 flex items-center justify-between rounded border border-emerald-500/35 bg-emerald-950/35 px-2 py-1 font-mono text-[9.5px] text-emerald-300">
+            <span>AISStream Biển Đông / Malacca</span>
+            <span className="font-semibold text-emerald-200">LIVE WS</span>
+          </div>
+        ) : (
+          <div className="mt-1.5 rounded border border-emerald-500/25 bg-emerald-950/30 px-2 py-1 font-mono text-[9.5px] text-emerald-300/90">
+            Open AIS đang bật · Thêm <code className="text-emerald-200">AISSTREAM_API_KEY</code> vào{' '}
+            <code className="text-emerald-200">.env</code> để mở thêm AIS Biển Đông/Hormuz.
+          </div>
+        ))}
 
       {activeLayers.weatherRadar && (
         <div className="mt-2 rounded border border-slate-800/80 bg-[#0d1524] px-2.5 py-2">

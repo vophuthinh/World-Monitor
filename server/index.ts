@@ -174,6 +174,7 @@ async function main(): Promise<void> {
 
   const app = createApp(scheduler, hub, {
     aisStreamConfigured: vesselManager.isAisStreamConfigured(),
+    getLiveVessels: () => vesselManager.getCombinedVessels(),
   });
 
   const clientDistDir = resolve(process.cwd(), 'dist/client');

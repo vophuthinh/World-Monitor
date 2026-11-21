@@ -5,6 +5,7 @@ import { CollectorScheduler } from '../server/cache/scheduler';
 import { SnapshotStore } from '../server/cache/snapshot-store';
 import {
   classifyMmsiCountry,
+  extractWsPayloadText,
   normalizeDigitrafficVessels,
   parseAisStreamMessage,
 } from '../server/collectors/maritime-vessels';
@@ -115,6 +116,29 @@ describe('Realtime Streaming Engine (SSE Hub, Binance WS, AIS Vessels & Dead-Rec
     expect(aisWsShip?.category).toBe('naval_patrol');
     expect(aisWsShip?.severity).toBe('high');
     expect(aisWsShip?.lat).toBeCloseTo(15.42, 2);
+
+    // Also parses ShipStaticData and decodes binary Blob WebSocket frames from AISStream.io
+    const staticMsgJson = JSON.stringify({
+      MessageType: 'ShipStaticData',
+      MetaData: {
+        MMSI: 466012000,
+        ShipName: 'SIDRA QATAR   ',
+        latitude: 10.22,
+        longitude: 107.15,
+      },
+      Message: {
+        ShipStaticData: {
+          Type: 84, // LNG Tanker (80-89)
+        },
+      },
+    });
+    const blobFrame = new Blob([staticMsgJson]);
+    return extractWsPayloadText(blobFrame).then((decoded) => {
+      const tanker = parseAisStreamMessage(decoded, now);
+      expect(tanker?.id).toBe('ais:466012000');
+      expect(tanker?.category).toBe('tanker');
+      expect(tanker?.title).toContain('SIDRA QATAR');
+    });
   });
 
   it('extrapolates spherical dead-reckoning positions accurately and clamps max drift', () => {

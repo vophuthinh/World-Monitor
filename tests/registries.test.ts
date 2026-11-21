@@ -5,6 +5,9 @@ import {
   NUCLEAR_SITE_FEATURES,
   SUBMARINE_CABLE_FEATURES,
   THEATER_PRESETS,
+  VIETNAM_ARCHIPELAGO_ZONES,
+  VIETNAM_SEA_LABELS,
+  VIETNAM_SOVEREIGNTY_FEATURES,
   buildStaticGeoBundle,
 } from '../shared/registries/index';
 
@@ -83,11 +86,28 @@ describe('Strategic Static Geo Registries', () => {
     }
   });
 
-  it('builds complete StaticGeoBundle', () => {
+  it('builds complete StaticGeoBundle including Hoàng Sa, Trường Sa, and Biển Đông sovereignty data', () => {
     const bundle = buildStaticGeoBundle();
     expect(bundle.chokepoints.length).toBe(13);
     expect(bundle.financeCenters.length).toBeGreaterThanOrEqual(25);
     expect(bundle.nuclear.length).toBeGreaterThanOrEqual(30);
     expect(bundle.cables.length).toBeGreaterThanOrEqual(10);
+
+    expect(VIETNAM_ARCHIPELAGO_ZONES).toHaveLength(2);
+    const zoneIds = VIETNAM_ARCHIPELAGO_ZONES.map((z) => z.id);
+    expect(zoneIds).toContain('vn-zone:hoang-sa');
+    expect(zoneIds).toContain('vn-zone:truong-sa');
+
+    const islandIds = new Set(VIETNAM_SOVEREIGNTY_FEATURES.map((f) => f.id));
+    expect(islandIds.has('vn-island:hoang-sa-archipelago')).toBe(true);
+    expect(islandIds.has('vn-island:truong-sa-archipelago')).toBe(true);
+    expect(islandIds.has('vn-island:truong-sa-lon')).toBe(true);
+    expect(islandIds.has('vn-island:song-tu-tay')).toBe(true);
+    expect(islandIds.has('vn-island:sinh-ton')).toBe(true);
+    expect(islandIds.has('vn-island:phu-lam')).toBe(true);
+    expect(islandIds.has('vn-island:dk1')).toBe(true);
+
+    expect(VIETNAM_SEA_LABELS.some((l) => l.name === 'BIỂN ĐÔNG')).toBe(true);
+    expect(bundle.vietnamSovereignty.length).toBeGreaterThanOrEqual(15);
   });
 });

@@ -38,6 +38,7 @@ const SEVERITY_BADGE: Record<SeverityLevel, { label: string; className: string }
 };
 
 const LAYER_LABELS: Record<string, string> = {
+  sovereignty: 'CHỦ QUYỀN BIỂN ĐẢO VN',
   military: 'MÁY BAY QUÂN SỰ',
   vessels: 'TÀU BIỂN HÀNG HẢI AIS',
   earthquakes: 'ĐỘNG ĐẤT ĐỊA CHẤN',
@@ -165,9 +166,15 @@ export function FeatureInspector({ selected, onClose, onFlyTo }: FeatureInspecto
               <GlobeHemisphereEast size={12} />
               {LAYER_LABELS[pt.layer] ?? pt.layer.toUpperCase()}
             </span>
-            <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[10px] font-semibold ${sev.className}`}>
+            <span
+              className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[10px] font-semibold ${
+                pt.layer === 'sovereignty'
+                  ? 'border-amber-400/50 bg-red-600/25 text-amber-200'
+                  : sev.className
+              }`}
+            >
               {pt.severity === 'critical' && <WarningDiamond size={11} weight="fill" />}
-              {sev.label}
+              {pt.layer === 'sovereignty' ? 'LÃNH THỔ VIỆT NAM' : sev.label}
             </span>
           </div>
           <h3 className="mt-1.5 break-words text-sm font-semibold leading-snug text-slate-100">{pt.title}</h3>

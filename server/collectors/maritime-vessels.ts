@@ -7,8 +7,8 @@ const AISSTREAM_WS_URL = 'wss://stream.aisstream.io/v0/stream';
 
 // Strategic maritime bounding boxes [[latMin, lonMin], [latMax, lonMax]] for AISStream.io
 const STRATEGIC_AIS_BOXES = [
-  [[4.0, 103.0], [23.0, 121.0]],   // Biển Đông & Việt Nam (Hoàng Sa, Trường Sa, Vịnh Bắc Bộ)
-  [[0.5, 98.0], [6.5, 105.0]],     // Eo biển Malacca & Singapore
+  [[3.0, 102.0], [23.5, 121.5]],   // Biển Đông & Việt Nam (Hoàng Sa, Trường Sa, Vịnh Bắc Bộ, Vịnh Thái Lan)
+  [[0.5, 98.0], [6.8, 105.5]],     // Eo biển Malacca & Singapore
   [[21.5, 117.0], [26.5, 123.0]],  // Eo biển Đài Loan
   [[23.5, 53.0], [28.0, 59.0]],    // Eo biển Hormuz & Vịnh Ba Tư
   [[11.0, 31.5], [32.0, 45.5]],    // Bab el-Mandeb, Biển Đỏ & Kênh đào Suez
@@ -47,14 +47,29 @@ const MID_COUNTRY_MAP: Record<string, string> = {
   '273': 'Russia',
   '351': 'Panama',
   '352': 'Panama',
+  '353': 'Panama',
+  '354': 'Panama',
+  '355': 'Panama',
+  '356': 'Panama',
+  '357': 'Panama',
+  '370': 'Panama',
+  '371': 'Panama',
+  '372': 'Panama',
+  '373': 'Panama',
+  '374': 'Panama',
   '636': 'Liberia',
   '538': 'Marshall Islands',
   '477': 'Hong Kong',
   '248': 'Malta',
+  '249': 'Malta',
   '256': 'Malta',
   '311': 'Bahamas',
   '422': 'Iran',
   '419': 'India',
+  '466': 'Qatar',
+  '470': 'UAE',
+  '403': 'Saudi Arabia',
+  '576': 'Vanuatu',
 };
 
 export function classifyMmsiCountry(mmsi: number | string): string {
@@ -62,6 +77,19 @@ export function classifyMmsiCountry(mmsi: number | string): string {
   if (str.length < 3) return 'International';
   const mid = str.slice(0, 3);
   return MID_COUNTRY_MAP[mid] ?? `MID-${mid}`;
+}
+
+export async function extractWsPayloadText(data: unknown): Promise<string> {
+  if (typeof data === 'string') return data;
+  if (Buffer.isBuffer(data)) return data.toString('utf8');
+  if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
+  if (ArrayBuffer.isView(data)) {
+    return Buffer.from(data.buffer, data.byteOffset, data.byteLength).toString('utf8');
+  }
+  if (data && typeof (data as Blob).text === 'function') {
+    return (data as Blob).text();
+  }
+  return String(data ?? '');
 }
 
 function classifyVesselRole(shipName: string, shipType?: number): {
@@ -73,15 +101,18 @@ function classifyVesselRole(shipName: string, shipType?: number): {
   if (
     shipType === 35 ||
     shipType === 55 ||
-    /\b(NAVY|WARSHIP|COAST GUARD|HAI CANH|KIEM NGU|PATROL|USS |HMS |CCG )\b/.test(upper)
+    /\b(NAVY|WARSHIP|COAST GUARD|HAI CANH|KIEM NGU|CANH SAT BIEN|PATROL|USS |HMS |CCG )\b/.test(upper)
   ) {
     return { category: 'naval_patrol', roleLabel: 'Hải quân / Tuần duyên', severity: 'high' };
   }
   if ((shipType !== undefined && shipType >= 80 && shipType <= 89) || /\b(TANKER|CRUDE|LNG|LPG|OIL)\b/.test(upper)) {
     return { category: 'tanker', roleLabel: 'Tàu chở Dầu / LNG', severity: 'medium' };
   }
-  if (shipType !== undefined && shipType >= 70 && shipType <= 79) {
+  if ((shipType !== undefined && shipType >= 70 && shipType <= 79) || /\b(CARGO|CONTAINER|BULK|CARRIER)\b/.test(upper)) {
     return { category: 'cargo', roleLabel: 'Tàu Hàng / Container', severity: 'info' };
+  }
+  if (shipType === 30) {
+    return { category: 'vessel', roleLabel: 'Tàu Cá / Thủy sản', severity: 'info' };
   }
   return { category: 'vessel', roleLabel: 'Tàu Hàng hải AIS', severity: 'info' };
 }
@@ -137,7 +168,6 @@ export function normalizeDigitrafficVessels(
           : 0;
 
     const ts = Number(item.properties?.timestampExternal) || now;
-    // Skip stale AIS reports older than 30 minutes
     if (now - ts > 30 * 60_000) continue;
 
     const flag = classifyMmsiCountry(mmsi);
@@ -170,9 +200,8 @@ export function normalizeDigitrafficVessels(
     });
   }
 
-  // Prioritize underway moving vessels so real-time dead-reckoning is vivid
   candidates.sort((a, b) => b.sog - a.sog);
-  return candidates.slice(0, 220).map((c) => c.feature);
+  return candidates.slice(0, 200).map((c) => c.feature);
 }
 
 interface AisStreamEnvelope {
@@ -196,10 +225,34 @@ interface AisStreamEnvelope {
       Cog?: number;
       TrueHeading?: number;
     };
+    ExtendedClassBPositionReport?: {
+      Sog?: number;
+      Cog?: number;
+      TrueHeading?: number;
+      Type?: number;
+      Name?: string;
+    };
+    ShipStaticData?: {
+      Type?: number;
+      Name?: string;
+      Destination?: string;
+      CallSign?: string;
+    };
   };
 }
 
-export function parseAisStreamMessage(rawJson: string, now = Date.now()): GeoPointFeature | null {
+export interface CachedShipStatic {
+  shipType?: number;
+  shipName?: string;
+  destination?: string;
+}
+
+export function parseAisStreamMessage(
+  rawJson: string,
+  now = Date.now(),
+  staticCache?: Map<number, CachedShipStatic>,
+  existingVessel?: GeoPointFeature,
+): GeoPointFeature | null {
   try {
     const msg = JSON.parse(rawJson) as AisStreamEnvelope;
     const meta = msg?.MetaData;
@@ -211,27 +264,54 @@ export function parseAisStreamMessage(rawJson: string, now = Date.now()): GeoPoi
       return null;
     }
 
-    const pos = msg.Message?.PositionReport ?? msg.Message?.StandardClassBPositionReport;
-    const sog = Number(pos?.Sog ?? 0);
-    const cog = Number(pos?.Cog ?? 0);
-    const rawHdg = Number(pos?.TrueHeading ?? cog);
+    const staticMsg = msg.Message?.ShipStaticData;
+    const extClassB = msg.Message?.ExtendedClassBPositionReport;
+
+    const incomingType = staticMsg?.Type ?? extClassB?.Type;
+    const incomingDest = staticMsg?.Destination?.trim() || undefined;
+    const rawName = (meta?.ShipName ?? staticMsg?.Name ?? extClassB?.Name ?? '').trim();
+
+    if (staticCache && (incomingType !== undefined || rawName || incomingDest)) {
+      const prevStatic = staticCache.get(mmsi);
+      staticCache.set(mmsi, {
+        shipType: incomingType ?? prevStatic?.shipType,
+        shipName: rawName || prevStatic?.shipName,
+        destination: incomingDest ?? prevStatic?.destination,
+      });
+    }
+
+    const cached = staticCache?.get(mmsi);
+    const effectiveType = incomingType ?? cached?.shipType;
+    const shipName = rawName || cached?.shipName || `MMSI ${mmsi}`;
+    const destination = incomingDest ?? cached?.destination ?? (existingVessel?.meta.destination as string | undefined);
+
+    const pos =
+      msg.Message?.PositionReport ??
+      msg.Message?.StandardClassBPositionReport ??
+      msg.Message?.ExtendedClassBPositionReport;
+
+    const prevSpeed = Number(existingVessel?.meta.speedKt ?? 0);
+    const prevHeading = Number(existingVessel?.heading ?? 0);
+
+    const sog = pos?.Sog !== undefined ? Number(pos.Sog) : prevSpeed;
+    const cog = pos?.Cog !== undefined ? Number(pos.Cog) : prevHeading;
+    const rawHdg = pos?.TrueHeading !== undefined ? Number(pos.TrueHeading) : cog;
     const heading =
       Number.isFinite(rawHdg) && rawHdg >= 0 && rawHdg < 360
         ? Math.round(rawHdg)
         : Number.isFinite(cog)
           ? Math.round(cog) % 360
-          : 0;
+          : prevHeading;
 
-    const shipName = (meta?.ShipName ?? '').trim() || `MMSI ${mmsi}`;
     const flag = classifyMmsiCountry(mmsi);
-    const { category, roleLabel, severity } = classifyVesselRole(shipName);
+    const { category, roleLabel, severity } = classifyVesselRole(shipName, effectiveType);
     const speedKt = Number.isFinite(sog) ? Number(sog.toFixed(1)) : 0;
 
     return {
       id: `ais:${mmsi}`,
       layer: 'vessels',
       title: `${shipName} (${flag})`,
-      subtitle: `${roleLabel} · ${speedKt} kn · Hướng ${heading}°`,
+      subtitle: `${roleLabel} · ${speedKt} kn · Hướng ${heading}°${destination ? ` · Đích ${destination}` : ''}`,
       category,
       severity,
       lat,
@@ -247,7 +327,14 @@ export function parseAisStreamMessage(rawJson: string, now = Date.now()): GeoPoi
         roleLabel,
         speedKt,
         headingDeg: heading,
+        destination: destination ?? null,
         onGround: speedKt < 0.5,
+        corridor:
+          lat >= 3 && lat <= 23.5 && lon >= 102 && lon <= 121.5
+            ? 'Biển Đông / Việt Nam'
+            : lat >= 0.5 && lat <= 6.8 && lon >= 98 && lon <= 105.5
+              ? 'Eo biển Malacca / Singapore'
+              : 'Hành lang Chiến lược AISStream',
       },
     };
   } catch {
@@ -262,11 +349,13 @@ export class MaritimeVesselStreamManager {
   private stopped = false;
   private dirty = false;
   private readonly wsVessels = new Map<string, GeoPointFeature>();
+  private readonly staticCache = new Map<number, CachedShipStatic>();
   private openAisVessels: GeoPointFeature[] = [];
 
   constructor(
     private readonly hub: RealtimeHub,
     private readonly apiKey?: string,
+    private readonly onStreamFlush?: (combined: GeoPointFeature[]) => void,
   ) {}
 
   isAisStreamConfigured(): boolean {
@@ -281,13 +370,14 @@ export class MaritimeVesselStreamManager {
         if (!this.dirty) return;
         this.dirty = false;
         const combined = this.getCombinedVessels();
+        this.onStreamFlush?.(combined);
         this.hub.ingestForAlerts('maritime-ws', combined);
         this.hub.publish({
           type: 'vessels_update',
           vessels: combined,
           ts: Date.now(),
         });
-      }, 3_000);
+      }, 2_500);
       if (typeof this.pushTimer.unref === 'function') {
         this.pushTimer.unref();
       }
@@ -327,16 +417,18 @@ export class MaritimeVesselStreamManager {
   }
 
   getCombinedVessels(now = Date.now()): GeoPointFeature[] {
-    // Prune WS vessels older than 20 minutes
     for (const [key, v] of this.wsVessels) {
-      if (now - v.timestamp > 20 * 60_000) {
+      if (now - v.timestamp > 25 * 60_000) {
         this.wsVessels.delete(key);
       }
     }
     const merged = new Map<string, GeoPointFeature>();
-    for (const v of this.openAisVessels) merged.set(v.id, v);
+    // Put Biển Đông / Malacca / Hormuz / Red Sea AISStream WebSocket vessels FIRST so they are never truncated
     for (const [k, v] of this.wsVessels) merged.set(k, v);
-    return [...merged.values()].slice(0, 400);
+    for (const v of this.openAisVessels) {
+      if (!merged.has(v.id)) merged.set(v.id, v);
+    }
+    return [...merged.values()].slice(0, 750);
   }
 
   private connectAisStream(): void {
@@ -351,21 +443,41 @@ export class MaritimeVesselStreamManager {
           JSON.stringify({
             APIKey: this.apiKey,
             BoundingBoxes: STRATEGIC_AIS_BOXES,
-            FilterMessageTypes: ['PositionReport', 'StandardClassBPositionReport'],
+            FilterMessageTypes: [
+              'PositionReport',
+              'StandardClassBPositionReport',
+              'ExtendedClassBPositionReport',
+              'ShipStaticData',
+            ],
           }),
         );
       };
 
       ws.onmessage = (event) => {
-        const parsed = parseAisStreamMessage(String(event.data));
-        if (parsed) {
-          this.wsVessels.set(parsed.id, parsed);
-          this.dirty = true;
-          if (this.wsVessels.size > 350) {
-            const oldestKey = this.wsVessels.keys().next().value;
-            if (oldestKey) this.wsVessels.delete(oldestKey);
+        void extractWsPayloadText(event.data).then((rawText) => {
+          if (this.stopped || !rawText) return;
+          let mmsiKey = '';
+          try {
+            const peek = JSON.parse(rawText) as { MetaData?: { MMSI?: number } };
+            if (peek?.MetaData?.MMSI) mmsiKey = `ais:${peek.MetaData.MMSI}`;
+          } catch {
+            return;
           }
-        }
+          const existing = mmsiKey ? this.wsVessels.get(mmsiKey) : undefined;
+          const parsed = parseAisStreamMessage(rawText, Date.now(), this.staticCache, existing);
+          if (parsed) {
+            this.wsVessels.set(parsed.id, parsed);
+            this.dirty = true;
+            if (this.wsVessels.size > 580) {
+              const oldestKey = this.wsVessels.keys().next().value;
+              if (oldestKey) this.wsVessels.delete(oldestKey);
+            }
+            if (this.staticCache.size > 1_200) {
+              const oldestMmsi = this.staticCache.keys().next().value;
+              if (oldestMmsi !== undefined) this.staticCache.delete(oldestMmsi);
+            }
+          }
+        });
       };
 
       ws.onerror = () => {
