@@ -85,6 +85,11 @@ interface LiveTvChannel {
 
 const LIVE_TV_CHANNELS: readonly LiveTvChannel[] = [
   {
+    id: 'sky',
+    label: 'Sky News World',
+    embedUrl: 'https://www.youtube.com/embed/live_stream?channel=UCoMdktPbSTixAyNGwb-UYkQ&autoplay=1&mute=1',
+  },
+  {
     id: 'dw',
     label: 'DW News Live',
     embedUrl: 'https://www.youtube.com/embed/live_stream?channel=UCknLrEdhRCp1aegoMqRaCZg&autoplay=1&mute=1',
@@ -98,6 +103,11 @@ const LIVE_TV_CHANNELS: readonly LiveTvChannel[] = [
     id: 'aljazeera',
     label: 'Al Jazeera Live',
     embedUrl: 'https://www.youtube.com/embed/live_stream?channel=UCNye-wNBqNL5ZzHSJj3l8Bg&autoplay=1&mute=1',
+  },
+  {
+    id: 'euronews',
+    label: 'Euronews Live',
+    embedUrl: 'https://www.youtube.com/embed/live_stream?channel=UCSrZ3UV4jOidv8ppoVuvW9Q&autoplay=1&mute=1',
   },
 ];
 

@@ -7,6 +7,7 @@ import type { GeoPointFeature, MarketSnapshot, NewsItem, TechCyberSnapshot } fro
 import { createApp } from './app';
 import { CollectorScheduler } from './cache/scheduler';
 import { SnapshotStore } from './cache/snapshot-store';
+import { fetchCyberThreats } from './collectors/cyber-threats';
 import { fetchEarthquakes } from './collectors/earthquakes';
 import { fetchGeopoliticsGdelt } from './collectors/geopolitics-gdelt';
 import { fetchWorldBankMacro } from './collectors/macro-worldbank';
@@ -87,6 +88,15 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
     retainMs: 60 * 60_000,
     countItems: (items) => items.length,
     fetcher: () => vesselManager.fetchSnapshot(),
+  });
+
+  scheduler.registerCollector({
+    id: 'cyber-threats',
+    label: 'Mối đe dọa Mạng C2/APT (Feodo + C2Intel + SANS)',
+    intervalMs: 300_000,
+    retainMs: 6 * 3_600_000,
+    countItems: (items) => items.length,
+    fetcher: () => fetchCyberThreats(),
   });
 
   scheduler.registerCollector({

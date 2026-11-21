@@ -132,6 +132,7 @@ export function createApp(
       layers: {
         military: store.get<GeoPointFeature[]>('military-flights', now) ?? [],
         vessels: resolvedVessels,
+        cyberThreats: store.get<GeoPointFeature[]>('cyber-threats', now) ?? [],
         earthquakes: store.get<GeoPointFeature[]>('earthquakes', now) ?? [],
         natural: store.get<GeoPointFeature[]>('natural-events', now) ?? [],
         geopolitics: store.get<GeoPointFeature[]>('geopolitics-gdelt', now) ?? [],

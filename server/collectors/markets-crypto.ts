@@ -2,7 +2,7 @@ import type { CryptoQuote, FearGreedSnapshot, MarketQuote, MarketSnapshot } from
 import { DEFAULT_BROWSER_UA, NAMED_APP_UA, fetchJsonWithTimeout, fetchTextWithTimeout } from '../lib/http';
 
 const COINGECKO_URL =
-  'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum,solana,binancecoin,ripple,dogecoin,cardano,tron&order=market_cap_desc&sparkline=false&price_change_percentage=24h';
+  'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum,solana,binancecoin,ripple,dogecoin,cardano,tron,tether,usd-coin&order=market_cap_desc&sparkline=false&price_change_percentage=24h';
 const COINPAPRIKA_FALLBACK_URL = 'https://api.coinpaprika.com/v1/tickers?quotes=USD';
 const FEAR_GREED_URL = 'https://api.alternative.me/fng/?limit=1';
 const ER_API_USD_URL = 'https://open.er-api.com/v6/latest/USD';
@@ -50,6 +50,8 @@ const PAPRIKA_TARGETS = new Map<string, string>([
   ['doge-dogecoin', 'dogecoin'],
   ['ada-cardano', 'cardano'],
   ['trx-tron', 'tron'],
+  ['usdt-tether', 'tether'],
+  ['usdc-usd-coin', 'usd-coin'],
 ]);
 
 async function fetchCryptoQuotes(now: number): Promise<CryptoQuote[]> {

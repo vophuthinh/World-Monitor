@@ -1,9 +1,12 @@
 export type MapLayerId =
   | 'military'
   | 'vessels'
+  | 'cyberThreats'
   | 'earthquakes'
   | 'natural'
   | 'geopolitics'
+  | 'militaryBases'
+  | 'aiDatacenters'
   | 'chokepoints'
   | 'nuclear'
   | 'financeCenters'
@@ -21,6 +24,7 @@ export type BasemapTheme = 'dark-matter' | 'voyager' | 'positron';
 export type CollectorId =
   | 'military-flights'
   | 'maritime-vessels'
+  | 'cyber-threats'
   | 'earthquakes'
   | 'natural-events'
   | 'geopolitics-gdelt'
@@ -97,6 +101,8 @@ export interface StaticGeoBundle {
   chokepoints: GeoPointFeature[];
   nuclear: GeoPointFeature[];
   financeCenters: GeoPointFeature[];
+  militaryBases: GeoPointFeature[];
+  aiDatacenters: GeoPointFeature[];
   cables: GeoLineFeature[];
   vietnamSovereignty: GeoPointFeature[];
   vietnamZones: VietnamArchipelagoZone[];
@@ -273,6 +279,7 @@ export interface TheaterViewPreset {
 export interface LiveDynamicLayers {
   military: GeoPointFeature[];
   vessels: GeoPointFeature[];
+  cyberThreats: GeoPointFeature[];
   earthquakes: GeoPointFeature[];
   natural: GeoPointFeature[];
   geopolitics: GeoPointFeature[];

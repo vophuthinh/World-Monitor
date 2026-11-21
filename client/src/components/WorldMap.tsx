@@ -248,12 +248,15 @@ export interface WorldMapProps {
   weatherRadar: WeatherRadarSnapshot | null;
   military: GeoPointFeature[];
   vessels: GeoPointFeature[];
+  cyberThreats: GeoPointFeature[];
   militaryAnchorMs: number;
   vesselsAnchorMs: number;
   deadReckoning: boolean;
   earthquakes: GeoPointFeature[];
   natural: GeoPointFeature[];
   geopolitics: GeoPointFeature[];
+  militaryBases: GeoPointFeature[];
+  aiDatacenters: GeoPointFeature[];
   chokepoints: GeoPointFeature[];
   nuclear: GeoPointFeature[];
   financeCenters: GeoPointFeature[];
@@ -268,12 +271,15 @@ export interface WorldMapProps {
 const CLICKABLE_LAYERS = [
   'military-layer',
   'vessels-layer',
+  'cyber-circle',
   'vn-archipelago-symbol',
   'vn-islands-circle',
   'vn-islands-label',
   'earthquakes-circle',
   'natural-circle',
   'geopolitics-circle',
+  'milbases-circle',
+  'aidc-circle',
   'chokepoints-circle',
   'nuclear-circle',
   'finance-circle',
@@ -288,12 +294,15 @@ export function WorldMap({
   weatherRadar,
   military,
   vessels,
+  cyberThreats,
   militaryAnchorMs,
   vesselsAnchorMs,
   deadReckoning,
   earthquakes,
   natural,
   geopolitics,
+  militaryBases,
+  aiDatacenters,
   chokepoints,
   nuclear,
   financeCenters,
@@ -320,12 +329,15 @@ export function WorldMap({
     weatherRadar,
     military,
     vessels,
+    cyberThreats,
     militaryAnchorMs,
     vesselsAnchorMs,
     deadReckoning,
     earthquakes,
     natural,
     geopolitics,
+    militaryBases,
+    aiDatacenters,
     chokepoints,
     nuclear,
     financeCenters,
@@ -343,12 +355,15 @@ export function WorldMap({
     weatherRadar,
     military,
     vessels,
+    cyberThreats,
     militaryAnchorMs,
     vesselsAnchorMs,
     deadReckoning,
     earthquakes,
     natural,
     geopolitics,
+    militaryBases,
+    aiDatacenters,
     chokepoints,
     nuclear,
     financeCenters,
@@ -364,9 +379,12 @@ export function WorldMap({
       vietnamSovereignty,
       military,
       vessels,
+      cyberThreats,
       earthquakes,
       natural,
       geopolitics,
+      militaryBases,
+      aiDatacenters,
       chokepoints,
       nuclear,
       financeCenters,
@@ -382,9 +400,12 @@ export function WorldMap({
     vietnamSovereignty,
     military,
     vessels,
+    cyberThreats,
     earthquakes,
     natural,
     geopolitics,
+    militaryBases,
+    aiDatacenters,
     chokepoints,
     nuclear,
     financeCenters,
@@ -709,6 +730,121 @@ export function WorldMap({
       map.setLayoutProperty('nuclear-circle', 'visibility', state.activeLayers.nuclear ? 'visible' : 'none');
     }
 
+    // 6b. Military Bases & Orbital Spaceports (WorldMonitor Strategic Layer)
+    if (upsertPointSource('milbases-src', state.militaryBases)) {
+      map.addLayer({
+        id: 'milbases-circle',
+        type: 'circle',
+        source: 'milbases-src',
+        paint: {
+          'circle-radius': ['case', ['==', ['get', 'isVietnam'], 1], 7, 5.2],
+          'circle-color': [
+            'match',
+            ['get', 'category'],
+            'spaceport',
+            '#38bdf8',
+            '#6366f1',
+          ],
+          'circle-stroke-width': 1.8,
+          'circle-stroke-color': ['case', ['==', ['get', 'isVietnam'], 1], '#fde047', '#e0e7ff'],
+          'circle-opacity': 0.9,
+        },
+      });
+      map.addLayer({
+        id: 'milbases-label',
+        type: 'symbol',
+        source: 'milbases-src',
+        minzoom: 3.6,
+        layout: {
+          'text-field': ['get', 'shortLabel'],
+          'text-size': 9.8,
+          'text-offset': [0, 1.05],
+          'text-anchor': 'top',
+        },
+        paint: {
+          'text-color': isLight ? '#3730a3' : '#a5b4fc',
+          'text-halo-color': isLight ? '#ffffff' : '#05080f',
+          'text-halo-width': 1.4,
+        },
+      });
+    }
+    const baseVis = state.activeLayers.militaryBases ? 'visible' : 'none';
+    if (map.getLayer('milbases-circle')) map.setLayoutProperty('milbases-circle', 'visibility', baseVis);
+    if (map.getLayer('milbases-label')) map.setLayoutProperty('milbases-label', 'visibility', baseVis);
+
+    // 6c. AI Superclusters, Semiconductor Fabs & Critical Minerals
+    if (upsertPointSource('aidc-src', state.aiDatacenters)) {
+      map.addLayer({
+        id: 'aidc-circle',
+        type: 'circle',
+        source: 'aidc-src',
+        paint: {
+          'circle-radius': ['case', ['==', ['get', 'isVietnam'], 1], 6.8, 5.4],
+          'circle-color': [
+            'match',
+            ['get', 'category'],
+            'semiconductor_fab',
+            '#a855f7',
+            'critical_mineral',
+            '#14b8a6',
+            '#8b5cf6',
+          ],
+          'circle-stroke-width': 1.8,
+          'circle-stroke-color': ['case', ['==', ['get', 'isVietnam'], 1], '#fde047', '#f3e8ff'],
+          'circle-opacity': 0.92,
+        },
+      });
+      map.addLayer({
+        id: 'aidc-label',
+        type: 'symbol',
+        source: 'aidc-src',
+        minzoom: 3.4,
+        layout: {
+          'text-field': ['get', 'shortLabel'],
+          'text-size': 9.8,
+          'text-offset': [0, 1.05],
+          'text-anchor': 'top',
+        },
+        paint: {
+          'text-color': isLight ? '#6b21a8' : '#d8b4fe',
+          'text-halo-color': isLight ? '#ffffff' : '#05080f',
+          'text-halo-width': 1.4,
+        },
+      });
+    }
+    const aidcVis = state.activeLayers.aiDatacenters ? 'visible' : 'none';
+    if (map.getLayer('aidc-circle')) map.setLayoutProperty('aidc-circle', 'visibility', aidcVis);
+    if (map.getLayer('aidc-label')) map.setLayoutProperty('aidc-label', 'visibility', aidcVis);
+
+    // 6d. Live Cyber Threats (Feodo C2 + C2IntelFeeds CobaltStrike + SANS DShield + APT Attribution)
+    if (upsertPointSource('cyber-src', state.cyberThreats)) {
+      map.addLayer({
+        id: 'cyber-halo',
+        type: 'circle',
+        source: 'cyber-src',
+        paint: {
+          'circle-radius': ['match', ['get', 'category'], 'apt_group', 13, 9],
+          'circle-color': '#d946ef',
+          'circle-opacity': 0.22,
+        },
+      });
+      map.addLayer({
+        id: 'cyber-circle',
+        type: 'circle',
+        source: 'cyber-src',
+        paint: {
+          'circle-radius': ['match', ['get', 'category'], 'apt_group', 6.5, 4.2],
+          'circle-color': ['match', ['get', 'category'], 'apt_group', '#e879f9', '#d946ef'],
+          'circle-stroke-width': 1.5,
+          'circle-stroke-color': '#fae8ff',
+          'circle-opacity': 0.92,
+        },
+      });
+    }
+    const cyberVis = state.activeLayers.cyberThreats ? 'visible' : 'none';
+    if (map.getLayer('cyber-halo')) map.setLayoutProperty('cyber-halo', 'visibility', cyberVis);
+    if (map.getLayer('cyber-circle')) map.setLayoutProperty('cyber-circle', 'visibility', cyberVis);
+
     // 7. Geopolitics GDELT
     if (upsertPointSource('geopolitics-src', state.geopolitics)) {
       map.addLayer({
@@ -997,10 +1133,13 @@ export function WorldMap({
     weatherRadar,
     military,
     vessels,
+    cyberThreats,
     deadReckoning,
     earthquakes,
     natural,
     geopolitics,
+    militaryBases,
+    aiDatacenters,
     chokepoints,
     nuclear,
     financeCenters,

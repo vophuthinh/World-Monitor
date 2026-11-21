@@ -139,12 +139,15 @@ export function App() {
             weatherRadar={data?.weatherRadar ?? null}
             military={filteredData.military}
             vessels={filteredData.vessels}
+            cyberThreats={filteredData.cyberThreats}
             militaryAnchorMs={militaryAnchorMs}
             vesselsAnchorMs={vesselsAnchorMs}
             deadReckoning={deadReckoning}
             earthquakes={filteredData.earthquakes}
             natural={filteredData.natural}
             geopolitics={filteredData.geopolitics}
+            militaryBases={filteredData.militaryBases}
+            aiDatacenters={filteredData.aiDatacenters}
             chokepoints={filteredData.chokepoints}
             nuclear={filteredData.nuclear}
             financeCenters={filteredData.financeCenters}
@@ -234,6 +237,10 @@ export function App() {
             predictions={filteredData.predictions}
             news={filteredData.news}
             techCyber={data?.techCyber}
+            military={filteredData.military}
+            vessels={filteredData.vessels}
+            geopolitics={filteredData.geopolitics}
+            cyberThreats={filteredData.cyberThreats}
             newsStreamStats={data?.newsStreamStats}
             freshNewsIds={freshNewsIds}
             priceFlashes={priceFlashes}
@@ -260,6 +267,10 @@ export function App() {
               predictions={filteredData.predictions}
               news={filteredData.news}
               techCyber={data?.techCyber}
+              military={filteredData.military}
+              vessels={filteredData.vessels}
+              geopolitics={filteredData.geopolitics}
+              cyberThreats={filteredData.cyberThreats}
               newsStreamStats={data?.newsStreamStats}
               freshNewsIds={freshNewsIds}
               priceFlashes={priceFlashes}

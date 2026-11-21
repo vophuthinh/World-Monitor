@@ -345,8 +345,13 @@ export const CURATED_RSS_FEEDS: readonly FeedDefinition[] = [
   { name: 'Dân Trí Thế giới', category: 'vietnam', url: 'https://dantri.com.vn/rss/the-gioi.rss' },
   { name: 'Dân Trí Kinh doanh', category: 'vietnam', url: 'https://dantri.com.vn/rss/kinh-doanh.rss' },
 
-  // Báo chí Địa chính trị Quốc tế & Châu Á - Thái Bình Dương (tham chiếu Koala73)
+  // Báo chí Địa chính trị Quốc tế, BBC Global Desks & Châu Á - Thái Bình Dương (tham chiếu Koala73)
   { name: 'BBC World', category: 'world', url: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
+  { name: 'BBC Asia', category: 'world', url: 'https://feeds.bbci.co.uk/news/world/asia/rss.xml' },
+  { name: 'BBC Middle East', category: 'world', url: 'https://feeds.bbci.co.uk/news/world/middle_east/rss.xml' },
+  { name: 'BBC Europe', category: 'world', url: 'https://feeds.bbci.co.uk/news/world/europe/rss.xml' },
+  { name: 'BBC US & Canada', category: 'world', url: 'https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml' },
+  { name: 'BBC Business', category: 'finance', url: 'https://feeds.bbci.co.uk/news/business/rss.xml' },
   { name: 'Al Jazeera', category: 'world', url: 'https://www.aljazeera.com/xml/rss/all.xml' },
   { name: 'The Guardian World', category: 'world', url: 'https://www.theguardian.com/world/rss' },
   { name: 'NYT World', category: 'world', url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml' },

@@ -6,16 +6,28 @@ import {
   ChartLineUp,
   Cpu,
   Crosshair,
+  Fire,
   Gauge,
   Lightning,
   MagnifyingGlass,
   Newspaper,
   ShieldWarning,
+  Target,
   Translate,
   TrendDown,
   TrendUp,
 } from '@phosphor-icons/react';
+import {
+  type CiiBand,
+  type IntelTopicId,
+  type PostureLevel,
+  classifyLiveIntelTopics,
+  computeCountryInstabilityScores,
+  computeTheaterPostures,
+  detectTrendingSpikes,
+} from '@shared/intelligence';
 import type {
+  GeoPointFeature,
   MarketSnapshot,
   NewsCategory,
   NewsItem,
@@ -28,13 +40,18 @@ import type {
 } from '@shared/types';
 import type { FlashDirection } from '../hooks/useMonitorData';
 
-type RightTabId = 'markets' | 'predictions' | 'news' | 'techCyber';
+type RightTabId = 'intel' | 'techCyber' | 'news' | 'markets' | 'predictions';
+type NewsFilterId = 'all' | 'bbc' | NewsCategory;
 
 interface RightIntelPanelProps {
   markets: MarketSnapshot;
   predictions: PredictionItem[];
   news: NewsItem[];
   techCyber?: TechCyberSnapshot;
+  military: GeoPointFeature[];
+  vessels: GeoPointFeature[];
+  geopolitics: GeoPointFeature[];
+  cyberThreats: GeoPointFeature[];
   newsStreamStats?: NewsStreamStats;
   freshNewsIds?: ReadonlySet<string>;
   priceFlashes: Record<string, FlashDirection>;
@@ -52,6 +69,7 @@ function formatCompactUsd(val: number | null): string {
 }
 
 function formatRelativeTime(ts: number): string {
+  if (!ts || ts <= 0) return 'Cố định';
   const diffSec = Math.max(1, Math.round((Date.now() - ts) / 1_000));
   if (diffSec < 60) return `${diffSec}s trước`;
   const diffMin = Math.round(diffSec / 60);
@@ -62,6 +80,9 @@ function formatRelativeTime(ts: number): string {
 }
 
 function sourceBadgeStyle(item: NewsItem): string {
+  if (item.source.startsWith('BBC ')) {
+    return 'border border-red-500/45 bg-red-600/20 text-red-200';
+  }
   if (item.streamSource === 'bluesky') {
     return 'border border-sky-500/40 bg-sky-500/15 text-sky-300';
   }
@@ -98,21 +119,50 @@ function techBadgeStyle(item: TechCyberItem): string {
   return 'border border-cyan-500/35 bg-cyan-500/12 text-cyan-300';
 }
 
+const POSTURE_BADGE: Record<PostureLevel, string> = {
+  CRITICAL: 'border-rose-500/55 bg-rose-500/20 text-rose-200',
+  ELEVATED: 'border-amber-500/50 bg-amber-500/18 text-amber-200',
+  NORMAL: 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300',
+};
+
+const CII_BAND_STYLE: Record<CiiBand, { badge: string; bar: string }> = {
+  CRITICAL: { badge: 'text-rose-300 bg-rose-500/20 border-rose-500/45', bar: '#f43f5e' },
+  HIGH: { badge: 'text-orange-300 bg-orange-500/20 border-orange-500/45', bar: '#f97316' },
+  ELEVATED: { badge: 'text-amber-300 bg-amber-500/20 border-amber-500/45', bar: '#f59e0b' },
+  MODERATE: { badge: 'text-sky-300 bg-sky-500/15 border-sky-500/35', bar: '#38bdf8' },
+  LOW: { badge: 'text-emerald-300 bg-emerald-500/15 border-emerald-500/40', bar: '#10b981' },
+};
+
+const INTEL_TOPIC_TABS: ReadonlyArray<{ id: IntelTopicId | 'c2_ioc'; label: string }> = [
+  { id: 'cyber', label: '🔓 Cyber Threats' },
+  { id: 'c2_ioc', label: '🌐 Live C2 IOCs' },
+  { id: 'military', label: '⚔️ Quân sự' },
+  { id: 'maritime', label: '🚢 Hàng hải' },
+  { id: 'nuclear', label: '☢️ Hạt nhân' },
+  { id: 'sanctions', label: '🚫 Trừng phạt' },
+  { id: 'intelligence', label: '🕵️ Tình báo' },
+];
+
 export function RightIntelPanel({
   markets,
   predictions,
   news,
   techCyber,
+  military,
+  vessels,
+  geopolitics,
+  cyberThreats,
   newsStreamStats,
   freshNewsIds,
   priceFlashes,
   streamConnected,
   onFlyToLocation,
 }: RightIntelPanelProps) {
-  const [activeTab, setActiveTab] = useState<RightTabId>('markets');
+  const [activeTab, setActiveTab] = useState<RightTabId>('intel');
+  const [intelTopic, setIntelTopic] = useState<IntelTopicId | 'c2_ioc'>('cyber');
   const [predFilter, setPredFilter] = useState<'all' | PredictionCategory>('all');
   const [predQuery, setPredQuery] = useState('');
-  const [newsFilter, setNewsFilter] = useState<'all' | NewsCategory>('all');
+  const [newsFilter, setNewsFilter] = useState<NewsFilterId>('all');
   const [newsQuery, setNewsQuery] = useState('');
   const [techFilter, setTechFilter] = useState<'all' | TechSubCategory>('all');
   const [techQuery, setTechQuery] = useState('');
@@ -122,6 +172,34 @@ export function RightIntelPanel({
   const indexAndCommodityQuotes = useMemo(
     () => markets.quotes.filter((q) => q.group !== 'fx'),
     [markets.quotes],
+  );
+
+  const techItems = techCyber?.items ?? [];
+
+  // Live Intelligence Analytics (WorldMonitor CII + Strategic Posture + 6 Intel Topics + Spikes)
+  const theaterPostures = useMemo(
+    () => computeTheaterPostures({ military, vessels, geopolitics, cyberThreats }),
+    [military, vessels, geopolitics, cyberThreats],
+  );
+
+  const ciiScores = useMemo(
+    () => computeCountryInstabilityScores({ geopolitics, military, cyberThreats, news }),
+    [geopolitics, military, cyberThreats, news],
+  );
+
+  const intelTopicBuckets = useMemo(
+    () => classifyLiveIntelTopics(news, techItems),
+    [news, techItems],
+  );
+
+  const trendingSpikes = useMemo(
+    () => detectTrendingSpikes(news, techItems),
+    [news, techItems],
+  );
+
+  const bbcCount = useMemo(
+    () => news.filter((n) => n.source.startsWith('BBC ')).length,
+    [news],
   );
 
   const filteredPredictions = useMemo(() => {
@@ -136,7 +214,11 @@ export function RightIntelPanel({
   const filteredNews = useMemo(() => {
     const q = newsQuery.trim().toLowerCase();
     return news.filter((item) => {
-      if (newsFilter !== 'all' && item.category !== newsFilter) return false;
+      if (newsFilter === 'bbc') {
+        if (!item.source.startsWith('BBC ')) return false;
+      } else if (newsFilter !== 'all' && item.category !== newsFilter) {
+        return false;
+      }
       if (
         q &&
         !`${item.title} ${item.titleVi ?? ''} ${item.source} ${item.matchedLocation ?? ''}`
@@ -148,8 +230,6 @@ export function RightIntelPanel({
       return true;
     });
   }, [news, newsFilter, newsQuery]);
-
-  const techItems = techCyber?.items ?? [];
 
   const techCounts = useMemo(() => {
     let ai = 0;
@@ -181,10 +261,56 @@ export function RightIntelPanel({
     });
   }, [techItems, techFilter, techQuery]);
 
+  const stablecoins = useMemo(
+    () => markets.crypto.filter((c) => c.symbol === 'USDT' || c.symbol === 'USDC'),
+    [markets.crypto],
+  );
+
+  const volatileCrypto = useMemo(
+    () => markets.crypto.filter((c) => c.symbol !== 'USDT' && c.symbol !== 'USDC'),
+    [markets.crypto],
+  );
+
   return (
-    <aside className="flex h-full w-full flex-col border-l border-slate-800/95 bg-[#090e18] lg:w-[432px] xl:w-[468px]">
-      {/* 4-Tab Header */}
-      <div className="grid shrink-0 grid-cols-4 border-b border-slate-800/95 bg-[#070b12]">
+    <aside className="flex h-full w-full flex-col border-l border-slate-800/95 bg-[#090e18] lg:w-[444px] xl:w-[482px]">
+      {/* 5-Tab Command Header */}
+      <div className="grid shrink-0 grid-cols-5 border-b border-slate-800/95 bg-[#070b12]">
+        <button
+          type="button"
+          onClick={() => setActiveTab('intel')}
+          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
+            activeTab === 'intel'
+              ? 'border-fuchsia-400 bg-fuchsia-500/12 text-fuchsia-200'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Target size={13} />
+          <span>Live Intel</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('techCyber')}
+          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
+            activeTab === 'techCyber'
+              ? 'border-violet-400 bg-violet-500/12 text-violet-200'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Cpu size={13} />
+          <span>AI &amp; ML</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('news')}
+          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
+            activeTab === 'news'
+              ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Newspaper size={13} />
+          <span>Tin nóng</span>
+        </button>
         <button
           type="button"
           onClick={() => setActiveTab('markets')}
@@ -194,7 +320,7 @@ export function RightIntelPanel({
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          <ChartLineUp size={14} />
+          <ChartLineUp size={13} />
           <span>Thị trường</span>
         </button>
         <button
@@ -206,36 +332,643 @@ export function RightIntelPanel({
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          <ChartBar size={14} />
-          <span>Dự đoán ({predictions.length})</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('news')}
-          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
-            activeTab === 'news'
-              ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Newspaper size={14} />
-          <span>Tin nóng ({news.length})</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('techCyber')}
-          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
-            activeTab === 'techCyber'
-              ? 'border-violet-400 bg-violet-500/12 text-violet-200'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Cpu size={14} />
-          <span>AI · Cyber ({techItems.length})</span>
+          <ChartBar size={13} />
+          <span>Dự đoán</span>
         </button>
       </div>
 
-      {/* Tab 1: Markets, FX, Crypto & World Bank Macro */}
+      {/* Tab 1: WorldMonitor Live Intelligence (Theater Posture + Cyber Threats IOC + 6 Intel Topics + CII) */}
+      {activeTab === 'intel' && (
+        <div className="flex-1 space-y-3.5 overflow-y-auto p-2.5">
+          {/* Top Bar: Live Telemetry Summary + Translate Toggle */}
+          <div className="flex items-center justify-between rounded border border-fuchsia-500/30 bg-[#0d1524] px-2.5 py-1.5">
+            <div className="flex items-center gap-2 font-mono text-[10px]">
+              <span className="inline-flex items-center gap-1 font-semibold text-fuchsia-300">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-fuchsia-400" />
+                LIVE INTELLIGENCE
+              </span>
+              <span className="text-slate-400">
+                C2/APT <strong className="text-fuchsia-200">{cyberThreats.length}</strong> · MIL{' '}
+                <strong className="text-cyan-300">{military.length}</strong> · AIS{' '}
+                <strong className="text-emerald-300">{vessels.length}</strong>
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setTranslateVi((v) => !v)}
+              className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[9.5px] font-semibold transition ${
+                translateVi
+                  ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300'
+                  : 'border-slate-700 bg-slate-900 text-slate-400'
+              }`}
+            >
+              <Translate size={11} weight="bold" />
+              <span>{translateVi ? 'VI: BẬT' : 'VI: TẮT'}</span>
+            </button>
+          </div>
+
+          {/* 1. AI Strategic Theater Posture (6 Operational Theaters) */}
+          <section>
+            <div className="flex items-center justify-between">
+              <h2 className="font-mono text-[10.5px] font-semibold tracking-wider text-slate-300">
+                STRATEGIC THEATER POSTURE (TÁC CHIẾN TRỰC TIẾP)
+              </h2>
+              <span className="font-mono text-[9.5px] text-slate-500">Bấm để bay tới</span>
+            </div>
+            <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+              {theaterPostures.map((th) => (
+                <button
+                  key={th.id}
+                  type="button"
+                  onClick={() => onFlyToLocation(th.lat, th.lon, th.zoom)}
+                  className="rounded border border-slate-800/95 bg-[#0d1524] p-2 text-left transition hover:border-cyan-500/45 hover:bg-[#111c30]"
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="truncate text-[11px] font-semibold text-slate-100">{th.name}</span>
+                    <span
+                      className={`shrink-0 rounded border px-1 py-0.2 font-mono text-[8.5px] font-bold ${POSTURE_BADGE[th.posture]}`}
+                    >
+                      {th.posture}
+                    </span>
+                  </div>
+                  <div className="mt-1.5 flex items-center justify-between font-mono text-[9.5px] text-slate-400 tabular-nums">
+                    <span>AIR {th.airCount}</span>
+                    <span>SEA {th.seaCount}</span>
+                    <span>GEO {th.conflictCount}</span>
+                    <span className="text-fuchsia-300">CYB {th.cyberCount}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {/* 2. Surging Keywords & CVE Spike Detector */}
+          {trendingSpikes.length > 0 && (
+            <section>
+              <h2 className="flex items-center gap-1 font-mono text-[10.5px] font-semibold tracking-wider text-slate-300">
+                <Fire size={12} className="text-amber-400" weight="fill" />
+                <span>TRENDING THREAT &amp; KEYWORD SPIKES</span>
+              </h2>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {trendingSpikes.map((sp) => (
+                  <button
+                    key={sp.term}
+                    type="button"
+                    onClick={() => {
+                      if (sp.kind === 'cve' || sp.kind === 'tech_ai') {
+                        setActiveTab('techCyber');
+                        setTechFilter('all');
+                        setTechQuery(sp.term.split(' / ')[0]);
+                      } else {
+                        setActiveTab('news');
+                        setNewsFilter('all');
+                        setNewsQuery(sp.term.split(' / ')[0]);
+                      }
+                    }}
+                    className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[10px] transition hover:brightness-125 ${
+                      sp.kind === 'cve'
+                        ? 'border-rose-500/45 bg-rose-500/15 text-rose-200'
+                        : sp.kind === 'tech_ai'
+                          ? 'border-violet-500/40 bg-violet-500/15 text-violet-200'
+                          : 'border-amber-500/40 bg-amber-500/12 text-amber-200'
+                    }`}
+                  >
+                    <span className="font-semibold">{sp.term}</span>
+                    <span className="opacity-75">×{sp.mentions}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* 3. Live Intelligence Feeds (Cyber Threats, Live C2 IOCs, Military, Maritime, Nuclear, Sanctions, Espionage) */}
+          <section>
+            <h2 className="font-mono text-[10.5px] font-semibold tracking-wider text-slate-300">
+              LIVE INTELLIGENCE STREAMS &amp; CYBER IOCs
+            </h2>
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {INTEL_TOPIC_TABS.map((tab) => {
+                const count =
+                  tab.id === 'c2_ioc'
+                    ? cyberThreats.length
+                    : intelTopicBuckets[tab.id].length;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setIntelTopic(tab.id)}
+                    className={`rounded px-2 py-1 text-[10.5px] font-medium transition ${
+                      intelTopic === tab.id
+                        ? 'border border-fuchsia-500/50 bg-fuchsia-500/20 text-fuchsia-200'
+                        : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {tab.label} ({count})
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-2 max-h-[300px] divide-y divide-slate-800/80 overflow-y-auto rounded border border-slate-800/95 bg-[#0d1524]">
+              {intelTopic === 'c2_ioc' ? (
+                cyberThreats.slice(0, 35).map((ioc) => (
+                  <div key={ioc.id} className="px-2.5 py-2 transition hover:bg-slate-900/70">
+                    <div className="flex items-center justify-between gap-2 font-mono text-[9.5px]">
+                      <span
+                        className={`rounded border px-1.5 py-0.2 font-semibold ${
+                          ioc.category === 'apt_group'
+                            ? 'border-rose-500/45 bg-rose-500/20 text-rose-200'
+                            : 'border-fuchsia-500/40 bg-fuchsia-500/15 text-fuchsia-300'
+                        }`}
+                      >
+                        {ioc.category === 'apt_group' ? 'APT ACTOR' : ioc.source}
+                      </span>
+                      <span className="text-slate-400">{String(ioc.meta.country ?? '')}</span>
+                    </div>
+                    <div className="mt-1 text-xs font-semibold text-slate-100">{ioc.title}</div>
+                    {ioc.subtitle && <div className="mt-0.5 text-[10.5px] text-slate-400">{ioc.subtitle}</div>}
+                    <div className="mt-1.5 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => onFlyToLocation(ioc.lat, ioc.lon, 6.0)}
+                        className="inline-flex items-center gap-1 rounded border border-fuchsia-500/35 bg-fuchsia-500/10 px-2 py-0.5 font-mono text-[9.5px] text-fuchsia-200 hover:bg-fuchsia-500/20"
+                      >
+                        <Crosshair size={10} />
+                        Định vị C2 trên bản đồ
+                      </button>
+                      {ioc.url && (
+                        <a
+                          href={ioc.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-0.5 text-[10px] text-slate-400 hover:text-slate-200"
+                        >
+                          Hồ sơ IOC <ArrowSquareOut size={10} />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : intelTopicBuckets[intelTopic].length === 0 ? (
+                <div className="py-6 text-center text-xs text-slate-400">
+                  Đang quét tín hiệu OSINT cho chủ đề này...
+                </div>
+              ) : (
+                intelTopicBuckets[intelTopic].slice(0, 18).map((item) => {
+                  const headline = translateVi ? item.titleVi || item.title : item.title;
+                  return (
+                    <div key={item.id} className="px-2.5 py-2 transition hover:bg-slate-900/70">
+                      <div className="flex items-center justify-between gap-2 font-mono text-[9.5px]">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span className="truncate rounded bg-slate-800 px-1.5 py-0.2 font-semibold text-slate-300">
+                            {item.source}
+                          </span>
+                          {item.cveId && (
+                            <span className="shrink-0 rounded border border-rose-500/45 bg-rose-500/20 px-1 py-0.2 font-bold text-rose-200">
+                              {item.cveId}
+                            </span>
+                          )}
+                        </div>
+                        <span className="shrink-0 text-slate-500">{formatRelativeTime(item.publishedAt)}</span>
+                      </div>
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 block text-xs font-medium leading-snug text-slate-100 hover:text-fuchsia-300"
+                      >
+                        {headline}
+                      </a>
+                      {item.matchedLat !== undefined && item.matchedLon !== undefined && (
+                        <div className="mt-1">
+                          <button
+                            type="button"
+                            onClick={() => onFlyToLocation(item.matchedLat!, item.matchedLon!, 5.5)}
+                            className="inline-flex items-center gap-1 font-mono text-[9.5px] text-cyan-300 hover:underline"
+                          >
+                            <Crosshair size={10} />
+                            Bay tới: {item.matchedLocation}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </section>
+
+          {/* 4. Country Instability & Strategic Risk Index (CII) */}
+          <section>
+            <div className="flex items-center justify-between">
+              <h2 className="font-mono text-[10.5px] font-semibold tracking-wider text-slate-300">
+                COUNTRY INSTABILITY INDEX (CII REALTIME)
+              </h2>
+              <span className="font-mono text-[9.5px] text-slate-500">0 = Ổn định · 100 = Xung đột</span>
+            </div>
+            <div className="mt-1.5 divide-y divide-slate-800/80 rounded border border-slate-800/95 bg-[#0d1524]">
+              {ciiScores.map((row) => {
+                const style = CII_BAND_STYLE[row.band];
+                return (
+                  <button
+                    key={row.code}
+                    type="button"
+                    onClick={() => onFlyToLocation(row.lat, row.lon, 5.2)}
+                    className={`flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left transition hover:bg-slate-900/75 ${
+                      row.isVietnam ? 'bg-emerald-500/8' : ''
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-semibold text-slate-100">{row.name}</span>
+                        <span className="font-mono text-[9.5px] text-slate-500">{row.code}</span>
+                      </div>
+                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{ width: `${row.score}%`, backgroundColor: style.bar }}
+                        />
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right font-mono tabular-nums">
+                      <div className="text-xs font-bold text-slate-100">{row.score}/100</div>
+                      <span className={`inline-block rounded border px-1 py-0.2 text-[8.5px] font-semibold ${style.badge}`}>
+                        {row.isVietnam && row.band === 'LOW' ? 'STABLE · LOW' : row.band}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* Tab 2: Dedicated AI & Machine Learning + Cybersecurity + Semiconductor/Cloud + VN Tech */}
+      {activeTab === 'techCyber' && (
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="space-y-2 border-b border-slate-800/90 p-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-slate-800/90 bg-[#0d1524] px-2 py-1.5">
+              <div className="flex flex-wrap items-center gap-1.5 font-mono text-[9.5px]">
+                {(techCyber?.infraStatus ?? []).map((st) => {
+                  const dotClass =
+                    st.level === 'operational'
+                      ? 'bg-emerald-400'
+                      : st.level === 'degraded'
+                        ? 'animate-pulse bg-amber-400'
+                        : 'animate-pulse bg-rose-500';
+                  const pillClass =
+                    st.level === 'operational'
+                      ? 'bg-slate-800/90 text-slate-300 hover:text-white'
+                      : st.level === 'degraded'
+                        ? 'border border-amber-500/40 bg-amber-500/15 text-amber-300'
+                        : 'border border-rose-500/45 bg-rose-500/20 text-rose-200';
+                  return (
+                    <a
+                      key={st.name}
+                      href={st.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={`${st.name}: ${st.description}`}
+                      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 transition ${pillClass}`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
+                      <span>{st.name}</span>
+                    </a>
+                  );
+                })}
+                <span className="rounded bg-violet-500/15 px-1.5 py-0.5 text-violet-300">
+                  {techCyber?.activeSourceCount ?? 0} nguồn
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setTranslateVi((v) => !v)}
+                className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[10px] font-semibold transition ${
+                  translateVi
+                    ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
+                    : 'border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Translate size={12} weight="bold" />
+                <span>{translateVi ? 'Dịch VI: BẬT' : 'Dịch VI: TẮT'}</span>
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-1">
+              {(
+                [
+                  { id: 'all', label: `Tất cả (${techItems.length})` },
+                  { id: 'ai', label: `🤖 AI & Machine Learning (${techCounts.ai})` },
+                  { id: 'cyber', label: `🛡️ Cyber & CVE (${techCounts.cyber})` },
+                  { id: 'tech_infra', label: `💻 Chip · Cloud · BBC Tech (${techCounts.tech_infra})` },
+                  { id: 'vn_tech', label: `🇻🇳 Công nghệ VN (${techCounts.vn_tech})` },
+                ] as const
+              ).map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setTechFilter(cat.id)}
+                  className={`rounded px-2 py-1 text-[10.5px] font-medium transition ${
+                    techFilter === cat.id
+                      ? 'border border-violet-500/45 bg-violet-500/20 text-violet-200'
+                      : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative">
+              <MagnifyingGlass
+                size={13}
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500"
+              />
+              <input
+                type="text"
+                value={techQuery}
+                onChange={(e) => setTechQuery(e.target.value)}
+                placeholder="Tìm OpenAI, DeepMind, ArXiv, lỗ hổng CVE, chip NVIDIA..."
+                aria-label="Tìm tin AI Machine Learning An ninh mạng"
+                className="w-full rounded border border-slate-800 bg-[#0d1524] py-1 pl-7 pr-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-violet-400 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex-1 divide-y divide-slate-800/80 overflow-y-auto">
+            {filteredTech.length === 0 ? (
+              <div className="py-10 text-center text-xs text-slate-400">
+                {techItems.length === 0
+                  ? 'Đang đồng bộ 55+ nguồn AI & Machine Learning, Công nghệ & An ninh mạng...'
+                  : 'Không có bản tin nào khớp điều kiện lọc.'}
+              </div>
+            ) : (
+              filteredTech.map((item) => {
+                const isTranslated =
+                  Boolean(item.titleVi) && item.titleVi !== item.title && item.subCategory !== 'vn_tech';
+                const headline = translateVi ? item.titleVi || item.title : item.title;
+
+                return (
+                  <article key={item.id} className="px-3 py-2.5 transition hover:bg-slate-900/65">
+                    <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className={`truncate rounded px-1.5 py-0.2 font-semibold ${techBadgeStyle(item)}`}>
+                          {item.source}
+                        </span>
+                        {item.cveId && (
+                          <span className="inline-flex shrink-0 items-center gap-0.5 rounded border border-rose-500/45 bg-rose-500/20 px-1.5 py-0.2 text-[9px] font-bold text-rose-200">
+                            <ShieldWarning size={10} weight="fill" />
+                            {item.cveId}
+                          </span>
+                        )}
+                        {translateVi && isTranslated && (
+                          <span className="shrink-0 rounded bg-emerald-500/15 px-1 py-0.2 text-[9px] text-emerald-300">
+                            VI
+                          </span>
+                        )}
+                      </div>
+                      <span className="shrink-0 text-slate-500 tabular-nums">
+                        {formatRelativeTime(item.publishedAt)}
+                      </span>
+                    </div>
+
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1 block text-xs font-medium leading-relaxed text-slate-100 hover:text-violet-300"
+                    >
+                      {headline}
+                    </a>
+
+                    {translateVi && isTranslated && (
+                      <p className="mt-0.5 line-clamp-1 text-[10.5px] text-slate-500" title={item.title}>
+                        Gốc: {item.title}
+                      </p>
+                    )}
+
+                    <div className="mt-1.5 flex items-center justify-between">
+                      {item.matchedLat !== undefined && item.matchedLon !== undefined ? (
+                        <button
+                          type="button"
+                          onClick={() => onFlyToLocation(item.matchedLat!, item.matchedLon!, 5.5)}
+                          className="inline-flex items-center gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 font-mono text-[10px] font-medium text-cyan-300 transition hover:bg-cyan-500/20 active:scale-[0.98]"
+                        >
+                          <Crosshair size={11} />
+                          Bay tới: {item.matchedLocation}
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-0.5 text-[10.5px] text-slate-400 hover:text-slate-200"
+                      >
+                        Mở nguồn <ArrowSquareOut size={11} />
+                      </a>
+                    </div>
+                  </article>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tab 3: Unified OSINT Firehose + BBC World Multi-Desk + 32 Geopolitics/Defense/VN RSS */}
+      {activeTab === 'news' && (
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="space-y-2 border-b border-slate-800/90 p-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-slate-800/90 bg-[#0d1524] px-2 py-1.5">
+              <div className="flex flex-wrap items-center gap-1.5 font-mono text-[9.5px]">
+                <span
+                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${
+                    newsStreamStats?.blueskyConnected
+                      ? 'bg-sky-500/15 text-sky-300'
+                      : 'bg-slate-800 text-slate-400'
+                  }`}
+                >
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      newsStreamStats?.blueskyConnected ? 'animate-pulse bg-sky-400' : 'bg-slate-500'
+                    }`}
+                  />
+                  BSky {newsStreamStats?.blueskyCount ?? 0}
+                </span>
+
+                <span
+                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${
+                    newsStreamStats?.wikimediaConnected
+                      ? 'bg-purple-500/15 text-purple-300'
+                      : 'bg-slate-800 text-slate-400'
+                  }`}
+                >
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      newsStreamStats?.wikimediaConnected ? 'animate-pulse bg-purple-400' : 'bg-slate-500'
+                    }`}
+                  />
+                  Wiki {newsStreamStats?.wikimediaCount ?? 0}
+                </span>
+
+                <span className="rounded bg-rose-500/15 px-1.5 py-0.5 text-rose-300">
+                  GDELT {newsStreamStats?.gdeltCount ?? 0}
+                </span>
+
+                <span className="rounded bg-red-600/20 px-1.5 py-0.5 text-red-200">
+                  BBC {bbcCount}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setTranslateVi((v) => !v)}
+                className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[10px] font-semibold transition ${
+                  translateVi
+                    ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
+                    : 'border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Translate size={12} weight="bold" />
+                <span>{translateVi ? 'Dịch VI: BẬT' : 'Dịch VI: TẮT'}</span>
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-1">
+              {(
+                [
+                  { id: 'all', label: `Tất cả (${news.length})` },
+                  { id: 'bbc', label: `🔴 BBC World (${bbcCount})` },
+                  { id: 'osint_live', label: '⚡ Live OSINT' },
+                  { id: 'vietnam', label: 'Việt Nam' },
+                  { id: 'world', label: 'Thế giới & Quốc phòng' },
+                  { id: 'finance', label: 'Tài chính' },
+                ] as const
+              ).map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setNewsFilter(cat.id)}
+                  className={`rounded px-2 py-1 text-[10.5px] font-medium transition ${
+                    newsFilter === cat.id
+                      ? cat.id === 'bbc'
+                        ? 'border border-red-500/55 bg-red-600/25 text-red-100'
+                        : 'border border-cyan-500/40 bg-cyan-500/20 text-cyan-200'
+                      : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative">
+              <MagnifyingGlass
+                size={13}
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500"
+              />
+              <input
+                type="text"
+                value={newsQuery}
+                onChange={(e) => setNewsQuery(e.target.value)}
+                placeholder="Tìm BBC World, tin Tiếng Việt, OSINT hoặc địa danh..."
+                aria-label="Tìm tin tức"
+                className="w-full rounded border border-slate-800 bg-[#0d1524] py-1 pl-7 pr-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex-1 divide-y divide-slate-800/80 overflow-y-auto">
+            {filteredNews.length === 0 ? (
+              <div className="py-10 text-center text-xs text-slate-400">
+                Không có bản tin nào khớp điều kiện lọc.
+              </div>
+            ) : (
+              filteredNews.map((item) => {
+                const isTranslated =
+                  Boolean(item.titleVi) && item.titleVi !== item.title && item.category !== 'vietnam';
+                const headline = translateVi ? item.titleVi || item.title : item.title;
+                const isFresh = freshNewsIds?.has(item.id) ?? false;
+
+                return (
+                  <article
+                    key={item.id}
+                    className={`px-3 py-2.5 transition-colors duration-500 hover:bg-slate-900/65 ${
+                      isFresh ? 'bg-cyan-500/12' : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className={`truncate rounded px-1.5 py-0.2 font-semibold ${sourceBadgeStyle(item)}`}>
+                          {item.source}
+                        </span>
+                        {item.isLiveStream && (
+                          <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-cyan-500/15 px-1 py-0.2 text-[9px] font-semibold text-cyan-300">
+                            <Lightning size={9} weight="fill" />
+                            LIVE
+                          </span>
+                        )}
+                        {translateVi && isTranslated && (
+                          <span className="shrink-0 rounded bg-emerald-500/15 px-1 py-0.2 text-[9px] text-emerald-300">
+                            VI
+                          </span>
+                        )}
+                      </div>
+                      <span className="shrink-0 text-slate-500 tabular-nums">
+                        {formatRelativeTime(item.publishedAt)}
+                      </span>
+                    </div>
+
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1 block text-xs font-medium leading-relaxed text-slate-100 hover:text-cyan-300"
+                    >
+                      {headline}
+                    </a>
+
+                    {translateVi && isTranslated && (
+                      <p className="mt-0.5 line-clamp-1 text-[10.5px] text-slate-500" title={item.title}>
+                        Gốc: {item.title}
+                      </p>
+                    )}
+
+                    <div className="mt-1.5 flex items-center justify-between">
+                      {item.matchedLat !== undefined && item.matchedLon !== undefined ? (
+                        <button
+                          type="button"
+                          onClick={() => onFlyToLocation(item.matchedLat!, item.matchedLon!, 5.5)}
+                          className="inline-flex items-center gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 font-mono text-[10px] font-medium text-cyan-300 transition hover:bg-cyan-500/20 active:scale-[0.98]"
+                        >
+                          <Crosshair size={11} />
+                          Bay tới: {item.matchedLocation}
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-0.5 text-[10.5px] text-slate-400 hover:text-slate-200"
+                      >
+                        Mở nguồn <ArrowSquareOut size={11} />
+                      </a>
+                    </div>
+                  </article>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tab 4: Markets, FX, Stablecoin Peg Monitor, Crypto 1s WS & World Bank Macro */}
       {activeTab === 'markets' && (
         <div className="flex-1 space-y-4 overflow-y-auto p-3">
           {/* FX Rates */}
@@ -337,6 +1070,41 @@ export function RightIntelPanel({
             </div>
           </section>
 
+          {/* WorldMonitor Stablecoin Peg Monitor */}
+          {stablecoins.length > 0 && (
+            <section>
+              <h2 className="font-mono text-[11px] font-semibold tracking-wider text-slate-300">
+                STABLECOIN PEG MONITOR
+              </h2>
+              <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                {stablecoins.map((sc) => {
+                  const dev = Math.abs(sc.priceUsd - 1.0);
+                  const onPeg = dev < 0.005;
+                  return (
+                    <div
+                      key={sc.id}
+                      className="flex items-center justify-between rounded border border-slate-800/95 bg-[#0d1524] px-2.5 py-1.5 font-mono"
+                    >
+                      <div>
+                        <div className="text-xs font-bold text-slate-100">{sc.symbol}</div>
+                        <div className="text-[10px] text-slate-400">${sc.priceUsd.toFixed(4)}</div>
+                      </div>
+                      <span
+                        className={`rounded border px-1.5 py-0.5 text-[9px] font-bold ${
+                          onPeg
+                            ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
+                            : 'border-rose-500/50 bg-rose-500/20 text-rose-200'
+                        }`}
+                      >
+                        {onPeg ? 'ON PEG' : 'DEPEG WARN'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           {/* Crypto & Fear & Greed Sentiment */}
           <section>
             <div className="flex items-center justify-between">
@@ -377,7 +1145,7 @@ export function RightIntelPanel({
             )}
 
             <div className="mt-1.5 divide-y divide-slate-800/80 rounded border border-slate-800/95 bg-[#0d1524]">
-              {markets.crypto.map((coin) => {
+              {volatileCrypto.map((coin) => {
                 const up = coin.changePercent24h >= 0;
                 const flash = priceFlashes[coin.symbol];
                 return (
@@ -475,7 +1243,7 @@ export function RightIntelPanel({
         </div>
       )}
 
-      {/* Tab 2: Polymarket Predictions */}
+      {/* Tab 5: Polymarket Predictions */}
       {activeTab === 'predictions' && (
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="space-y-2 border-b border-slate-800/90 p-2.5">
@@ -485,7 +1253,7 @@ export function RightIntelPanel({
                   { id: 'all', label: 'Tất cả' },
                   { id: 'geopolitics', label: 'Địa chính trị' },
                   { id: 'finance', label: 'Kinh tế & Fed' },
-                  { id: 'crypto_tech', label: 'Crypto & Tech' },
+                  { id: 'crypto_tech', label: 'Crypto & AI' },
                 ] as const
               ).map((cat) => (
                 <button
@@ -560,372 +1328,6 @@ export function RightIntelPanel({
                   </div>
                 </a>
               ))
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Tab 3: Unified OSINT Firehose + 27 Geopolitics/Defense/VN RSS + Auto-Vietnamese Translation */}
-      {activeTab === 'news' && (
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <div className="space-y-2 border-b border-slate-800/90 p-2.5">
-            <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-slate-800/90 bg-[#0d1524] px-2 py-1.5">
-              <div className="flex flex-wrap items-center gap-1.5 font-mono text-[9.5px]">
-                <span
-                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${
-                    newsStreamStats?.blueskyConnected
-                      ? 'bg-sky-500/15 text-sky-300'
-                      : 'bg-slate-800 text-slate-400'
-                  }`}
-                  title="Bluesky Jetstream WebSocket Firehose"
-                >
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      newsStreamStats?.blueskyConnected ? 'animate-pulse bg-sky-400' : 'bg-slate-500'
-                    }`}
-                  />
-                  BSky {newsStreamStats?.blueskyCount ?? 0}
-                </span>
-
-                <span
-                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${
-                    newsStreamStats?.wikimediaConnected
-                      ? 'bg-purple-500/15 text-purple-300'
-                      : 'bg-slate-800 text-slate-400'
-                  }`}
-                  title="Wikimedia EventStreams SSE Crisis Burst Detector"
-                >
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      newsStreamStats?.wikimediaConnected ? 'animate-pulse bg-purple-400' : 'bg-slate-500'
-                    }`}
-                  />
-                  Wiki {newsStreamStats?.wikimediaCount ?? 0}
-                </span>
-
-                <span className="rounded bg-rose-500/15 px-1.5 py-0.5 text-rose-300">
-                  GDELT {newsStreamStats?.gdeltCount ?? 0}
-                </span>
-
-                <span className="rounded bg-orange-500/15 px-1.5 py-0.5 text-orange-300">
-                  HN {newsStreamStats?.hnCount ?? 0}
-                </span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setTranslateVi((v) => !v)}
-                className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[10px] font-semibold transition ${
-                  translateVi
-                    ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
-                    : 'border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Translate size={12} weight="bold" />
-                <span>{translateVi ? 'Dịch VI: BẬT' : 'Dịch VI: TẮT'}</span>
-              </button>
-            </div>
-
-            <div className="flex flex-wrap gap-1">
-              {(
-                [
-                  { id: 'all', label: 'Tất cả' },
-                  { id: 'osint_live', label: '⚡ Live OSINT' },
-                  { id: 'vietnam', label: 'Việt Nam' },
-                  { id: 'world', label: 'Thế giới & Quốc phòng' },
-                  { id: 'finance', label: 'Tài chính' },
-                ] as const
-              ).map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setNewsFilter(cat.id)}
-                  className={`rounded px-2 py-1 text-[11px] font-medium transition ${
-                    newsFilter === cat.id
-                      ? 'border border-cyan-500/40 bg-cyan-500/20 text-cyan-200'
-                      : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="relative">
-              <MagnifyingGlass
-                size={13}
-                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500"
-              />
-              <input
-                type="text"
-                value={newsQuery}
-                onChange={(e) => setNewsQuery(e.target.value)}
-                placeholder="Tìm tin tức Tiếng Việt, tiếng Anh hoặc địa danh..."
-                aria-label="Tìm tin tức"
-                className="w-full rounded border border-slate-800 bg-[#0d1524] py-1 pl-7 pr-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="flex-1 divide-y divide-slate-800/80 overflow-y-auto">
-            {filteredNews.length === 0 ? (
-              <div className="py-10 text-center text-xs text-slate-400">
-                Không có bản tin nào khớp điều kiện lọc.
-              </div>
-            ) : (
-              filteredNews.map((item) => {
-                const isTranslated =
-                  Boolean(item.titleVi) && item.titleVi !== item.title && item.category !== 'vietnam';
-                const headline = translateVi ? item.titleVi || item.title : item.title;
-                const isFresh = freshNewsIds?.has(item.id) ?? false;
-
-                return (
-                  <article
-                    key={item.id}
-                    className={`px-3 py-2.5 transition-colors duration-500 hover:bg-slate-900/65 ${
-                      isFresh ? 'bg-cyan-500/12' : ''
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <span className={`truncate rounded px-1.5 py-0.2 font-semibold ${sourceBadgeStyle(item)}`}>
-                          {item.source}
-                        </span>
-                        {item.isLiveStream && (
-                          <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-cyan-500/15 px-1 py-0.2 text-[9px] font-semibold text-cyan-300">
-                            <Lightning size={9} weight="fill" />
-                            LIVE
-                          </span>
-                        )}
-                        {translateVi && isTranslated && (
-                          <span className="shrink-0 rounded bg-emerald-500/15 px-1 py-0.2 text-[9px] text-emerald-300">
-                            VI
-                          </span>
-                        )}
-                      </div>
-                      <span className="shrink-0 text-slate-500 tabular-nums">
-                        {formatRelativeTime(item.publishedAt)}
-                      </span>
-                    </div>
-
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-1 block text-xs font-medium leading-relaxed text-slate-100 hover:text-cyan-300"
-                    >
-                      {headline}
-                    </a>
-
-                    {translateVi && isTranslated && (
-                      <p className="mt-0.5 line-clamp-1 text-[10.5px] text-slate-500" title={item.title}>
-                        Gốc: {item.title}
-                      </p>
-                    )}
-
-                    <div className="mt-1.5 flex items-center justify-between">
-                      {item.matchedLat !== undefined && item.matchedLon !== undefined ? (
-                        <button
-                          type="button"
-                          onClick={() => onFlyToLocation(item.matchedLat!, item.matchedLon!, 5.5)}
-                          className="inline-flex items-center gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 font-mono text-[10px] font-medium text-cyan-300 transition hover:bg-cyan-500/20 active:scale-[0.98]"
-                        >
-                          <Crosshair size={11} />
-                          Bay tới: {item.matchedLocation}
-                        </button>
-                      ) : (
-                        <span />
-                      )}
-                      <a
-                        href={item.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-0.5 text-[10.5px] text-slate-400 hover:text-slate-200"
-                      >
-                        Mở nguồn <ArrowSquareOut size={11} />
-                      </a>
-                    </div>
-                  </article>
-                );
-              })
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Tab 4: Dedicated AI, Semiconductor, Cloud & Cybersecurity Intelligence (53+ Koala73 & VN Sources) */}
-      {activeTab === 'techCyber' && (
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <div className="space-y-2 border-b border-slate-800/90 p-2.5">
-            {/* Cloud & Frontier AI Infrastructure Status Bar + Auto-Translate Toggle */}
-            <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-slate-800/90 bg-[#0d1524] px-2 py-1.5">
-              <div className="flex flex-wrap items-center gap-1.5 font-mono text-[9.5px]">
-                {(techCyber?.infraStatus ?? []).map((st) => {
-                  const dotClass =
-                    st.level === 'operational'
-                      ? 'bg-emerald-400'
-                      : st.level === 'degraded'
-                        ? 'animate-pulse bg-amber-400'
-                        : 'animate-pulse bg-rose-500';
-                  const pillClass =
-                    st.level === 'operational'
-                      ? 'bg-slate-800/90 text-slate-300 hover:text-white'
-                      : st.level === 'degraded'
-                        ? 'border border-amber-500/40 bg-amber-500/15 text-amber-300'
-                        : 'border border-rose-500/45 bg-rose-500/20 text-rose-200';
-                  return (
-                    <a
-                      key={st.name}
-                      href={st.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      title={`${st.name}: ${st.description}`}
-                      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 transition ${pillClass}`}
-                    >
-                      <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
-                      <span>{st.name}</span>
-                    </a>
-                  );
-                })}
-                <span className="rounded bg-violet-500/15 px-1.5 py-0.5 text-violet-300">
-                  {techCyber?.activeSourceCount ?? 0} nguồn
-                </span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setTranslateVi((v) => !v)}
-                className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[10px] font-semibold transition ${
-                  translateVi
-                    ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
-                    : 'border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Translate size={12} weight="bold" />
-                <span>{translateVi ? 'Dịch VI: BẬT' : 'Dịch VI: TẮT'}</span>
-              </button>
-            </div>
-
-            {/* Sub-Domain Filter Pills */}
-            <div className="flex flex-wrap gap-1">
-              {(
-                [
-                  { id: 'all', label: `Tất cả (${techItems.length})` },
-                  { id: 'ai', label: `🤖 AI & LLM (${techCounts.ai})` },
-                  { id: 'cyber', label: `🛡️ Cyber & CVE (${techCounts.cyber})` },
-                  { id: 'tech_infra', label: `💻 Chip · Cloud · Dev (${techCounts.tech_infra})` },
-                  { id: 'vn_tech', label: `🇻🇳 Công nghệ VN (${techCounts.vn_tech})` },
-                ] as const
-              ).map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setTechFilter(cat.id)}
-                  className={`rounded px-2 py-1 text-[10.5px] font-medium transition ${
-                    techFilter === cat.id
-                      ? 'border border-violet-500/45 bg-violet-500/20 text-violet-200'
-                      : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Search Input */}
-            <div className="relative">
-              <MagnifyingGlass
-                size={13}
-                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500"
-              />
-              <input
-                type="text"
-                value={techQuery}
-                onChange={(e) => setTechQuery(e.target.value)}
-                placeholder="Tìm OpenAI, LLM, lỗ hổng CVE, ransomware, chip NVIDIA..."
-                aria-label="Tìm tin AI Công nghệ An ninh mạng"
-                className="w-full rounded border border-slate-800 bg-[#0d1524] py-1 pl-7 pr-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-violet-400 focus:outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="flex-1 divide-y divide-slate-800/80 overflow-y-auto">
-            {filteredTech.length === 0 ? (
-              <div className="py-10 text-center text-xs text-slate-400">
-                {techItems.length === 0
-                  ? 'Đang đồng bộ 53+ nguồn AI, Công nghệ & An ninh mạng...'
-                  : 'Không có bản tin nào khớp điều kiện lọc.'}
-              </div>
-            ) : (
-              filteredTech.map((item) => {
-                const isTranslated =
-                  Boolean(item.titleVi) && item.titleVi !== item.title && item.subCategory !== 'vn_tech';
-                const headline = translateVi ? item.titleVi || item.title : item.title;
-
-                return (
-                  <article key={item.id} className="px-3 py-2.5 transition hover:bg-slate-900/65">
-                    <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <span className={`truncate rounded px-1.5 py-0.2 font-semibold ${techBadgeStyle(item)}`}>
-                          {item.source}
-                        </span>
-                        {item.cveId && (
-                          <span className="inline-flex shrink-0 items-center gap-0.5 rounded border border-rose-500/45 bg-rose-500/20 px-1.5 py-0.2 text-[9px] font-bold text-rose-200">
-                            <ShieldWarning size={10} weight="fill" />
-                            {item.cveId}
-                          </span>
-                        )}
-                        {translateVi && isTranslated && (
-                          <span className="shrink-0 rounded bg-emerald-500/15 px-1 py-0.2 text-[9px] text-emerald-300">
-                            VI
-                          </span>
-                        )}
-                      </div>
-                      <span className="shrink-0 text-slate-500 tabular-nums">
-                        {formatRelativeTime(item.publishedAt)}
-                      </span>
-                    </div>
-
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-1 block text-xs font-medium leading-relaxed text-slate-100 hover:text-violet-300"
-                    >
-                      {headline}
-                    </a>
-
-                    {translateVi && isTranslated && (
-                      <p className="mt-0.5 line-clamp-1 text-[10.5px] text-slate-500" title={item.title}>
-                        Gốc: {item.title}
-                      </p>
-                    )}
-
-                    <div className="mt-1.5 flex items-center justify-between">
-                      {item.matchedLat !== undefined && item.matchedLon !== undefined ? (
-                        <button
-                          type="button"
-                          onClick={() => onFlyToLocation(item.matchedLat!, item.matchedLon!, 5.5)}
-                          className="inline-flex items-center gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 font-mono text-[10px] font-medium text-cyan-300 transition hover:bg-cyan-500/20 active:scale-[0.98]"
-                        >
-                          <Crosshair size={11} />
-                          Bay tới: {item.matchedLocation}
-                        </button>
-                      ) : (
-                        <span />
-                      )}
-                      <a
-                        href={item.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-0.5 text-[10.5px] text-slate-400 hover:text-slate-200"
-                      >
-                        Mở nguồn <ArrowSquareOut size={11} />
-                      </a>
-                    </div>
-                  </article>
-                );
-              })
             )}
           </div>
         </div>

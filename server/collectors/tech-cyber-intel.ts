@@ -62,7 +62,9 @@ export const TECH_CYBER_FEEDS: readonly TechFeedDefinition[] = [
   { name: 'Graham Cluley Cyber', subCategory: 'cyber', url: 'https://grahamcluley.com/feed/', maxItems: 2 },
   { name: 'Wired Security', subCategory: 'cyber', url: 'https://www.wired.com/feed/category/security/latest/rss', maxItems: 3 },
 
-  // 3. Semiconductors, Cloud, Developer & Global Tech Industry (18 feeds)
+  // 3. Semiconductors, Cloud, Developer & Global Tech Industry (20 feeds incl. BBC Tech & Science)
+  { name: 'BBC Technology', subCategory: 'tech_infra', url: 'https://feeds.bbci.co.uk/news/technology/rss.xml', maxItems: 4 },
+  { name: 'BBC Science & AI', subCategory: 'ai', url: 'https://feeds.bbci.co.uk/news/science_and_environment/rss.xml', maxItems: 3 },
   { name: 'Ars Technica', subCategory: 'tech_infra', url: 'https://feeds.arstechnica.com/arstechnica/index', maxItems: 4 },
   { name: 'The Verge', subCategory: 'tech_infra', url: 'https://www.theverge.com/rss/index.xml', maxItems: 3 },
   { name: 'MIT Tech Review', subCategory: 'tech_infra', url: 'https://www.technologyreview.com/feed/', maxItems: 3 },
