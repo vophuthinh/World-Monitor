@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import {
   AirplaneTilt,
   Anchor,
@@ -18,12 +18,14 @@ import {
   Target,
 } from '@phosphor-icons/react';
 import type { MapLayerId, WeatherRadarSnapshot } from '@shared/types';
+import type { LayerPresetId } from '../hooks/useMonitorData';
 
 interface LayerControlDockProps {
   activeLayers: Record<MapLayerId, boolean>;
   layerCounts: Record<MapLayerId, number>;
   onToggleLayer: (id: MapLayerId) => void;
   onSetAllLayers: (enabled: boolean) => void;
+  onApplyPreset?: (preset: LayerPresetId) => void;
   radarOpacity: number;
   onChangeRadarOpacity: (val: number) => void;
   weatherRadar: WeatherRadarSnapshot | null;
@@ -61,11 +63,12 @@ const MILITARY_ROLE_LEGEND = [
   { label: 'Vessel AIS', color: '#34d399' },
 ];
 
-export function LayerControlDock({
+export const LayerControlDock = memo(function LayerControlDock({
   activeLayers,
   layerCounts,
   onToggleLayer,
   onSetAllLayers,
+  onApplyPreset,
   radarOpacity,
   onChangeRadarOpacity,
   weatherRadar,
@@ -121,6 +124,43 @@ export function LayerControlDock({
           </button>
         </div>
       </div>
+
+      {onApplyPreset && (
+        <div className="mt-2 grid grid-cols-4 gap-1 border-b border-slate-800/80 pb-2 font-mono text-[9.5px]">
+          <button
+            type="button"
+            onClick={() => onApplyPreset('clean')}
+            title="Chế độ Tinh gọn (6 lớp cốt lõi — nhẹ & dễ quan sát)"
+            className="rounded border border-emerald-500/40 bg-emerald-500/12 py-1 font-semibold text-emerald-200 transition hover:bg-emerald-500/25"
+          >
+            Tinh gọn
+          </button>
+          <button
+            type="button"
+            onClick={() => onApplyPreset('cyber')}
+            title="Chế độ An ninh mạng (C2/APT + Tuyến Tấn công + Cáp quang + AI DC)"
+            className="rounded border border-fuchsia-500/40 bg-fuchsia-500/12 py-1 font-semibold text-fuchsia-200 transition hover:bg-fuchsia-500/25"
+          >
+            Mạng
+          </button>
+          <button
+            type="button"
+            onClick={() => onApplyPreset('military')}
+            title="Chế độ Quân sự & Biển (Máy bay + Tàu AIS + Căn cứ + Hạt nhân)"
+            className="rounded border border-cyan-500/40 bg-cyan-500/12 py-1 font-semibold text-cyan-200 transition hover:bg-cyan-500/25"
+          >
+            Quân sự
+          </button>
+          <button
+            type="button"
+            onClick={() => onApplyPreset('all')}
+            title="Bật toàn bộ 14 lớp dữ liệu"
+            className="rounded border border-slate-700 bg-slate-900 py-1 font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
+          >
+            Tất cả
+          </button>
+        </div>
+      )}
 
       <div className="mt-1.5 space-y-0.5">
         {LAYER_META.map(({ id, label, dotColor, Icon }) => {
@@ -215,4 +255,4 @@ export function LayerControlDock({
       )}
     </div>
   );
-}
+});

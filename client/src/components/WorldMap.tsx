@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import type { GeoJSONSource } from 'maplibre-gl';
 import {
@@ -329,7 +329,7 @@ const CLICKABLE_LAYERS = [
   'cables-hit-layer',
 ] as const;
 
-export function WorldMap({
+export const WorldMap = memo(function WorldMap({
   isGlobe,
   basemap,
   activeLayers,
@@ -361,6 +361,7 @@ export function WorldMap({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const appliedRadarPathRef = useRef<string | null>(null);
+  const appliedDataRef = useRef<Record<string, unknown>>({});
   const currentBasemapRef = useRef<BasemapTheme>(basemap);
 
   const pointLookupRef = useRef<Map<string, GeoPointFeature>>(new Map());
@@ -519,10 +520,11 @@ export function WorldMap({
     }
 
     // 2. Permanent Vietnam Maritime Sovereignty Zones & Cartography (Hoàng Sa, Trường Sa, Biển Đông)
-    const vnZonesGeo = zonesToFeatureCollection(state.vietnamZones);
     const existingVnZones = map.getSource('vn-zones-src') as GeoJSONSource | undefined;
     if (!existingVnZones) {
+      const vnZonesGeo = zonesToFeatureCollection(state.vietnamZones);
       map.addSource('vn-zones-src', { type: 'geojson', data: vnZonesGeo });
+      appliedDataRef.current['vn-zones-src'] = state.vietnamZones;
       map.addLayer({
         id: 'vn-zones-fill',
         type: 'fill',
@@ -543,14 +545,16 @@ export function WorldMap({
           'line-dasharray': [3, 2],
         },
       });
-    } else {
-      existingVnZones.setData(vnZonesGeo);
+    } else if (appliedDataRef.current['vn-zones-src'] !== state.vietnamZones) {
+      existingVnZones.setData(zonesToFeatureCollection(state.vietnamZones));
+      appliedDataRef.current['vn-zones-src'] = state.vietnamZones;
     }
 
-    const vnSeaGeo = seaLabelsToFeatureCollection(state.vietnamSeaLabels);
     const existingVnSea = map.getSource('vn-sea-src') as GeoJSONSource | undefined;
     if (!existingVnSea) {
+      const vnSeaGeo = seaLabelsToFeatureCollection(state.vietnamSeaLabels);
       map.addSource('vn-sea-src', { type: 'geojson', data: vnSeaGeo });
+      appliedDataRef.current['vn-sea-src'] = state.vietnamSeaLabels;
       map.addLayer({
         id: 'vn-sea-label',
         type: 'symbol',
@@ -569,15 +573,17 @@ export function WorldMap({
           'text-opacity': 0.88,
         },
       });
-    } else {
-      existingVnSea.setData(vnSeaGeo);
+    } else if (appliedDataRef.current['vn-sea-src'] !== state.vietnamSeaLabels) {
+      existingVnSea.setData(seaLabelsToFeatureCollection(state.vietnamSeaLabels));
+      appliedDataRef.current['vn-sea-src'] = state.vietnamSeaLabels;
     }
 
     // 3. Submarine Cables
-    const cablesGeo = cablesToFeatureCollection(state.cables);
     const existingCables = map.getSource('cables-src') as GeoJSONSource | undefined;
     if (!existingCables) {
+      const cablesGeo = cablesToFeatureCollection(state.cables);
       map.addSource('cables-src', { type: 'geojson', data: cablesGeo });
+      appliedDataRef.current['cables-src'] = state.cables;
       map.addLayer({
         id: 'cables-line-layer',
         type: 'line',
@@ -608,20 +614,26 @@ export function WorldMap({
         },
       });
     } else {
-      existingCables.setData(cablesGeo);
+      if (appliedDataRef.current['cables-src'] !== state.cables) {
+        existingCables.setData(cablesToFeatureCollection(state.cables));
+        appliedDataRef.current['cables-src'] = state.cables;
+      }
       const vis = state.activeLayers.cables ? 'visible' : 'none';
       if (map.getLayer('cables-line-layer')) map.setLayoutProperty('cables-line-layer', 'visibility', vis);
       if (map.getLayer('cables-hit-layer')) map.setLayoutProperty('cables-hit-layer', 'visibility', vis);
     }
 
     const upsertPointSource = (id: string, pts: GeoPointFeature[]) => {
-      const fc = pointsToFeatureCollection(pts);
       const src = map.getSource(id) as GeoJSONSource | undefined;
       if (!src) {
-        map.addSource(id, { type: 'geojson', data: fc });
+        map.addSource(id, { type: 'geojson', data: pointsToFeatureCollection(pts) });
+        appliedDataRef.current[id] = pts;
         return true;
       }
-      src.setData(fc);
+      if (appliedDataRef.current[id] !== pts) {
+        src.setData(pointsToFeatureCollection(pts));
+        appliedDataRef.current[id] = pts;
+      }
       return false;
     };
 
@@ -863,17 +875,20 @@ export function WorldMap({
     if (map.getLayer('aidc-label')) map.setLayoutProperty('aidc-label', 'visibility', aidcVis);
 
     // 6d. Live Cyber Threats & Geodesic Cyber Attack Arcs (Feodo + C2Intel + SANS + FireHOL + SSH + APT)
-    const cyberArcsGeo = cyberArcsToFeatureCollection(state.cyberArcs);
     const existingArcs = map.getSource('cyber-arcs-src') as GeoJSONSource | undefined;
     if (!existingArcs) {
-      map.addSource('cyber-arcs-src', { type: 'geojson', data: cyberArcsGeo });
+      map.addSource('cyber-arcs-src', {
+        type: 'geojson',
+        data: cyberArcsToFeatureCollection(state.cyberArcs),
+      });
+      appliedDataRef.current['cyber-arcs-src'] = state.cyberArcs;
       map.addLayer({
         id: 'cyber-arcs-glow',
         type: 'line',
         source: 'cyber-arcs-src',
         paint: {
           'line-color': ['case', ['==', ['get', 'isApt'], 1], '#f43f5e', '#d946ef'],
-          'line-width': ['case', ['==', ['get', 'isApt'], 1], 3.4, 2.2],
+          'line-width': ['case', ['==', ['get', 'isApt'], 1], 3.2, 2.0],
           'line-opacity': 0.16,
           'line-blur': 2,
         },
@@ -889,14 +904,20 @@ export function WorldMap({
           'line-dasharray': [2.5, 2],
         },
       });
-    } else {
-      existingArcs.setData(cyberArcsGeo);
+    } else if (appliedDataRef.current['cyber-arcs-src'] !== state.cyberArcs) {
+      existingArcs.setData(cyberArcsToFeatureCollection(state.cyberArcs));
+      appliedDataRef.current['cyber-arcs-src'] = state.cyberArcs;
     }
 
-    const cyberPktsGeo = cyberPacketsToFeatureCollection(advanceCyberArcPackets(state.cyberArcs, Date.now()));
     const existingPkts = map.getSource('cyber-packets-src') as GeoJSONSource | undefined;
     if (!existingPkts) {
-      map.addSource('cyber-packets-src', { type: 'geojson', data: cyberPktsGeo });
+      const initialPkts = state.activeLayers.cyberArcs
+        ? advanceCyberArcPackets(state.cyberArcs, Date.now())
+        : [];
+      map.addSource('cyber-packets-src', {
+        type: 'geojson',
+        data: cyberPacketsToFeatureCollection(initialPkts),
+      });
       map.addLayer({
         id: 'cyber-packets-layer',
         type: 'circle',
@@ -909,8 +930,10 @@ export function WorldMap({
           'circle-opacity': 0.95,
         },
       });
-    } else {
-      existingPkts.setData(cyberPktsGeo);
+    } else if (state.activeLayers.cyberArcs) {
+      existingPkts.setData(
+        cyberPacketsToFeatureCollection(advanceCyberArcPackets(state.cyberArcs, Date.now())),
+      );
     }
 
     const arcsVis = state.activeLayers.cyberArcs ? 'visible' : 'none';
@@ -1119,34 +1142,44 @@ export function WorldMap({
 
     map.on('style.load', () => {
       appliedRadarPathRef.current = null;
+      appliedDataRef.current = {};
       ensureLayersAndData(map);
     });
 
+    let hoverRafId: number | null = null;
     map.on('mousemove', (e) => {
-      const availableLayers = CLICKABLE_LAYERS.filter((id) => Boolean(map.getLayer(id)));
-      if (availableLayers.length === 0) return;
+      if (map.isMoving() || hoverRafId !== null) return;
+      const pt = e.point;
+      const lngLat = e.lngLat;
 
-      const rendered = map.queryRenderedFeatures(e.point, { layers: [...availableLayers] });
-      if (!rendered.length) {
-        map.getCanvas().style.cursor = '';
-        popup.remove();
-        return;
-      }
+      hoverRafId = requestAnimationFrame(() => {
+        hoverRafId = null;
+        if (map.isMoving()) return;
+        const availableLayers = CLICKABLE_LAYERS.filter((id) => Boolean(map.getLayer(id)));
+        if (availableLayers.length === 0) return;
 
-      map.getCanvas().style.cursor = 'pointer';
-      const top = rendered[0];
-      const title = String(top.properties?.title ?? '');
-      const subtitle = String(top.properties?.subtitle ?? '');
+        const rendered = map.queryRenderedFeatures(pt, { layers: [...availableLayers] });
+        if (!rendered.length) {
+          map.getCanvas().style.cursor = '';
+          popup.remove();
+          return;
+        }
 
-      popup
-        .setLngLat(e.lngLat)
-        .setHTML(
-          `<div style="font-size:12px;font-weight:600;color:#f8fafc;line-height:1.3;">${title.replace(/</g, '&lt;')}</div>` +
-            (subtitle
-              ? `<div style="font-size:10.5px;color:#94a3b8;margin-top:2px;line-height:1.35;">${subtitle.slice(0, 110).replace(/</g, '&lt;')}</div>`
-              : ''),
-        )
-        .addTo(map);
+        map.getCanvas().style.cursor = 'pointer';
+        const top = rendered[0];
+        const title = String(top.properties?.title ?? '');
+        const subtitle = String(top.properties?.subtitle ?? '');
+
+        popup
+          .setLngLat(lngLat)
+          .setHTML(
+            `<div style="font-size:12px;font-weight:600;color:#f8fafc;line-height:1.3;">${title.replace(/</g, '&lt;')}</div>` +
+              (subtitle
+                ? `<div style="font-size:10.5px;color:#94a3b8;margin-top:2px;line-height:1.35;">${subtitle.slice(0, 110).replace(/</g, '&lt;')}</div>`
+                : ''),
+          )
+          .addTo(map);
+      });
     });
 
     map.on('click', (e) => {
@@ -1183,14 +1216,17 @@ export function WorldMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Continuous Dead-Reckoning interpolation loop (smooth real-time gliding of aircraft & ships)
+  // Continuous Dead-Reckoning interpolation loop (auto-pauses when tab is hidden)
   useEffect(() => {
     if (!deadReckoning) return;
+    let tickStep = 0;
     const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       const map = mapRef.current;
-      if (!map || !map.isStyleLoaded()) return;
+      if (!map || !map.isStyleLoaded() || map.isMoving()) return;
       const state = latestPropsRef.current;
       const now = Date.now();
+      tickStep += 1;
 
       if (state.activeLayers.military && state.military.length > 0) {
         const milSrc = map.getSource('military-src') as GeoJSONSource | undefined;
@@ -1208,7 +1244,8 @@ export function WorldMap({
         }
       }
 
-      if (state.activeLayers.cyberArcs && state.cyberArcs.length > 0) {
+      // Update cyber packets only when cyberArcs layer is explicitly toggled ON (every 2s)
+      if (tickStep % 2 === 0 && state.activeLayers.cyberArcs && state.cyberArcs.length > 0) {
         const pktSrc = map.getSource('cyber-packets-src') as GeoJSONSource | undefined;
         if (pktSrc) {
           pktSrc.setData(cyberPacketsToFeatureCollection(advanceCyberArcPackets(state.cyberArcs, now)));
@@ -1224,6 +1261,7 @@ export function WorldMap({
     if (!map || currentBasemapRef.current === basemap) return;
     currentBasemapRef.current = basemap;
     appliedRadarPathRef.current = null;
+    appliedDataRef.current = {};
     map.setStyle(CARTO_STYLE_URLS[basemap]);
   }, [basemap]);
 
@@ -1270,4 +1308,4 @@ export function WorldMap({
   }, [cameraTarget]);
 
   return <div ref={containerRef} className="h-full w-full bg-[#070b12]" />;
-}
+});

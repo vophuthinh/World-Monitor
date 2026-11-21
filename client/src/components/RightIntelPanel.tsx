@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowsClockwise,
   ArrowSquareOut,
@@ -100,9 +100,6 @@ function sourceBadgeStyle(item: NewsItem): string {
   if (item.source.startsWith('BBC ')) {
     return 'border border-red-500/45 bg-red-600/20 text-red-200';
   }
-  if (item.streamSource === 'bluesky') {
-    return 'border border-sky-500/40 bg-sky-500/15 text-sky-300';
-  }
   if (item.streamSource === 'wikimedia') {
     return 'border border-purple-500/40 bg-purple-500/15 text-purple-300';
   }
@@ -185,7 +182,7 @@ function legalBadgeStyle(item: PolicyLegalItem): string {
   return 'border border-slate-700 bg-slate-800 text-slate-300';
 }
 
-export function RightIntelPanel({
+export const RightIntelPanel = memo(function RightIntelPanel({
   markets,
   predictions,
   googleTrends,
@@ -218,6 +215,11 @@ export function RightIntelPanel({
   const [legalPillar, setLegalPillar] = useState<'57' | '59' | '66' | '68' | null>(null);
   const [legalQuery, setLegalQuery] = useState('');
   const [translateVi, setTranslateVi] = useState<boolean>(true);
+  const [visibleLimit, setVisibleLimit] = useState<number>(40);
+
+  useEffect(() => {
+    setVisibleLimit(40);
+  }, [activeTab, newsFilter, newsQuery, techFilter, mitreFilter, techQuery, legalFilter, legalPillar, legalQuery]);
 
   // Live IOC / IP / CVE Recon Scanner (Shodan InternetDB + NIST NVD 2.0)
   const [iocQuery, setIocQuery] = useState('');
@@ -1461,7 +1463,8 @@ export function RightIntelPanel({
                   : 'Không có bản tin nào khớp điều kiện lọc.'}
               </div>
             ) : (
-              filteredTech.map((item) => {
+              <>
+              {filteredTech.slice(0, visibleLimit).map((item) => {
                 const isTranslated =
                   Boolean(item.titleVi) && item.titleVi !== item.title && item.subCategory !== 'vn_tech';
                 const headline = translateVi ? item.titleVi || item.title : item.title;
@@ -1559,7 +1562,19 @@ export function RightIntelPanel({
                     </div>
                   </article>
                 );
-              })
+              })}
+              {filteredTech.length > visibleLimit && (
+                <div className="p-3 text-center">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleLimit((v) => v + 40)}
+                    className="rounded border border-slate-700 bg-slate-900 px-3 py-1 font-mono text-[10.5px] text-slate-300 transition hover:border-violet-400 hover:text-violet-200"
+                  >
+                    Xem thêm ({filteredTech.length - visibleLimit} tin còn lại)
+                  </button>
+                </div>
+              )}
+              </>
             )}
           </div>
         </div>
@@ -1571,21 +1586,6 @@ export function RightIntelPanel({
           <div className="space-y-2 border-b border-slate-800/90 p-2.5">
             <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-slate-800/90 bg-[#0d1524] px-2 py-1.5">
               <div className="flex flex-wrap items-center gap-1.5 font-mono text-[9.5px]">
-                <span
-                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${
-                    newsStreamStats?.blueskyConnected
-                      ? 'bg-sky-500/15 text-sky-300'
-                      : 'bg-slate-800 text-slate-400'
-                  }`}
-                >
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      newsStreamStats?.blueskyConnected ? 'animate-pulse bg-sky-400' : 'bg-slate-500'
-                    }`}
-                  />
-                  BSky {newsStreamStats?.blueskyCount ?? 0}
-                </span>
-
                 <span
                   className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${
                     newsStreamStats?.wikimediaConnected
@@ -1682,7 +1682,8 @@ export function RightIntelPanel({
                 Không có bản tin nào khớp điều kiện lọc.
               </div>
             ) : (
-              filteredNews.map((item) => {
+              <>
+              {filteredNews.slice(0, visibleLimit).map((item) => {
                 const isTranslated =
                   Boolean(item.titleVi) && item.titleVi !== item.title && item.category !== 'vietnam';
                 const headline = translateVi ? item.titleVi || item.title : item.title;
@@ -1756,7 +1757,19 @@ export function RightIntelPanel({
                     </div>
                   </article>
                 );
-              })
+              })}
+              {filteredNews.length > visibleLimit && (
+                <div className="p-3 text-center">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleLimit((v) => v + 40)}
+                    className="rounded border border-slate-700 bg-slate-900 px-3 py-1 font-mono text-[10.5px] text-slate-300 transition hover:border-cyan-400 hover:text-cyan-200"
+                  >
+                    Xem thêm ({filteredNews.length - visibleLimit} tin còn lại)
+                  </button>
+                </div>
+              )}
+              </>
             )}
           </div>
         </div>
@@ -1904,7 +1917,8 @@ export function RightIntelPanel({
                   : 'Không có văn bản nào khớp điều kiện lọc.'}
               </div>
             ) : (
-              filteredPolicy.map((doc) => (
+              <>
+              {filteredPolicy.slice(0, visibleLimit).map((doc) => (
                 <article key={doc.id} className="px-3 py-2.5 transition hover:bg-slate-900/65">
                   <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
                     <div className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -1975,7 +1989,19 @@ export function RightIntelPanel({
                     </div>
                   </div>
                 </article>
-              ))
+              ))}
+              {filteredPolicy.length > visibleLimit && (
+                <div className="p-3 text-center">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleLimit((v) => v + 40)}
+                    className="rounded border border-slate-700 bg-slate-900 px-3 py-1 font-mono text-[10.5px] text-slate-300 transition hover:border-amber-400 hover:text-amber-200"
+                  >
+                    Xem thêm ({filteredPolicy.length - visibleLimit} văn bản còn lại)
+                  </button>
+                </div>
+              )}
+              </>
             )}
           </div>
         </div>
@@ -2310,4 +2336,4 @@ export function RightIntelPanel({
       )}
     </aside>
   );
-}
+});

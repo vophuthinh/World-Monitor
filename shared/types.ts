@@ -228,7 +228,6 @@ export type NewsStreamSource =
   | 'rss'
   | 'gdelt'
   | 'wikimedia'
-  | 'bluesky'
   | 'hackernews'
   | 'reddit'
   | 'snapi';
@@ -249,9 +248,7 @@ export interface NewsItem {
 }
 
 export interface NewsStreamStats {
-  blueskyConnected: boolean;
   wikimediaConnected: boolean;
-  blueskyCount: number;
   wikimediaCount: number;
   gdeltCount: number;
   hnCount: number;

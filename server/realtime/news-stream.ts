@@ -1,13 +1,10 @@
 import type { GeoPointFeature, NewsItem, NewsStreamStats } from '@shared/types';
-import { extractWsPayloadText } from '../collectors/maritime-vessels';
 import { decodeHtmlEntities, matchGeoLocation } from '../collectors/polymarket-news';
 import type { SnapshotStore } from '../cache/snapshot-store';
 import { NAMED_APP_UA, fetchJsonWithTimeout } from '../lib/http';
 import { globalViTranslator } from '../lib/translator';
 import type { RealtimeHub } from './hub';
 
-const BLUESKY_JETSTREAM_WS =
-  'wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=app.bsky.feed.post';
 const WIKIMEDIA_RECENTCHANGE_SSE = 'https://stream.wikimedia.org/v2/stream/recentchange';
 const HN_TOPSTORIES_URL = 'https://hacker-news.firebaseio.com/v0/topstories.json';
 const HN_ITEM_URL = (id: number) => `https://hacker-news.firebaseio.com/v0/item/${id}.json`;
@@ -20,112 +17,6 @@ const ARCTIC_SHIFT_WORLDNEWS_URL =
   'https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=worldnews&limit=12&sort=desc';
 const GDELT_DOC_ARTLIST_URL =
   'https://api.gdeltproject.org/api/v2/doc/doc?query=(conflict%20OR%20military%20OR%20maritime%20OR%20vietnam%20OR%20tariff%20OR%20earthquake)%20sourcelang:eng&mode=ArtList&maxrecords=24&format=json&timespan=6h';
-
-const BREAKING_WIRE_PREFIX_RE = /^(?:🚨\s*|⚡\s*|🔴\s*)?(BREAKING|URGENT|FLASH|DEVELOPING|ALERT|TIN NÓNG)\b[:\s-]*/i;
-
-const OSINT_TOPIC_RE =
-  /\b(missile|airstrike|drone strike|naval|warship|tanker|strait of hormuz|south china sea|biển đông|paracel|spratly|taiwan strait|red sea|houthi|suez|malacca|ukraine|kyiv|russia|israel|iran|tehran|gaza|lebanon|north korea|pyongyang|pentagon|nato|ceasefire|sanctions|tariff|central bank|federal reserve|inflation|recession|oil price|earthquake|tsunami|typhoon|volcano|coup|state of emergency|cyberattack|vietnam|hanoi)\b/i;
-
-const TRUSTED_NEWS_DOMAIN_RE =
-  /\b(reuters\.com|apnews\.com|bloomberg\.com|bbc\.co|bbc\.com|aljazeera\.com|ft\.com|wsj\.com|nytimes\.com|theguardian\.com|cnbc\.com|dw\.com|france24\.com|nikkei\.com|scmp\.com|channelnewsasia\.com|vnexpress\.net|tuoitre\.vn|bellingcat\.com)\b/i;
-
-interface JetstreamEnvelope {
-  did?: string;
-  time_us?: number;
-  kind?: string;
-  commit?: {
-    operation?: string;
-    collection?: string;
-    rkey?: string;
-    record?: {
-      text?: string;
-      langs?: string[];
-      reply?: unknown;
-      embed?: {
-        $type?: string;
-        external?: {
-          uri?: string;
-          title?: string;
-          description?: string;
-        };
-      };
-    };
-  };
-}
-
-export function parseBlueskyJetstreamPost(rawJson: string, now = Date.now()): NewsItem | null {
-  try {
-    const msg = JSON.parse(rawJson) as JetstreamEnvelope;
-    if (msg.kind !== 'commit') return null;
-    const commit = msg.commit;
-    if (!commit || commit.operation !== 'create' || commit.collection !== 'app.bsky.feed.post') {
-      return null;
-    }
-
-    const record = commit.record;
-    if (!record || record.reply) return null; // Skip reply chatter
-
-    const rawText = (record.text ?? '').replace(/\s+/g, ' ').trim();
-    if (rawText.length < 32 || rawText.length > 340) return null;
-
-    // Skip hashtag spam (>3 hashtags)
-    const hashtagCount = (rawText.match(/#[\p{L}\p{N}_]+/gu) ?? []).length;
-    if (hashtagCount > 3) return null;
-
-    const extUri = record.embed?.external?.uri ?? '';
-    const extTitle = decodeHtmlEntities(record.embed?.external?.title ?? '');
-    const combinedCheck = `${rawText} ${extTitle} ${extUri}`;
-
-    const hasBreakingPrefix = BREAKING_WIRE_PREFIX_RE.test(rawText);
-    const hasTopicMatch = OSINT_TOPIC_RE.test(combinedCheck);
-    const hasTrustedLink = Boolean(extUri && TRUSTED_NEWS_DOMAIN_RE.test(extUri));
-
-    if (!hasTopicMatch && !hasTrustedLink) return null;
-    if (!hasBreakingPrefix && !extUri) return null;
-
-    const did = msg.did ?? '';
-    const rkey = commit.rkey ?? '';
-    if (!did || !rkey) return null;
-
-    const cleanHeadline = rawText
-      .replace(/https?:\/\/\S+/gi, '')
-      .replace(/\b(?:www\.)?[a-z0-9-]+\.[a-z]{2,}\/\S+/gi, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-    const wordCount = cleanHeadline.split(' ').filter(Boolean).length;
-    const displayTitle =
-      cleanHeadline.length >= 28 && wordCount >= 5
-        ? cleanHeadline
-        : extTitle.length >= 18
-          ? extTitle
-          : cleanHeadline;
-
-    if (!displayTitle || displayTitle.length < 18) return null;
-
-    const loc = matchGeoLocation(`${displayTitle} ${extTitle}`);
-    const bskyPostUrl = `https://bsky.app/profile/${did}/post/${rkey}`;
-
-    return {
-      id: `bsky:${did}:${rkey}`,
-      title: displayTitle,
-      source: 'Bluesky Jetstream',
-      category: 'osint_live',
-      streamSource: 'bluesky',
-      isLiveStream: true,
-      publishedAt: now,
-      url: bskyPostUrl,
-      ...(loc
-        ? {
-            matchedLat: loc.lat,
-            matchedLon: loc.lon,
-            matchedLocation: loc.name,
-          }
-        : {}),
-    };
-  } catch {
-    return null;
-  }
-}
 
 export interface WikimediaRecentChangeEvent {
   bot?: boolean;
@@ -568,17 +459,13 @@ export async function fetchRedditOsintNews(): Promise<NewsItem[]> {
 }
 
 export class UnifiedNewsStreamService {
-  private bskyWs: WebSocket | null = null;
   private wikiAbort: AbortController | null = null;
-  private bskyReconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private wikiReconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private stopped = false;
 
-  private bskyConnected = false;
   private wikiConnected = false;
-  private lastBskyAcceptedMs = 0;
 
   private readonly wikiDetector = new WikimediaBurstDetector({ burstThreshold: 3, windowMs: 180_000 });
   private readonly itemsById = new Map<string, NewsItem>();
@@ -600,17 +487,16 @@ export class UnifiedNewsStreamService {
     if (cachedGdelt && cachedGdelt.length > 0) {
       void this.ingestGdeltGeoFeatures(cachedGdelt);
     }
-    this.connectBlueskyJetstream();
     void this.connectWikimediaSse();
     void this.pollHnAndGdelt();
 
-    // Flush queued real-time Bluesky + Wikimedia items every 4 seconds (batch-translating to Vietnamese)
+    // Flush queued real-time Wikimedia burst items every 4 seconds (batch-translating to Vietnamese)
     this.flushTimer = setInterval(() => {
       void this.flushPendingLiveItems();
     }, 4_000);
     if (typeof this.flushTimer.unref === 'function') this.flushTimer.unref();
 
-    // Poll Hacker News Firebase + GDELT DOC 2.0 every 4 minutes
+    // Poll Hacker News Firebase + GDELT DOC 2.0 + Reddit + SNAPI every 4 minutes
     this.pollTimer = setInterval(() => {
       void this.pollHnAndGdelt();
     }, 240_000);
@@ -619,25 +505,21 @@ export class UnifiedNewsStreamService {
 
   stop(): void {
     this.stopped = true;
-    this.bskyConnected = false;
     this.wikiConnected = false;
-    if (this.bskyReconnectTimer) clearTimeout(this.bskyReconnectTimer);
     if (this.wikiReconnectTimer) clearTimeout(this.wikiReconnectTimer);
     if (this.flushTimer) clearInterval(this.flushTimer);
     if (this.pollTimer) clearInterval(this.pollTimer);
-    try {
-      this.bskyWs?.close();
-    } catch {
-      // Ignore
-    }
     this.wikiAbort?.abort();
-    this.bskyWs = null;
     this.wikiAbort = null;
   }
 
   ingestBatchItems(items: readonly NewsItem[], broadcastNew = false): NewsItem[] {
     const newlyAdded: NewsItem[] = [];
     for (const item of items) {
+      // Purge any legacy Bluesky items from disk cache
+      if (item.id.startsWith('bsky:') || (item as { streamSource?: string }).streamSource === 'bluesky') {
+        continue;
+      }
       const fp = this.fingerprint(item);
       if (this.itemsById.has(item.id) || this.seenFingerprints.has(fp)) {
         // Update existing item if titleVi was newly populated
@@ -715,7 +597,6 @@ export class UnifiedNewsStreamService {
   }
 
   getStats(): NewsStreamStats {
-    let blueskyCount = 0;
     let wikimediaCount = 0;
     let gdeltCount = 0;
     let hnCount = 0;
@@ -725,9 +606,6 @@ export class UnifiedNewsStreamService {
 
     for (const item of this.itemsById.values()) {
       switch (item.streamSource) {
-        case 'bluesky':
-          blueskyCount += 1;
-          break;
         case 'wikimedia':
           wikimediaCount += 1;
           break;
@@ -750,9 +628,7 @@ export class UnifiedNewsStreamService {
     }
 
     return {
-      blueskyConnected: this.bskyConnected,
       wikimediaConnected: this.wikiConnected,
-      blueskyCount,
       wikimediaCount,
       gdeltCount,
       hnCount,
@@ -790,57 +666,6 @@ export class UnifiedNewsStreamService {
       this.ingestBatchItems(translated, true);
     } catch {
       this.ingestBatchItems(batch, true);
-    }
-  }
-
-  private connectBlueskyJetstream(): void {
-    if (this.stopped || typeof globalThis.WebSocket !== 'function') return;
-
-    try {
-      const ws = new WebSocket(BLUESKY_JETSTREAM_WS);
-      this.bskyWs = ws;
-
-      ws.onopen = () => {
-        this.bskyConnected = true;
-      };
-
-      ws.onmessage = (event) => {
-        const now = Date.now();
-        // Throttle accepted Bluesky items to max 1 every 4.5s so firehose stays crisp & curated
-        if (now - this.lastBskyAcceptedMs < 4_500 || this.pendingLiveQueue.length >= 12) return;
-
-        void extractWsPayloadText(event.data).then((raw) => {
-          if (this.stopped || !raw) return;
-          const item = parseBlueskyJetstreamPost(raw, Date.now());
-          if (!item) return;
-          const fp = this.fingerprint(item);
-          if (this.seenFingerprints.has(fp)) return;
-          this.lastBskyAcceptedMs = Date.now();
-          this.pendingLiveQueue.push(item);
-        });
-      };
-
-      ws.onerror = () => {
-        this.bskyConnected = false;
-        try {
-          ws.close();
-        } catch {
-          // Handled in onclose
-        }
-      };
-
-      ws.onclose = () => {
-        this.bskyConnected = false;
-        this.bskyWs = null;
-        if (this.stopped) return;
-        this.bskyReconnectTimer = setTimeout(() => this.connectBlueskyJetstream(), 5_000);
-        if (typeof this.bskyReconnectTimer.unref === 'function') this.bskyReconnectTimer.unref();
-      };
-    } catch {
-      this.bskyConnected = false;
-      if (!this.stopped) {
-        this.bskyReconnectTimer = setTimeout(() => this.connectBlueskyJetstream(), 5_000);
-      }
     }
   }
 
@@ -908,9 +733,6 @@ export class UnifiedNewsStreamService {
 
   private fingerprint(item: NewsItem): string {
     const cleanUrl = item.url.split('?')[0].toLowerCase();
-    if (item.streamSource === 'bluesky') {
-      return `txt:${item.title.toLowerCase().slice(0, 75)}`;
-    }
     return `url:${cleanUrl}`;
   }
 

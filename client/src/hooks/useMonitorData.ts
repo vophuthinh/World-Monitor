@@ -38,6 +38,7 @@ export interface SearchHit {
 }
 
 export type FlashDirection = 'up' | 'down';
+export type LayerPresetId = 'clean' | 'cyber' | 'military' | 'all' | 'none';
 
 const TIME_WINDOW_MS: Record<Exclude<TimeWindow, 'all'>, number> = {
   '6h': 6 * 3_600_000,
@@ -45,20 +46,21 @@ const TIME_WINDOW_MS: Record<Exclude<TimeWindow, 'all'>, number> = {
   '7d': 7 * 86_400_000,
 };
 
+// Clean default mode: 6 core situational awareness layers ON; secondary/dense layers 1-click toggleable
 const DEFAULT_ACTIVE_LAYERS: Record<MapLayerId, boolean> = {
   military: true,
   vessels: true,
-  cyberThreats: true,
-  cyberArcs: true,
+  cyberThreats: false,
+  cyberArcs: false,
   earthquakes: true,
-  natural: true,
+  natural: false,
   geopolitics: true,
-  militaryBases: true,
-  aiDatacenters: true,
+  militaryBases: false,
+  aiDatacenters: false,
   chokepoints: true,
-  nuclear: true,
-  financeCenters: true,
-  cables: true,
+  nuclear: false,
+  financeCenters: false,
+  cables: false,
   weatherRadar: true,
 };
 
@@ -416,7 +418,50 @@ export function useMonitorData() {
     setActiveLayers((prev) => ({ ...prev, [layerId]: !prev[layerId] }));
   }, []);
 
-  const setAllLayers = useCallback((enabled: boolean) => {
+  const applyLayerPreset = useCallback((preset: LayerPresetId) => {
+    if (preset === 'clean') {
+      setActiveLayers(DEFAULT_ACTIVE_LAYERS);
+      return;
+    }
+    if (preset === 'cyber') {
+      setActiveLayers({
+        military: false,
+        vessels: false,
+        cyberThreats: true,
+        cyberArcs: true,
+        earthquakes: false,
+        natural: false,
+        geopolitics: false,
+        militaryBases: false,
+        aiDatacenters: true,
+        chokepoints: false,
+        nuclear: false,
+        financeCenters: false,
+        cables: true,
+        weatherRadar: false,
+      });
+      return;
+    }
+    if (preset === 'military') {
+      setActiveLayers({
+        military: true,
+        vessels: true,
+        cyberThreats: false,
+        cyberArcs: false,
+        earthquakes: false,
+        natural: false,
+        geopolitics: true,
+        militaryBases: true,
+        aiDatacenters: false,
+        chokepoints: true,
+        nuclear: true,
+        financeCenters: false,
+        cables: false,
+        weatherRadar: true,
+      });
+      return;
+    }
+    const enabled = preset === 'all';
     setActiveLayers({
       military: enabled,
       vessels: enabled,
@@ -435,12 +480,24 @@ export function useMonitorData() {
     });
   }, []);
 
+  const setAllLayers = useCallback(
+    (enabled: boolean) => {
+      applyLayerPreset(enabled ? 'all' : 'none');
+    },
+    [applyLayerPreset],
+  );
+
   const flyTo = useCallback((lat: number, lon: number, zoom = 5.5) => {
     setCameraTarget({ lat, lon, zoom, nonce: Date.now() + Math.random() });
   }, []);
 
+  const layersRef = data?.layers;
+  const staticGeoRef = data?.staticGeo;
+  const rawNewsRef = data?.news;
+  const rawPredictionsRef = data?.predictions;
+
   const filteredData = useMemo(() => {
-    if (!data) {
+    if (!layersRef || !staticGeoRef) {
       return {
         military: [] as GeoPointFeature[],
         vessels: [] as GeoPointFeature[],
@@ -467,25 +524,25 @@ export function useMonitorData() {
     const withinWindow = (ts: number) => ts <= 0 || now - ts <= maxAge;
 
     return {
-      military: data.layers.military,
-      vessels: data.layers.vessels ?? [],
-      cyberThreats: (data.layers.cyberThreats ?? []).filter((f) => withinWindow(f.timestamp)),
-      earthquakes: data.layers.earthquakes.filter((f) => withinWindow(f.timestamp)),
-      natural: data.layers.natural.filter((f) => withinWindow(f.timestamp)),
-      geopolitics: data.layers.geopolitics.filter((f) => withinWindow(f.timestamp)),
-      militaryBases: data.staticGeo.militaryBases ?? [],
-      aiDatacenters: data.staticGeo.aiDatacenters ?? [],
-      chokepoints: data.staticGeo.chokepoints,
-      nuclear: data.staticGeo.nuclear,
-      financeCenters: data.staticGeo.financeCenters,
-      cables: data.staticGeo.cables,
-      vietnamSovereignty: data.staticGeo.vietnamSovereignty ?? [],
-      vietnamZones: data.staticGeo.vietnamZones ?? [],
-      vietnamSeaLabels: data.staticGeo.vietnamSeaLabels ?? [],
-      news: data.news.filter((n) => withinWindow(n.publishedAt)),
-      predictions: data.predictions,
+      military: layersRef.military,
+      vessels: layersRef.vessels ?? [],
+      cyberThreats: (layersRef.cyberThreats ?? []).filter((f) => withinWindow(f.timestamp)),
+      earthquakes: layersRef.earthquakes.filter((f) => withinWindow(f.timestamp)),
+      natural: layersRef.natural.filter((f) => withinWindow(f.timestamp)),
+      geopolitics: layersRef.geopolitics.filter((f) => withinWindow(f.timestamp)),
+      militaryBases: staticGeoRef.militaryBases ?? [],
+      aiDatacenters: staticGeoRef.aiDatacenters ?? [],
+      chokepoints: staticGeoRef.chokepoints,
+      nuclear: staticGeoRef.nuclear,
+      financeCenters: staticGeoRef.financeCenters,
+      cables: staticGeoRef.cables,
+      vietnamSovereignty: staticGeoRef.vietnamSovereignty ?? [],
+      vietnamZones: staticGeoRef.vietnamZones ?? [],
+      vietnamSeaLabels: staticGeoRef.vietnamSeaLabels ?? [],
+      news: (rawNewsRef ?? []).filter((n) => withinWindow(n.publishedAt)),
+      predictions: rawPredictionsRef ?? [],
     };
-  }, [data, timeWindow]);
+  }, [layersRef, staticGeoRef, rawNewsRef, rawPredictionsRef, timeWindow]);
 
   const cyberArcs = useMemo(
     () => buildCyberAttackArcs(filteredData.cyberThreats),
@@ -692,6 +749,7 @@ export function useMonitorData() {
     activeLayers,
     toggleLayer,
     setAllLayers,
+    applyLayerPreset,
     timeWindow,
     setTimeWindow,
     radarOpacity,

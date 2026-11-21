@@ -195,7 +195,7 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector({
     id: 'rss-news',
-    label: 'News Stream (27 RSS + Bluesky WS + Wiki SSE + HN + GDELT)',
+    label: 'News Stream (RSS + Wiki SSE + GDELT + Reddit + SNAPI + HN)',
     intervalMs: 180_000,
     retainMs: 6 * 3_600_000,
     countItems: (items) => Math.max(items.length, newsStream.getUnifiedNews().length),

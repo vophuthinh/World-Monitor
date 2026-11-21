@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import {
   ArrowClockwise,
   ArrowsClockwise,
@@ -67,6 +67,36 @@ const TIME_OPTIONS: ReadonlyArray<{ id: TimeWindow; label: string }> = [
   { id: 'all', label: 'ALL' },
 ];
 
+const LiveClockLine = memo(function LiveClockLine() {
+  const [nowTime, setNowTime] = useState(() => new Date());
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      setNowTime(new Date());
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const vnClock = nowTime.toLocaleTimeString('en-GB', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+  const utcClock = nowTime.toLocaleTimeString('en-GB', {
+    timeZone: 'UTC',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  return (
+    <div className="font-mono text-[10px] text-slate-400 tabular-nums">
+      VN {vnClock} · UTC {utcClock}
+    </div>
+  );
+});
+
 export function TopCommandBar({
   isGlobe,
   onToggleGlobe,
@@ -98,13 +128,7 @@ export function TopCommandBar({
 }: TopCommandBarProps) {
   const [healthOpen, setHealthOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
-  const [nowTime, setNowTime] = useState(() => new Date());
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    const t = setInterval(() => setNowTime(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -127,18 +151,6 @@ export function TopCommandBar({
   const staleCount = health.filter((h) => h.status === 'stale').length;
   const errorCount = health.filter((h) => h.status === 'error').length;
   const warmingCount = health.filter((h) => h.status === 'warming').length;
-
-  const vnClock = nowTime.toLocaleTimeString('en-GB', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-  const utcClock = nowTime.toLocaleTimeString('en-GB', {
-    timeZone: 'UTC',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 
   const findQuote = (sym: string) => quotes.find((q) => q.symbol === sym);
   const usdVnd = findQuote('USD/VND');
@@ -187,9 +199,7 @@ export function TopCommandBar({
                   {streamConnected ? `LIVE WS · ${liveTickCount}` : 'RECONNECTING'}
                 </span>
               </div>
-              <div className="font-mono text-[10px] text-slate-400 tabular-nums">
-                VN {vnClock} · UTC {utcClock}
-              </div>
+              <LiveClockLine />
             </div>
           </div>
 

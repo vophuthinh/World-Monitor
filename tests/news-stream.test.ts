@@ -9,7 +9,6 @@ import {
   WikimediaBurstDetector,
   normalizeGdeltDocArticles,
   normalizeHackerNewsItems,
-  parseBlueskyJetstreamPost,
 } from '../server/realtime/news-stream';
 
 describe('Unified OSINT Realtime News Stream & Auto-Vietnamese Translator', () => {
@@ -60,59 +59,6 @@ describe('Unified OSINT Realtime News Stream & Auto-Vietnamese Translator', () =
     expect(names).toContain('Thanh Niên');
     expect(names).toContain('Dân Trí');
     expect(CURATED_RSS_FEEDS.filter((f) => f.category === 'vietnam').length).toBeGreaterThanOrEqual(8);
-  });
-
-  it('filters Bluesky Jetstream WebSocket firehose for high-signal breaking/OSINT posts and ignores chatter', () => {
-    const now = 1_700_000_000_000;
-
-    // 1. Casual non-news post should be ignored
-    const casual = parseBlueskyJetstreamPost(
-      JSON.stringify({
-        did: 'did:plc:abc123',
-        kind: 'commit',
-        commit: {
-          operation: 'create',
-          collection: 'app.bsky.feed.post',
-          rkey: '3xyz111',
-          record: {
-            text: 'Just had a great cup of coffee this morning with my cat!',
-          },
-        },
-      }),
-      now,
-    );
-    expect(casual).toBeNull();
-
-    // 2. Breaking geopolitical OSINT post with external link should be captured and geocoded
-    const breaking = parseBlueskyJetstreamPost(
-      JSON.stringify({
-        did: 'did:plc:reuters999',
-        kind: 'commit',
-        commit: {
-          operation: 'create',
-          collection: 'app.bsky.feed.post',
-          rkey: '3kbreak88',
-          record: {
-            text: 'BREAKING: Naval vessels report missile alert near Strait of Hormuz as oil tankers divert course.',
-            langs: ['en'],
-            embed: {
-              $type: 'app.bsky.embed.external',
-              external: {
-                uri: 'https://www.reuters.com/world/middle-east/hormuz-alert',
-                title: 'Hormuz naval alert',
-              },
-            },
-          },
-        },
-      }),
-      now,
-    );
-
-    expect(breaking).not.toBeNull();
-    expect(breaking?.streamSource).toBe('bluesky');
-    expect(breaking?.isLiveStream).toBe(true);
-    expect(breaking?.matchedLocation).toContain('Hormuz');
-    expect(breaking?.url).toBe('https://bsky.app/profile/did:plc:reuters999/post/3kbreak88');
   });
 
   it('detects Wikipedia EventStreams human edit bursts while ignoring bots and Talk namespaces', () => {

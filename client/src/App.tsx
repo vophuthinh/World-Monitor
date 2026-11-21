@@ -33,6 +33,7 @@ export function App() {
     activeLayers,
     toggleLayer,
     setAllLayers,
+    applyLayerPreset,
     timeWindow,
     setTimeWindow,
     radarOpacity,
@@ -169,6 +170,7 @@ export function App() {
               layerCounts={layerCounts}
               onToggleLayer={toggleLayer}
               onSetAllLayers={setAllLayers}
+              onApplyPreset={applyLayerPreset}
               radarOpacity={radarOpacity}
               onChangeRadarOpacity={setRadarOpacity}
               weatherRadar={data?.weatherRadar ?? null}

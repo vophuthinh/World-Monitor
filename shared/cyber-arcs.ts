@@ -150,7 +150,7 @@ function buildCurvedSegments(
 
 export function buildCyberAttackArcs(
   cyberThreats: readonly GeoPointFeature[],
-  maxArcs = 34,
+  maxArcs = 16,
 ): CyberAttackArc[] {
   if (!cyberThreats || cyberThreats.length === 0) return [];
 
