@@ -233,6 +233,7 @@ export function App() {
             }
             predictions={filteredData.predictions}
             news={filteredData.news}
+            techCyber={data?.techCyber}
             newsStreamStats={data?.newsStreamStats}
             freshNewsIds={freshNewsIds}
             priceFlashes={priceFlashes}
@@ -258,6 +259,7 @@ export function App() {
               }
               predictions={filteredData.predictions}
               news={filteredData.news}
+              techCyber={data?.techCyber}
               newsStreamStats={data?.newsStreamStats}
               freshNewsIds={freshNewsIds}
               priceFlashes={priceFlashes}

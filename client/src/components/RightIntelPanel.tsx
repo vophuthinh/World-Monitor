@@ -4,11 +4,13 @@ import {
   Broadcast,
   ChartBar,
   ChartLineUp,
+  Cpu,
   Crosshair,
   Gauge,
   Lightning,
   MagnifyingGlass,
   Newspaper,
+  ShieldWarning,
   Translate,
   TrendDown,
   TrendUp,
@@ -20,15 +22,19 @@ import type {
   NewsStreamStats,
   PredictionCategory,
   PredictionItem,
+  TechCyberItem,
+  TechCyberSnapshot,
+  TechSubCategory,
 } from '@shared/types';
 import type { FlashDirection } from '../hooks/useMonitorData';
 
-type RightTabId = 'markets' | 'predictions' | 'news';
+type RightTabId = 'markets' | 'predictions' | 'news' | 'techCyber';
 
 interface RightIntelPanelProps {
   markets: MarketSnapshot;
   predictions: PredictionItem[];
   news: NewsItem[];
+  techCyber?: TechCyberSnapshot;
   newsStreamStats?: NewsStreamStats;
   freshNewsIds?: ReadonlySet<string>;
   priceFlashes: Record<string, FlashDirection>;
@@ -40,7 +46,7 @@ function formatCompactUsd(val: number | null): string {
   if (val === null || !Number.isFinite(val) || val <= 0) return '—';
   if (val >= 1_000_000_000_000) return `$${(val / 1_000_000_000_000).toFixed(2)}T`;
   if (val >= 1_000_000_000) return `$${(val / 1_000_000_000).toFixed(0)}B`;
-  if (val >= 1_000_000_000 * 0.001) return `$${(val / 1_000_000).toFixed(1)}M`;
+  if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(1)}M`;
   if (val >= 1_000) return `$${(val / 1_000).toFixed(0)}K`;
   return `$${val.toFixed(0)}`;
 }
@@ -77,10 +83,26 @@ function sourceBadgeStyle(item: NewsItem): string {
   return 'bg-slate-800 text-slate-300';
 }
 
+function techBadgeStyle(item: TechCyberItem): string {
+  if (item.subCategory === 'cyber') {
+    return item.severity === 'critical'
+      ? 'border border-rose-500/50 bg-rose-500/20 text-rose-200'
+      : 'border border-amber-500/40 bg-amber-500/15 text-amber-300';
+  }
+  if (item.subCategory === 'ai') {
+    return 'border border-violet-500/40 bg-violet-500/15 text-violet-300';
+  }
+  if (item.subCategory === 'vn_tech') {
+    return 'border border-emerald-500/40 bg-emerald-500/15 text-emerald-300';
+  }
+  return 'border border-cyan-500/35 bg-cyan-500/12 text-cyan-300';
+}
+
 export function RightIntelPanel({
   markets,
   predictions,
   news,
+  techCyber,
   newsStreamStats,
   freshNewsIds,
   priceFlashes,
@@ -92,6 +114,8 @@ export function RightIntelPanel({
   const [predQuery, setPredQuery] = useState('');
   const [newsFilter, setNewsFilter] = useState<'all' | NewsCategory>('all');
   const [newsQuery, setNewsQuery] = useState('');
+  const [techFilter, setTechFilter] = useState<'all' | TechSubCategory>('all');
+  const [techQuery, setTechQuery] = useState('');
   const [translateVi, setTranslateVi] = useState<boolean>(true);
 
   const fxQuotes = useMemo(() => markets.quotes.filter((q) => q.group === 'fx'), [markets.quotes]);
@@ -125,45 +149,89 @@ export function RightIntelPanel({
     });
   }, [news, newsFilter, newsQuery]);
 
+  const techItems = techCyber?.items ?? [];
+
+  const techCounts = useMemo(() => {
+    let ai = 0;
+    let cyber = 0;
+    let tech_infra = 0;
+    let vn_tech = 0;
+    for (const item of techItems) {
+      if (item.subCategory === 'ai') ai += 1;
+      else if (item.subCategory === 'cyber') cyber += 1;
+      else if (item.subCategory === 'vn_tech') vn_tech += 1;
+      else tech_infra += 1;
+    }
+    return { ai, cyber, tech_infra, vn_tech };
+  }, [techItems]);
+
+  const filteredTech = useMemo(() => {
+    const q = techQuery.trim().toLowerCase();
+    return techItems.filter((item) => {
+      if (techFilter !== 'all' && item.subCategory !== techFilter) return false;
+      if (
+        q &&
+        !`${item.title} ${item.titleVi ?? ''} ${item.source} ${item.cveId ?? ''} ${item.matchedLocation ?? ''}`
+          .toLowerCase()
+          .includes(q)
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [techItems, techFilter, techQuery]);
+
   return (
-    <aside className="flex h-full w-full flex-col border-l border-slate-800/95 bg-[#090e18] lg:w-[410px] xl:w-[438px]">
-      {/* Tab Header */}
-      <div className="grid shrink-0 grid-cols-3 border-b border-slate-800/95 bg-[#070b12]">
+    <aside className="flex h-full w-full flex-col border-l border-slate-800/95 bg-[#090e18] lg:w-[432px] xl:w-[468px]">
+      {/* 4-Tab Header */}
+      <div className="grid shrink-0 grid-cols-4 border-b border-slate-800/95 bg-[#070b12]">
         <button
           type="button"
           onClick={() => setActiveTab('markets')}
-          className={`flex items-center justify-center gap-1.5 border-b-2 py-2.5 text-xs font-semibold transition ${
+          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
             activeTab === 'markets'
               ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          <ChartLineUp size={15} />
-          <span>Thị trường &amp; Vĩ mô</span>
+          <ChartLineUp size={14} />
+          <span>Thị trường</span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('predictions')}
-          className={`flex items-center justify-center gap-1.5 border-b-2 py-2.5 text-xs font-semibold transition ${
+          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
             activeTab === 'predictions'
               ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          <ChartBar size={15} />
+          <ChartBar size={14} />
           <span>Dự đoán ({predictions.length})</span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('news')}
-          className={`flex items-center justify-center gap-1.5 border-b-2 py-2.5 text-xs font-semibold transition ${
+          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
             activeTab === 'news'
               ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          <Newspaper size={15} />
+          <Newspaper size={14} />
           <span>Tin nóng ({news.length})</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('techCyber')}
+          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
+            activeTab === 'techCyber'
+              ? 'border-violet-400 bg-violet-500/12 text-violet-200'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Cpu size={14} />
+          <span>AI · Cyber ({techItems.length})</span>
         </button>
       </div>
 
@@ -497,11 +565,10 @@ export function RightIntelPanel({
         </div>
       )}
 
-      {/* Tab 3: Unified OSINT Firehose + 19 RSS + Auto-Vietnamese Translation */}
+      {/* Tab 3: Unified OSINT Firehose + 27 Geopolitics/Defense/VN RSS + Auto-Vietnamese Translation */}
       {activeTab === 'news' && (
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="space-y-2 border-b border-slate-800/90 p-2.5">
-            {/* Realtime OSINT Stream Telemetry + Auto-Translate Toggle */}
             <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-slate-800/90 bg-[#0d1524] px-2 py-1.5">
               <div className="flex flex-wrap items-center gap-1.5 font-mono text-[9.5px]">
                 <span
@@ -553,23 +620,20 @@ export function RightIntelPanel({
                     ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
                     : 'border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200'
                 }`}
-                title="Bật/tắt tự động dịch tiêu đề báo quốc tế & OSINT sang Tiếng Việt"
               >
                 <Translate size={12} weight="bold" />
                 <span>{translateVi ? 'Dịch VI: BẬT' : 'Dịch VI: TẮT'}</span>
               </button>
             </div>
 
-            {/* Category Filter Pills */}
             <div className="flex flex-wrap gap-1">
               {(
                 [
                   { id: 'all', label: 'Tất cả' },
                   { id: 'osint_live', label: '⚡ Live OSINT' },
                   { id: 'vietnam', label: 'Việt Nam' },
-                  { id: 'world', label: 'Thế giới' },
+                  { id: 'world', label: 'Thế giới & Quốc phòng' },
                   { id: 'finance', label: 'Tài chính' },
-                  { id: 'tech', label: 'Tech / HN' },
                 ] as const
               ).map((cat) => (
                 <button
@@ -649,6 +713,184 @@ export function RightIntelPanel({
                       target="_blank"
                       rel="noreferrer"
                       className="mt-1 block text-xs font-medium leading-relaxed text-slate-100 hover:text-cyan-300"
+                    >
+                      {headline}
+                    </a>
+
+                    {translateVi && isTranslated && (
+                      <p className="mt-0.5 line-clamp-1 text-[10.5px] text-slate-500" title={item.title}>
+                        Gốc: {item.title}
+                      </p>
+                    )}
+
+                    <div className="mt-1.5 flex items-center justify-between">
+                      {item.matchedLat !== undefined && item.matchedLon !== undefined ? (
+                        <button
+                          type="button"
+                          onClick={() => onFlyToLocation(item.matchedLat!, item.matchedLon!, 5.5)}
+                          className="inline-flex items-center gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 font-mono text-[10px] font-medium text-cyan-300 transition hover:bg-cyan-500/20 active:scale-[0.98]"
+                        >
+                          <Crosshair size={11} />
+                          Bay tới: {item.matchedLocation}
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-0.5 text-[10.5px] text-slate-400 hover:text-slate-200"
+                      >
+                        Mở nguồn <ArrowSquareOut size={11} />
+                      </a>
+                    </div>
+                  </article>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tab 4: Dedicated AI, Semiconductor, Cloud & Cybersecurity Intelligence (53+ Koala73 & VN Sources) */}
+      {activeTab === 'techCyber' && (
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="space-y-2 border-b border-slate-800/90 p-2.5">
+            {/* Cloud & Frontier AI Infrastructure Status Bar + Auto-Translate Toggle */}
+            <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-slate-800/90 bg-[#0d1524] px-2 py-1.5">
+              <div className="flex flex-wrap items-center gap-1.5 font-mono text-[9.5px]">
+                {(techCyber?.infraStatus ?? []).map((st) => {
+                  const dotClass =
+                    st.level === 'operational'
+                      ? 'bg-emerald-400'
+                      : st.level === 'degraded'
+                        ? 'animate-pulse bg-amber-400'
+                        : 'animate-pulse bg-rose-500';
+                  const pillClass =
+                    st.level === 'operational'
+                      ? 'bg-slate-800/90 text-slate-300 hover:text-white'
+                      : st.level === 'degraded'
+                        ? 'border border-amber-500/40 bg-amber-500/15 text-amber-300'
+                        : 'border border-rose-500/45 bg-rose-500/20 text-rose-200';
+                  return (
+                    <a
+                      key={st.name}
+                      href={st.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={`${st.name}: ${st.description}`}
+                      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 transition ${pillClass}`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
+                      <span>{st.name}</span>
+                    </a>
+                  );
+                })}
+                <span className="rounded bg-violet-500/15 px-1.5 py-0.5 text-violet-300">
+                  {techCyber?.activeSourceCount ?? 0} nguồn
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setTranslateVi((v) => !v)}
+                className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[10px] font-semibold transition ${
+                  translateVi
+                    ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
+                    : 'border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Translate size={12} weight="bold" />
+                <span>{translateVi ? 'Dịch VI: BẬT' : 'Dịch VI: TẮT'}</span>
+              </button>
+            </div>
+
+            {/* Sub-Domain Filter Pills */}
+            <div className="flex flex-wrap gap-1">
+              {(
+                [
+                  { id: 'all', label: `Tất cả (${techItems.length})` },
+                  { id: 'ai', label: `🤖 AI & LLM (${techCounts.ai})` },
+                  { id: 'cyber', label: `🛡️ Cyber & CVE (${techCounts.cyber})` },
+                  { id: 'tech_infra', label: `💻 Chip · Cloud · Dev (${techCounts.tech_infra})` },
+                  { id: 'vn_tech', label: `🇻🇳 Công nghệ VN (${techCounts.vn_tech})` },
+                ] as const
+              ).map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setTechFilter(cat.id)}
+                  className={`rounded px-2 py-1 text-[10.5px] font-medium transition ${
+                    techFilter === cat.id
+                      ? 'border border-violet-500/45 bg-violet-500/20 text-violet-200'
+                      : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Search Input */}
+            <div className="relative">
+              <MagnifyingGlass
+                size={13}
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500"
+              />
+              <input
+                type="text"
+                value={techQuery}
+                onChange={(e) => setTechQuery(e.target.value)}
+                placeholder="Tìm OpenAI, LLM, lỗ hổng CVE, ransomware, chip NVIDIA..."
+                aria-label="Tìm tin AI Công nghệ An ninh mạng"
+                className="w-full rounded border border-slate-800 bg-[#0d1524] py-1 pl-7 pr-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-violet-400 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex-1 divide-y divide-slate-800/80 overflow-y-auto">
+            {filteredTech.length === 0 ? (
+              <div className="py-10 text-center text-xs text-slate-400">
+                {techItems.length === 0
+                  ? 'Đang đồng bộ 53+ nguồn AI, Công nghệ & An ninh mạng...'
+                  : 'Không có bản tin nào khớp điều kiện lọc.'}
+              </div>
+            ) : (
+              filteredTech.map((item) => {
+                const isTranslated =
+                  Boolean(item.titleVi) && item.titleVi !== item.title && item.subCategory !== 'vn_tech';
+                const headline = translateVi ? item.titleVi || item.title : item.title;
+
+                return (
+                  <article key={item.id} className="px-3 py-2.5 transition hover:bg-slate-900/65">
+                    <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className={`truncate rounded px-1.5 py-0.2 font-semibold ${techBadgeStyle(item)}`}>
+                          {item.source}
+                        </span>
+                        {item.cveId && (
+                          <span className="inline-flex shrink-0 items-center gap-0.5 rounded border border-rose-500/45 bg-rose-500/20 px-1.5 py-0.2 text-[9px] font-bold text-rose-200">
+                            <ShieldWarning size={10} weight="fill" />
+                            {item.cveId}
+                          </span>
+                        )}
+                        {translateVi && isTranslated && (
+                          <span className="shrink-0 rounded bg-emerald-500/15 px-1 py-0.2 text-[9px] text-emerald-300">
+                            VI
+                          </span>
+                        )}
+                      </div>
+                      <span className="shrink-0 text-slate-500 tabular-nums">
+                        {formatRelativeTime(item.publishedAt)}
+                      </span>
+                    </div>
+
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1 block text-xs font-medium leading-relaxed text-slate-100 hover:text-violet-300"
                     >
                       {headline}
                     </a>

@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
-import type { GeoPointFeature, MarketSnapshot, NewsItem } from '@shared/types';
+import type { GeoPointFeature, MarketSnapshot, NewsItem, TechCyberSnapshot } from '@shared/types';
 import { createApp } from './app';
 import { CollectorScheduler } from './cache/scheduler';
 import { SnapshotStore } from './cache/snapshot-store';
@@ -15,6 +15,7 @@ import { fetchMarketsAndCrypto } from './collectors/markets-crypto';
 import { fetchMilitaryFlights } from './collectors/military-flights';
 import { fetchNaturalEvents } from './collectors/natural-events';
 import { fetchCuratedRssNews, fetchPolymarketPredictions } from './collectors/polymarket-news';
+import { fetchTechCyberIntelligence } from './collectors/tech-cyber-intel';
 import { fetchWeatherRadar } from './collectors/weather-radar';
 import { BinanceRealtimeStream } from './realtime/binance-stream';
 import { RealtimeHub } from './realtime/hub';
@@ -153,11 +154,20 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector({
     id: 'rss-news',
-    label: 'News Stream (19 RSS + Bluesky WS + Wiki SSE + HN + GDELT)',
+    label: 'News Stream (27 RSS + Bluesky WS + Wiki SSE + HN + GDELT)',
     intervalMs: 180_000,
     retainMs: 6 * 3_600_000,
     countItems: (items) => Math.max(items.length, newsStream.getUnifiedNews().length),
     fetcher: () => fetchCuratedRssNews(),
+  });
+
+  scheduler.registerCollector<TechCyberSnapshot>({
+    id: 'tech-cyber',
+    label: 'AI · Công nghệ · An ninh mạng (53 nguồn Koala73 + VN)',
+    intervalMs: 240_000,
+    retainMs: 8 * 3_600_000,
+    countItems: (snap) => snap.items.length,
+    fetcher: () => fetchTechCyberIntelligence(),
   });
 
   const binanceStream = new BinanceRealtimeStream(hub, store);

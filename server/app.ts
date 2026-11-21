@@ -12,6 +12,7 @@ import type {
   NewsStreamStats,
   PredictionItem,
   RealtimeServerEvent,
+  TechCyberSnapshot,
   WeatherRadarSnapshot,
 } from '@shared/types';
 import type { CollectorScheduler } from './cache/scheduler';
@@ -150,6 +151,7 @@ export function createApp(
       health: store.getAllHealth(now),
       aisStreamConfigured: Boolean(options.aisStreamConfigured),
       newsStreamStats: options.getNewsStreamStats?.(),
+      techCyber: store.get<TechCyberSnapshot>('tech-cyber', now) ?? undefined,
     };
 
     return c.json(payload);

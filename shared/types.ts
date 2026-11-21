@@ -28,7 +28,8 @@ export type CollectorId =
   | 'markets-crypto'
   | 'macro-worldbank'
   | 'polymarket'
-  | 'rss-news';
+  | 'rss-news'
+  | 'tech-cyber';
 
 export interface GeoPointFeature {
   id: string;
@@ -208,6 +209,39 @@ export interface NewsStreamStats {
   rssCount: number;
 }
 
+export type TechSubCategory = 'ai' | 'cyber' | 'tech_infra' | 'vn_tech';
+
+export interface TechCyberItem {
+  id: string;
+  title: string;
+  titleVi?: string;
+  source: string;
+  subCategory: TechSubCategory;
+  severity?: SeverityLevel;
+  cveId?: string;
+  publishedAt: number;
+  url: string;
+  matchedLat?: number;
+  matchedLon?: number;
+  matchedLocation?: string;
+}
+
+export type InfraStatusLevel = 'operational' | 'degraded' | 'outage';
+
+export interface TechInfraStatus {
+  name: string;
+  level: InfraStatusLevel;
+  description: string;
+  url: string;
+}
+
+export interface TechCyberSnapshot {
+  items: TechCyberItem[];
+  infraStatus: TechInfraStatus[];
+  activeSourceCount: number;
+  updatedAt: number;
+}
+
 export type SourceHealthStatus = 'ok' | 'stale' | 'warming' | 'error';
 
 export interface SourceHealth {
@@ -256,6 +290,7 @@ export interface BootstrapResponse {
   health: SourceHealth[];
   aisStreamConfigured?: boolean;
   newsStreamStats?: NewsStreamStats;
+  techCyber?: TechCyberSnapshot;
 }
 
 export interface LiveFastResponse {

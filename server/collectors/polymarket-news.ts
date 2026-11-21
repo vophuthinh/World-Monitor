@@ -345,12 +345,22 @@ export const CURATED_RSS_FEEDS: readonly FeedDefinition[] = [
   { name: 'Dân Trí Thế giới', category: 'vietnam', url: 'https://dantri.com.vn/rss/the-gioi.rss' },
   { name: 'Dân Trí Kinh doanh', category: 'vietnam', url: 'https://dantri.com.vn/rss/kinh-doanh.rss' },
 
-  // Báo chí Địa chính trị Quốc tế
+  // Báo chí Địa chính trị Quốc tế & Châu Á - Thái Bình Dương (tham chiếu Koala73)
   { name: 'BBC World', category: 'world', url: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
   { name: 'Al Jazeera', category: 'world', url: 'https://www.aljazeera.com/xml/rss/all.xml' },
   { name: 'The Guardian World', category: 'world', url: 'https://www.theguardian.com/world/rss' },
   { name: 'NYT World', category: 'world', url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml' },
   { name: 'DW World', category: 'world', url: 'https://rss.dw.com/xml/rss-en-world' },
+  { name: 'The Diplomat Asia', category: 'world', url: 'https://thediplomat.com/feed/' },
+  { name: 'South China Morning Post', category: 'world', url: 'https://www.scmp.com/rss/91/feed' },
+  { name: 'Channel NewsAsia', category: 'world', url: 'https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml' },
+  { name: 'Foreign Policy', category: 'world', url: 'https://foreignpolicy.com/feed/' },
+
+  // Tình báo Quốc phòng & OSINT (Koala73 DEFAULT_ENABLED_INTEL)
+  { name: 'Defense One', category: 'world', url: 'https://www.defenseone.com/rss/all/' },
+  { name: 'Breaking Defense', category: 'world', url: 'https://breakingdefense.com/feed/' },
+  { name: 'The War Zone', category: 'world', url: 'https://www.twz.com/feed' },
+  { name: 'Bellingcat OSINT', category: 'world', url: 'https://www.bellingcat.com/feed/' },
 
   // Tài chính, Phố Wall & Năng lượng Quốc tế
   { name: 'CNBC Markets', category: 'finance', url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114' },

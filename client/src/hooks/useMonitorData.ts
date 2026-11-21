@@ -535,6 +535,26 @@ export function useMonitorData() {
       }
     }
 
+    for (const item of data.techCyber?.items ?? []) {
+      if (
+        `${item.title} ${item.titleVi ?? ''} ${item.source} ${item.cveId ?? ''} ${item.matchedLocation ?? ''}`
+          .toLowerCase()
+          .includes(q)
+      ) {
+        hits.push({
+          id: `tc:${item.id}`,
+          kind: 'news',
+          badge: item.cveId ?? (item.subCategory === 'cyber' ? 'CYBER' : 'AI/TECH'),
+          title: item.titleVi || item.title,
+          subtitle: `${item.source}${item.matchedLocation ? ` · ${item.matchedLocation}` : ''}`,
+          lat: item.matchedLat,
+          lon: item.matchedLon,
+          url: item.url,
+        });
+        if (hits.length >= 34) break;
+      }
+    }
+
     return hits.slice(0, 24);
   }, [searchQuery, data, filteredData]);
 
