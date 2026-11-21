@@ -33,7 +33,8 @@ export type CollectorId =
   | 'macro-worldbank'
   | 'polymarket'
   | 'rss-news'
-  | 'tech-cyber';
+  | 'tech-cyber'
+  | 'policy-legal';
 
 export interface GeoPointFeature {
   id: string;
@@ -189,7 +190,14 @@ export interface PredictionItem {
 
 export type NewsCategory = 'world' | 'finance' | 'vietnam' | 'tech' | 'osint_live';
 
-export type NewsStreamSource = 'rss' | 'gdelt' | 'wikimedia' | 'bluesky' | 'hackernews';
+export type NewsStreamSource =
+  | 'rss'
+  | 'gdelt'
+  | 'wikimedia'
+  | 'bluesky'
+  | 'hackernews'
+  | 'reddit'
+  | 'snapi';
 
 export interface NewsItem {
   id: string;
@@ -213,6 +221,8 @@ export interface NewsStreamStats {
   wikimediaCount: number;
   gdeltCount: number;
   hnCount: number;
+  redditCount: number;
+  snapiCount: number;
   rssCount: number;
 }
 
@@ -246,6 +256,35 @@ export interface TechCyberSnapshot {
   items: TechCyberItem[];
   infraStatus: TechInfraStatus[];
   activeSourceCount: number;
+  updatedAt: number;
+}
+
+export type LegalDocType =
+  | 'nq_tw_cp'
+  | 'nghi_dinh'
+  | 'luat_qh'
+  | 'quyet_dinh_tt'
+  | 'phan_tich';
+
+export interface PolicyLegalItem {
+  id: string;
+  title: string;
+  docCode?: string;
+  docType: LegalDocType;
+  typeBadge: string;
+  sector: string;
+  source: string;
+  issuedDate?: string;
+  publishedAt: number;
+  url: string;
+  pdfUrl?: string;
+  highlights: string[];
+}
+
+export interface PolicyLegalSnapshot {
+  items: PolicyLegalItem[];
+  activeSourceCount: number;
+  aiSummaryEnabled: boolean;
   updatedAt: number;
 }
 
@@ -299,6 +338,7 @@ export interface BootstrapResponse {
   aisStreamConfigured?: boolean;
   newsStreamStats?: NewsStreamStats;
   techCyber?: TechCyberSnapshot;
+  policyLegal?: PolicyLegalSnapshot;
 }
 
 export interface LiveFastResponse {

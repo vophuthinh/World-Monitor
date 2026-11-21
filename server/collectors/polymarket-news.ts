@@ -374,11 +374,21 @@ export const CURATED_RSS_FEEDS: readonly FeedDefinition[] = [
   { name: 'Channel NewsAsia', category: 'world', url: 'https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml' },
   { name: 'Foreign Policy', category: 'world', url: 'https://foreignpolicy.com/feed/' },
 
-  // Tình báo Quốc phòng & OSINT (Koala73 DEFAULT_ENABLED_INTEL)
+  // Tình báo Quốc phòng, Google News OSINT & Điểm nóng Hàng hải (Koala73 + Open RSS)
   { name: 'Defense One', category: 'world', url: 'https://www.defenseone.com/rss/all/' },
   { name: 'Breaking Defense', category: 'world', url: 'https://breakingdefense.com/feed/' },
   { name: 'The War Zone', category: 'world', url: 'https://www.twz.com/feed' },
   { name: 'Bellingcat OSINT', category: 'world', url: 'https://www.bellingcat.com/feed/' },
+  {
+    name: 'Google News · Biển Đông',
+    category: 'vietnam',
+    url: 'https://news.google.com/rss/search?q=%22Bi%E1%BB%83n+%C4%90%C3%B4ng%22+OR+%22Ho%C3%A0ng+Sa%22+OR+%22Tr%C6%B0%E1%BB%9Dng+Sa%22&hl=vi&gl=VN&ceid=VN:vi',
+  },
+  {
+    name: 'Google News · Chokepoints OSINT',
+    category: 'world',
+    url: 'https://news.google.com/rss/search?q=%22South+China+Sea%22+OR+%22Strait+of+Hormuz%22+OR+%22Taiwan+Strait%22+when:1d&hl=en-US&gl=US&ceid=US:en',
+  },
 
   // Tài chính, Phố Wall & Năng lượng Quốc tế
   { name: 'CNBC Markets', category: 'finance', url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114' },

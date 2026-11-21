@@ -10,6 +10,7 @@ import type {
   MarketSnapshot,
   NewsItem,
   NewsStreamStats,
+  PolicyLegalSnapshot,
   PredictionItem,
   RealtimeServerEvent,
   TechCyberSnapshot,
@@ -153,6 +154,7 @@ export function createApp(
       aisStreamConfigured: Boolean(options.aisStreamConfigured),
       newsStreamStats: options.getNewsStreamStats?.(),
       techCyber: store.get<TechCyberSnapshot>('tech-cyber', now) ?? undefined,
+      policyLegal: store.get<PolicyLegalSnapshot>('policy-legal', now) ?? undefined,
     };
 
     return c.json(payload);

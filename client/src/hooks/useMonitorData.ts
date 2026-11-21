@@ -573,6 +573,24 @@ export function useMonitorData() {
       }
     }
 
+    for (const doc of data.policyLegal?.items ?? []) {
+      if (
+        `${doc.title} ${doc.docCode ?? ''} ${doc.typeBadge} ${doc.sector} ${doc.source}`
+          .toLowerCase()
+          .includes(q)
+      ) {
+        hits.push({
+          id: `pl:${doc.id}`,
+          kind: 'news',
+          badge: doc.docCode ?? doc.typeBadge,
+          title: doc.title,
+          subtitle: `${doc.source} · ${doc.sector}`,
+          url: doc.pdfUrl ?? doc.url,
+        });
+        if (hits.length >= 36) break;
+      }
+    }
+
     return hits.slice(0, 24);
   }, [searchQuery, data, filteredData]);
 

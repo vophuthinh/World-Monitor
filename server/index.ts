@@ -3,7 +3,13 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
-import type { GeoPointFeature, MarketSnapshot, NewsItem, TechCyberSnapshot } from '@shared/types';
+import type {
+  GeoPointFeature,
+  MarketSnapshot,
+  NewsItem,
+  PolicyLegalSnapshot,
+  TechCyberSnapshot,
+} from '@shared/types';
 import { createApp } from './app';
 import { CollectorScheduler } from './cache/scheduler';
 import { SnapshotStore } from './cache/snapshot-store';
@@ -17,6 +23,7 @@ import { fetchMilitaryFlights } from './collectors/military-flights';
 import { fetchNaturalEvents } from './collectors/natural-events';
 import { fetchCuratedRssNews, fetchPolymarketPredictions } from './collectors/polymarket-news';
 import { fetchTechCyberIntelligence } from './collectors/tech-cyber-intel';
+import { fetchVietnamPolicyLegal } from './collectors/vietnam-policy-legal';
 import { fetchWeatherRadar } from './collectors/weather-radar';
 import { BinanceRealtimeStream } from './realtime/binance-stream';
 import { RealtimeHub } from './realtime/hub';
@@ -173,11 +180,20 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector<TechCyberSnapshot>({
     id: 'tech-cyber',
-    label: 'AI · Công nghệ · An ninh mạng (53 nguồn Koala73 + VN)',
+    label: 'AI · Công nghệ · An ninh mạng (55 nguồn Koala73 + VN)',
     intervalMs: 240_000,
     retainMs: 8 * 3_600_000,
     countItems: (snap) => snap.items.length,
     fetcher: () => fetchTechCyberIntelligence(),
+  });
+
+  scheduler.registerCollector<PolicyLegalSnapshot>({
+    id: 'policy-legal',
+    label: 'Policy & Legal Radar VN (Công báo + Văn bản CP + NQ57/66)',
+    intervalMs: 300_000,
+    retainMs: 12 * 3_600_000,
+    countItems: (snap) => snap.items.length,
+    fetcher: () => fetchVietnamPolicyLegal(),
   });
 
   const binanceStream = new BinanceRealtimeStream(hub, store);

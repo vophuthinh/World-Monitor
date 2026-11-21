@@ -6,11 +6,13 @@ import {
   ChartLineUp,
   Cpu,
   Crosshair,
+  FilePdf,
   Fire,
   Gauge,
   Lightning,
   MagnifyingGlass,
   Newspaper,
+  Scales,
   ShieldWarning,
   Target,
   Translate,
@@ -28,10 +30,13 @@ import {
 } from '@shared/intelligence';
 import type {
   GeoPointFeature,
+  LegalDocType,
   MarketSnapshot,
   NewsCategory,
   NewsItem,
   NewsStreamStats,
+  PolicyLegalItem,
+  PolicyLegalSnapshot,
   PredictionItem,
   TechCyberItem,
   TechCyberSnapshot,
@@ -39,7 +44,7 @@ import type {
 } from '@shared/types';
 import type { FlashDirection } from '../hooks/useMonitorData';
 
-type RightTabId = 'intel' | 'techCyber' | 'news' | 'markets';
+type RightTabId = 'intel' | 'techCyber' | 'news' | 'policy' | 'markets';
 type NewsFilterId = 'all' | 'bbc' | NewsCategory;
 
 interface RightIntelPanelProps {
@@ -47,6 +52,7 @@ interface RightIntelPanelProps {
   predictions: PredictionItem[];
   news: NewsItem[];
   techCyber?: TechCyberSnapshot;
+  policyLegal?: PolicyLegalSnapshot;
   military: GeoPointFeature[];
   vessels: GeoPointFeature[];
   geopolitics: GeoPointFeature[];
@@ -90,6 +96,12 @@ function sourceBadgeStyle(item: NewsItem): string {
   }
   if (item.streamSource === 'gdelt') {
     return 'border border-rose-500/40 bg-rose-500/15 text-rose-300';
+  }
+  if (item.streamSource === 'reddit') {
+    return 'border border-orange-500/45 bg-orange-600/20 text-orange-200';
+  }
+  if (item.streamSource === 'snapi') {
+    return 'border border-indigo-500/45 bg-indigo-500/20 text-indigo-200';
   }
   if (item.streamSource === 'hackernews') {
     return 'border border-orange-500/40 bg-orange-500/15 text-orange-300';
@@ -142,11 +154,28 @@ const INTEL_TOPIC_TABS: ReadonlyArray<{ id: IntelTopicId | 'c2_ioc'; label: stri
   { id: 'intelligence', label: '🕵️ Tình báo' },
 ];
 
+function legalBadgeStyle(item: PolicyLegalItem): string {
+  if (item.docType === 'nq_tw_cp') {
+    return 'border border-amber-400/50 bg-red-600/25 text-amber-200';
+  }
+  if (item.docType === 'nghi_dinh') {
+    return 'border border-emerald-500/45 bg-emerald-500/18 text-emerald-200';
+  }
+  if (item.docType === 'luat_qh') {
+    return 'border border-yellow-500/45 bg-yellow-500/18 text-yellow-200';
+  }
+  if (item.docType === 'quyet_dinh_tt') {
+    return 'border border-sky-500/40 bg-sky-500/15 text-sky-200';
+  }
+  return 'border border-slate-700 bg-slate-800 text-slate-300';
+}
+
 export function RightIntelPanel({
   markets,
   predictions,
   news,
   techCyber,
+  policyLegal,
   military,
   vessels,
   geopolitics,
@@ -163,6 +192,8 @@ export function RightIntelPanel({
   const [newsQuery, setNewsQuery] = useState('');
   const [techFilter, setTechFilter] = useState<'all' | TechSubCategory>('all');
   const [techQuery, setTechQuery] = useState('');
+  const [legalFilter, setLegalFilter] = useState<'all' | LegalDocType>('all');
+  const [legalQuery, setLegalQuery] = useState('');
   const [translateVi, setTranslateVi] = useState<boolean>(true);
 
   const fxQuotes = useMemo(() => markets.quotes.filter((q) => q.group === 'fx'), [markets.quotes]);
@@ -264,56 +295,86 @@ export function RightIntelPanel({
     [markets.crypto],
   );
 
+  const policyItems = policyLegal?.items ?? [];
+
+  const filteredPolicy = useMemo(() => {
+    const q = legalQuery.trim().toLowerCase();
+    return policyItems.filter((doc) => {
+      if (legalFilter !== 'all' && doc.docType !== legalFilter) return false;
+      if (
+        q &&
+        !`${doc.title} ${doc.docCode ?? ''} ${doc.typeBadge} ${doc.sector} ${doc.source}`
+          .toLowerCase()
+          .includes(q)
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [policyItems, legalFilter, legalQuery]);
+
   return (
-    <aside className="flex h-full w-full flex-col border-l border-slate-800/95 bg-[#090e18] lg:w-[444px] xl:w-[482px]">
-      {/* 4-Tab Spacious Command Header */}
-      <div className="grid shrink-0 grid-cols-4 border-b border-slate-800/95 bg-[#070b12]">
+    <aside className="flex h-full w-full flex-col border-l border-slate-800/95 bg-[#090e18] lg:w-[454px] xl:w-[494px]">
+      {/* Command Header: Live Intel · AI & ML · Tin nóng · Chính sách · Thị trường */}
+      <div className="grid shrink-0 grid-cols-5 border-b border-slate-800/95 bg-[#070b12]">
         <button
           type="button"
           onClick={() => setActiveTab('intel')}
-          className={`flex items-center justify-center gap-1.5 border-b-2 py-2.5 text-xs font-semibold transition ${
+          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
             activeTab === 'intel'
               ? 'border-fuchsia-400 bg-fuchsia-500/12 text-fuchsia-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          <Target size={14} />
+          <Target size={13} />
           <span>Live Intel</span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('techCyber')}
-          className={`flex items-center justify-center gap-1.5 border-b-2 py-2.5 text-xs font-semibold transition ${
+          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
             activeTab === 'techCyber'
               ? 'border-violet-400 bg-violet-500/12 text-violet-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          <Cpu size={14} />
+          <Cpu size={13} />
           <span>AI &amp; ML</span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('news')}
-          className={`flex items-center justify-center gap-1.5 border-b-2 py-2.5 text-xs font-semibold transition ${
+          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
             activeTab === 'news'
               ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          <Newspaper size={14} />
+          <Newspaper size={13} />
           <span>Tin nóng</span>
         </button>
         <button
           type="button"
+          onClick={() => setActiveTab('policy')}
+          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
+            activeTab === 'policy'
+              ? 'border-amber-400 bg-amber-500/12 text-amber-200'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Scales size={13} />
+          <span>Chính sách</span>
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveTab('markets')}
-          className={`flex items-center justify-center gap-1.5 border-b-2 py-2.5 text-xs font-semibold transition ${
+          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
             activeTab === 'markets'
               ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          <ChartLineUp size={14} />
+          <ChartLineUp size={13} />
           <span>Thị trường</span>
         </button>
       </div>
@@ -800,6 +861,14 @@ export function RightIntelPanel({
                   GDELT {newsStreamStats?.gdeltCount ?? 0}
                 </span>
 
+                <span className="rounded bg-orange-600/20 px-1.5 py-0.5 text-orange-200">
+                  Reddit {newsStreamStats?.redditCount ?? 0}
+                </span>
+
+                <span className="rounded bg-indigo-500/20 px-1.5 py-0.5 text-indigo-200">
+                  Space {newsStreamStats?.snapiCount ?? 0}
+                </span>
+
                 <span className="rounded bg-red-600/20 px-1.5 py-0.5 text-red-200">
                   BBC {bbcCount}
                 </span>
@@ -949,7 +1018,174 @@ export function RightIntelPanel({
         </div>
       )}
 
-      {/* Tab 4: Markets, FX, Stablecoin Peg Monitor, Crypto 1s WS & World Bank Macro */}
+      {/* Tab 4: Vietnam Policy & Legal Radar (Công báo, Văn bản Chính phủ PDF Dấu đỏ, NQ 57/66, Thư Viện Pháp Luật) */}
+      {activeTab === 'policy' && (
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="space-y-2 border-b border-slate-800/90 p-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-amber-500/30 bg-[#0d1524] px-2.5 py-1.5 font-mono text-[9.5px]">
+              <div className="flex items-center gap-1.5">
+                <span className="inline-flex items-center gap-1 font-semibold text-amber-300">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
+                  POLICY &amp; LEGAL RADAR
+                </span>
+                <span className="text-slate-400">
+                  {policyLegal?.activeSourceCount ?? 9} nguồn Chính phủ &amp; Pháp luật
+                </span>
+              </div>
+              <span
+                className={`rounded px-1.5 py-0.5 font-semibold ${
+                  policyLegal?.aiSummaryEnabled
+                    ? 'bg-emerald-500/15 text-emerald-300'
+                    : 'bg-amber-500/15 text-amber-200'
+                }`}
+              >
+                {policyLegal?.aiSummaryEnabled ? 'AI TÓM TẮT 3 Ý' : 'REGEX + TRÍCH YẾU'}
+              </span>
+            </div>
+
+            {/* Legal Document Type Filter Pills */}
+            <div className="flex flex-wrap gap-1">
+              {(
+                [
+                  { id: 'all', label: `Tất cả (${policyItems.length})` },
+                  { id: 'nq_tw_cp', label: '⭐ Nghị quyết (NQ57/66/CP)' },
+                  { id: 'nghi_dinh', label: '📜 Nghị định (NĐ-CP)' },
+                  { id: 'luat_qh', label: '⚖️ Luật / Quốc hội' },
+                  { id: 'quyet_dinh_tt', label: '📋 QĐ / Thông tư' },
+                  { id: 'phan_tich', label: '🔍 Điểm mới' },
+                ] as const
+              ).map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setLegalFilter(cat.id)}
+                  className={`rounded px-2 py-1 text-[10.5px] font-medium transition ${
+                    legalFilter === cat.id
+                      ? 'border border-amber-500/50 bg-amber-500/20 text-amber-200'
+                      : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Quick Resolution/Topic Chips + Search */}
+            <div className="flex flex-wrap items-center gap-1 font-mono text-[9.5px]">
+              <span className="text-slate-500">Theo dõi nhanh:</span>
+              {['57', '66', 'NĐ-CP', 'Chuyển đổi số', 'Thuế', 'Đất đai'].map((kw) => (
+                <button
+                  key={kw}
+                  type="button"
+                  onClick={() => setLegalQuery((prev) => (prev === kw ? '' : kw))}
+                  className={`rounded border px-1.5 py-0.5 transition ${
+                    legalQuery === kw
+                      ? 'border-amber-400/60 bg-amber-500/20 text-amber-200'
+                      : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {kw.match(/^\d+$/) ? `NQ ${kw}` : kw}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative">
+              <MagnifyingGlass
+                size={13}
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500"
+              />
+              <input
+                type="text"
+                value={legalQuery}
+                onChange={(e) => setLegalQuery(e.target.value)}
+                placeholder="Tìm số hiệu (416/2026/NĐ-CP, 57-NQ/TW), Nghị quyết 66, lĩnh vực..."
+                aria-label="Tìm văn bản pháp luật"
+                className="w-full rounded border border-slate-800 bg-[#0d1524] py-1 pl-7 pr-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex-1 divide-y divide-slate-800/80 overflow-y-auto">
+            {filteredPolicy.length === 0 ? (
+              <div className="py-10 text-center text-xs text-slate-400">
+                {policyItems.length === 0
+                  ? 'Đang đồng bộ Công báo điện tử, Hệ thống Văn bản Chính phủ & Thư Viện Pháp Luật...'
+                  : 'Không có văn bản nào khớp điều kiện lọc.'}
+              </div>
+            ) : (
+              filteredPolicy.map((doc) => (
+                <article key={doc.id} className="px-3 py-2.5 transition hover:bg-slate-900/65">
+                  <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      <span className={`shrink-0 rounded px-1.5 py-0.2 font-bold ${legalBadgeStyle(doc)}`}>
+                        {doc.typeBadge}
+                      </span>
+                      {doc.docCode && (
+                        <span className="shrink-0 rounded border border-cyan-500/40 bg-cyan-500/12 px-1.5 py-0.2 font-semibold text-cyan-200">
+                          {doc.docCode}
+                        </span>
+                      )}
+                      <span className="truncate text-[9.5px] text-slate-400">{doc.source}</span>
+                    </div>
+                    <span className="shrink-0 text-slate-500 tabular-nums">
+                      {doc.issuedDate ?? formatRelativeTime(doc.publishedAt)}
+                    </span>
+                  </div>
+
+                  <a
+                    href={doc.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1.5 block text-xs font-semibold leading-relaxed text-slate-100 hover:text-amber-300"
+                  >
+                    {doc.title}
+                  </a>
+
+                  {doc.highlights.length > 0 && (
+                    <ul className="mt-1.5 space-y-0.5 rounded border border-slate-800/80 bg-[#0d1524]/90 px-2.5 py-1.5 text-[10.5px] leading-snug text-slate-300">
+                      {doc.highlights.map((bullet, idx) => (
+                        <li key={idx} className="flex items-start gap-1.5">
+                          <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-amber-400" />
+                          <span>{bullet}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <span className="truncate rounded bg-slate-800/80 px-1.5 py-0.5 font-mono text-[9.5px] text-slate-300">
+                      {doc.sector}
+                    </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {doc.pdfUrl && (
+                        <a
+                          href={doc.pdfUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 rounded border border-rose-500/45 bg-rose-600/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-rose-200 transition hover:bg-rose-600/35"
+                        >
+                          <FilePdf size={12} weight="fill" />
+                          PDF Dấu đỏ
+                        </a>
+                      )}
+                      <a
+                        href={doc.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-0.5 text-[10.5px] text-slate-400 hover:text-slate-200"
+                      >
+                        Toàn văn <ArrowSquareOut size={11} />
+                      </a>
+                    </div>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tab 5: Markets, FX, Stablecoin Peg Monitor, Crypto 1s WS, World Bank Macro & Top 5 Polymarket */}
       {activeTab === 'markets' && (
         <div className="flex-1 space-y-4 overflow-y-auto p-3">
           {/* FX Rates */}

@@ -237,6 +237,7 @@ export function App() {
             predictions={filteredData.predictions}
             news={filteredData.news}
             techCyber={data?.techCyber}
+            policyLegal={data?.policyLegal}
             military={filteredData.military}
             vessels={filteredData.vessels}
             geopolitics={filteredData.geopolitics}
@@ -267,6 +268,7 @@ export function App() {
               predictions={filteredData.predictions}
               news={filteredData.news}
               techCyber={data?.techCyber}
+              policyLegal={data?.policyLegal}
               military={filteredData.military}
               vessels={filteredData.vessels}
               geopolitics={filteredData.geopolitics}

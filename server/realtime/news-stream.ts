@@ -11,6 +11,13 @@ const BLUESKY_JETSTREAM_WS =
 const WIKIMEDIA_RECENTCHANGE_SSE = 'https://stream.wikimedia.org/v2/stream/recentchange';
 const HN_TOPSTORIES_URL = 'https://hacker-news.firebaseio.com/v0/topstories.json';
 const HN_ITEM_URL = (id: number) => `https://hacker-news.firebaseio.com/v0/item/${id}.json`;
+const SNAPI_ARTICLES_URL = 'https://api.spaceflightnewsapi.net/v4/articles/?limit=12';
+const REDDIT_DIRECT_URLS = [
+  { sub: 'worldnews', url: 'https://www.reddit.com/r/worldnews/new.json?limit=10' },
+  { sub: 'geopolitics', url: 'https://www.reddit.com/r/geopolitics/hot.json?limit=8' },
+];
+const ARCTIC_SHIFT_WORLDNEWS_URL =
+  'https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=worldnews&limit=12&sort=desc';
 const GDELT_DOC_ARTLIST_URL =
   'https://api.gdeltproject.org/api/v2/doc/doc?query=(conflict%20OR%20military%20OR%20maritime%20OR%20vietnam%20OR%20tariff%20OR%20earthquake)%20sourcelang:eng&mode=ArtList&maxrecords=24&format=json&timespan=6h';
 
@@ -406,6 +413,160 @@ export async function fetchGdeltDocNews(): Promise<NewsItem[]> {
   }
 }
 
+export interface SnapiPayload {
+  results?: Array<{
+    id?: number | string;
+    title?: string;
+    url?: string;
+    news_site?: string;
+    published_at?: string;
+  }>;
+}
+
+export function normalizeSnapiArticles(payload: SnapiPayload, fallbackNow = Date.now()): NewsItem[] {
+  const list = payload?.results;
+  if (!Array.isArray(list)) return [];
+
+  const out: NewsItem[] = [];
+  for (const row of list) {
+    const title = decodeHtmlEntities(row?.title ?? '').trim();
+    const url = (row?.url ?? '').trim();
+    if (!title || !url.startsWith('http')) continue;
+    const parsedTs = row?.published_at ? Date.parse(row.published_at) : Number.NaN;
+    const publishedAt = Number.isFinite(parsedTs) ? parsedTs : fallbackNow;
+    const site = (row?.news_site ?? 'Spaceflight').trim();
+    const loc = matchGeoLocation(title);
+
+    out.push({
+      id: `snapi:${row.id ?? url}`,
+      title,
+      source: `SNAPI · ${site}`,
+      category: 'osint_live',
+      streamSource: 'snapi',
+      publishedAt,
+      url,
+      ...(loc
+        ? {
+            matchedLat: loc.lat,
+            matchedLon: loc.lon,
+            matchedLocation: loc.name,
+          }
+        : {}),
+    });
+  }
+  return out;
+}
+
+export async function fetchSpaceflightNews(): Promise<NewsItem[]> {
+  try {
+    const payload = await fetchJsonWithTimeout<SnapiPayload>(SNAPI_ARTICLES_URL, {
+      timeoutMs: 8_000,
+      retries: 0,
+      userAgent: NAMED_APP_UA,
+    });
+    const normalized = normalizeSnapiArticles(payload);
+    return globalViTranslator.enrichNewsItems(normalized);
+  } catch {
+    return [];
+  }
+}
+
+export interface RawRedditPost {
+  id?: string;
+  subreddit?: string;
+  title?: string;
+  url?: string;
+  permalink?: string;
+  created_utc?: number;
+  score?: number;
+  over_18?: boolean;
+  stickied?: boolean;
+}
+
+export function normalizeRedditPosts(
+  posts: readonly RawRedditPost[],
+  defaultSub = 'worldnews',
+): NewsItem[] {
+  const out: NewsItem[] = [];
+  for (const post of posts) {
+    if (!post || post.over_18 || post.stickied) continue;
+    const title = decodeHtmlEntities(post.title ?? '').trim();
+    if (!title || title.length < 20) continue;
+
+    const sub = post.subreddit || defaultSub;
+    const externalUrl = post.url && post.url.startsWith('http') ? post.url : '';
+    const permalinkUrl = post.permalink
+      ? `https://www.reddit.com${post.permalink}`
+      : externalUrl;
+    const url = externalUrl || permalinkUrl;
+    if (!url) continue;
+
+    const publishedAt = post.created_utc ? post.created_utc * 1_000 : Date.now();
+    const loc = matchGeoLocation(title);
+
+    out.push({
+      id: `reddit:${sub}:${post.id ?? url}`,
+      title,
+      source: `r/${sub}`,
+      category: 'osint_live',
+      streamSource: 'reddit',
+      publishedAt,
+      url,
+      ...(loc
+        ? {
+            matchedLat: loc.lat,
+            matchedLon: loc.lon,
+            matchedLocation: loc.name,
+          }
+        : {}),
+    });
+  }
+  return out.slice(0, 14);
+}
+
+export async function fetchRedditOsintNews(): Promise<NewsItem[]> {
+  const redditUa = 'nodejs:com.worldmonitor.osint:v1.0.0';
+  const collected: NewsItem[] = [];
+
+  for (const target of REDDIT_DIRECT_URLS) {
+    try {
+      const json = await fetchJsonWithTimeout<{
+        data?: { children?: Array<{ data?: RawRedditPost }> };
+      }>(target.url, {
+        timeoutMs: 5_000,
+        retries: 0,
+        userAgent: redditUa,
+      });
+      const rows = (json?.data?.children ?? [])
+        .map((c) => c.data)
+        .filter((d): d is RawRedditPost => Boolean(d));
+      collected.push(...normalizeRedditPosts(rows, target.sub));
+    } catch {
+      // Fallback below if direct Reddit blocks cloud/datacenter IP
+    }
+  }
+
+  if (collected.length === 0) {
+    try {
+      const mirror = await fetchJsonWithTimeout<{ data?: RawRedditPost[] }>(
+        ARCTIC_SHIFT_WORLDNEWS_URL,
+        {
+          timeoutMs: 7_000,
+          retries: 0,
+          userAgent: NAMED_APP_UA,
+        },
+      );
+      if (Array.isArray(mirror?.data)) {
+        collected.push(...normalizeRedditPosts(mirror.data, 'worldnews'));
+      }
+    } catch {
+      // Ignore fallback miss
+    }
+  }
+
+  return globalViTranslator.enrichNewsItems(collected.slice(0, 14));
+}
+
 export class UnifiedNewsStreamService {
   private bskyWs: WebSocket | null = null;
   private wikiAbort: AbortController | null = null;
@@ -558,6 +719,8 @@ export class UnifiedNewsStreamService {
     let wikimediaCount = 0;
     let gdeltCount = 0;
     let hnCount = 0;
+    let redditCount = 0;
+    let snapiCount = 0;
     let rssCount = 0;
 
     for (const item of this.itemsById.values()) {
@@ -574,6 +737,12 @@ export class UnifiedNewsStreamService {
         case 'hackernews':
           hnCount += 1;
           break;
+        case 'reddit':
+          redditCount += 1;
+          break;
+        case 'snapi':
+          snapiCount += 1;
+          break;
         default:
           rssCount += 1;
           break;
@@ -587,20 +756,26 @@ export class UnifiedNewsStreamService {
       wikimediaCount,
       gdeltCount,
       hnCount,
+      redditCount,
+      snapiCount,
       rssCount,
     };
   }
 
   private async pollHnAndGdelt(): Promise<void> {
     if (this.stopped) return;
-    const [hnRes, gdeltRes] = await Promise.allSettled([
+    const [hnRes, gdeltRes, snapiRes, redditRes] = await Promise.allSettled([
       fetchHackerNewsTop(),
       fetchGdeltDocNews(),
+      fetchSpaceflightNews(),
+      fetchRedditOsintNews(),
     ]);
 
     const combined: NewsItem[] = [];
     if (hnRes.status === 'fulfilled') combined.push(...hnRes.value);
     if (gdeltRes.status === 'fulfilled') combined.push(...gdeltRes.value);
+    if (snapiRes.status === 'fulfilled') combined.push(...snapiRes.value);
+    if (redditRes.status === 'fulfilled') combined.push(...redditRes.value);
 
     if (combined.length > 0) {
       this.ingestBatchItems(combined, true);
