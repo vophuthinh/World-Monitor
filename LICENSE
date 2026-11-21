@@ -1,0 +1,38 @@
+GNU AFFERO GENERAL PUBLIC LICENSE
+Version 3, 19 November 2007
+
+Copyright (C) 2026 Custom World Monitor Contributors
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program (https://www.gnu.org/licenses/agpl-3.0.txt).
+
+---
+
+ATTRIBUTION & UPSTREAM DATA SOURCES:
+
+1. Open-Source Geographic & Classification Reference Patterns:
+   Portions of the static maritime chokepoint coordinates, global financial center
+   registries, nuclear facility reference points, submarine cable metadata, and
+   ICAO 24-bit military hex/callsign heuristics are adapted from:
+   - koala73/worldmonitor (https://github.com/koala73/worldmonitor) — Licensed under GNU AGPL-3.0.
+
+2. Live Upstream Public Data Providers (fetched directly from origin):
+   - Military Aviation ADS-B: adsb.lol (https://api.adsb.lol)
+   - Seismic Activity: USGS Earthquake Hazards Program (https://earthquake.usgs.gov)
+   - Natural Events & Disasters: NASA EONET (https://eonet.gsfc.nasa.gov) & UN/EC GDACS (https://www.gdacs.org)
+   - Geopolitical Events: GDELT Project 2.0 (https://www.gdeltproject.org)
+   - Weather Radar Imagery: RainViewer (https://www.rainviewer.com)
+   - Macroeconomic Indicators: The World Bank Open Data API v2 (https://data.worldbank.org)
+   - Crypto, Sentiment & FX: CoinGecko, CoinPaprika, Alternative.me Fear & Greed, ExchangeRate-API (open.er-api.com), European Central Bank
+   - Prediction Markets: Polymarket Gamma API (https://polymarket.com)
+   - Basemap Vector Tiles: CARTO Basemaps & OpenStreetMap Contributors
