@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeUsgsEarthquakes } from '../server/collectors/earthquakes';
-import { normalizeGdeltGeoJson } from '../server/collectors/geopolitics-gdelt';
+import { normalizeGdeltGeoJson, parseGdeltExportTsv } from '../server/collectors/geopolitics-gdelt';
 import { normalizeWorldBankIndicators } from '../server/collectors/macro-worldbank';
 import {
   normalizeCoinGeckoMarkets,
@@ -10,6 +10,7 @@ import {
 } from '../server/collectors/markets-crypto';
 import { normalizeEonetEvents, normalizeGdacsEvents } from '../server/collectors/natural-events';
 import {
+  decodeHtmlEntities,
   matchGeoLocation,
   normalizePolymarketEvents,
   parseRssFeedXml,
@@ -321,5 +322,30 @@ describe('Collectors Normalizers & Fault-Tolerant Parsers', () => {
     const hormuzLoc = matchGeoLocation('Oil tankers reroute near Strait of Hormuz');
     expect(hormuzLoc?.name).toContain('Hormuz');
     expect(hormuzLoc?.lat).toBeCloseTo(26.5, 1);
+
+    expect(decodeHtmlEntities('Britain&#039;s &amp; Don&#x2019;t')).toBe("Britain's & Don’t");
+  });
+
+  it('parses GDELT v2 61-column CAMEO export TSV rows into conflict/sanctions geo points', () => {
+    const cols = new Array<string>(61).fill('');
+    cols[0] = '123456789';
+    cols[6] = 'IRAN';
+    cols[16] = 'UNITED STATES';
+    cols[26] = '190';
+    cols[28] = '19';
+    cols[30] = '-10.0';
+    cols[31] = '18';
+    cols[52] = 'Strait of Hormuz, Iran';
+    cols[56] = '26.56';
+    cols[57] = '56.25';
+    cols[60] = 'https://example.com/naval-standoff-in-hormuz-strait';
+
+    const events = parseGdeltExportTsv(cols.join('\t'), 1_700_000_000_000);
+    expect(events).toHaveLength(1);
+    expect(events[0].category).toBe('conflict');
+    expect(events[0].severity).toBe('critical');
+    expect(events[0].lat).toBeCloseTo(26.56, 2);
+    expect(events[0].lon).toBeCloseTo(56.25, 2);
+    expect(events[0].meta.actors).toBe('IRAN ↔ UNITED STATES');
   });
 });

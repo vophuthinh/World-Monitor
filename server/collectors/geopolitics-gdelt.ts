@@ -1,8 +1,10 @@
+import { inflateRawSync } from 'node:zlib';
 import type { GeoPointFeature, SeverityLevel } from '@shared/types';
-import { DEFAULT_BROWSER_UA, fetchTextWithTimeout } from '../lib/http';
+import { DEFAULT_BROWSER_UA, NAMED_APP_UA, fetchTextWithTimeout } from '../lib/http';
 
 const GDELT_GEO_URL =
-  'https://api.gdeltproject.org/api/v2/geo/geo?query=(conflict%20OR%20missile%20OR%20military%20OR%20sanctions%20OR%20protest)&mode=PointData&format=GeoJSON&timespan=24h';
+  'https://api.gdeltproject.org/api/v2/geo/geo?query=(conflict%20OR%20missile%20OR%20military%20OR%20sanctions%20OR%20protest)&mode=pointdata&format=geojson&timespan=1d';
+const GDELT_LASTUPDATE_URL = 'http://data.gdeltproject.org/gdeltv2/lastupdate.txt';
 
 interface GdeltGeoFeature {
   type?: string;
@@ -28,13 +30,14 @@ function extractHeadlineAndUrl(html?: string): { headline: string | null; url: s
   const anchorMatch = html.match(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i);
   if (!anchorMatch) return { headline: null, url: null };
   const url = anchorMatch[1]?.trim() || null;
-  const headline = anchorMatch[2]
-    ?.replace(/<[^>]+>/g, '')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&')
-    .replace(/\s+/g, ' ')
-    .trim() || null;
+  const headline =
+    anchorMatch[2]
+      ?.replace(/<[^>]+>/g, '')
+      .replace(/&quot;/g, '"')
+      .replace(/&#0*39;/g, "'")
+      .replace(/&amp;/g, '&')
+      .replace(/\s+/g, ' ')
+      .trim() || null;
   return { headline, url };
 }
 
@@ -118,12 +121,168 @@ export function normalizeGdeltGeoJson(rawText: string, now = Date.now()): GeoPoi
   return out;
 }
 
-export async function fetchGeopoliticsGdelt(): Promise<GeoPointFeature[]> {
-  const { text } = await fetchTextWithTimeout(GDELT_GEO_URL, {
-    timeoutMs: 18_000,
+const CAMEO_ROOT_LABELS: Record<string, { label: string; category: string; severity: SeverityLevel }> = {
+  '13': { label: 'Cảnh báo / Đe dọa Địa chính trị', category: 'military_diplomacy', severity: 'medium' },
+  '14': { label: 'Biểu tình / Bất ổn Xã hội', category: 'unrest', severity: 'medium' },
+  '15': { label: 'Triển khai Lực lượng Quân sự', category: 'military_diplomacy', severity: 'high' },
+  '17': { label: 'Cưỡng chế / Trừng phạt / Phong tỏa', category: 'sanctions', severity: 'high' },
+  '18': { label: 'Tấn công Vũ trang / Đột kích', category: 'conflict', severity: 'critical' },
+  '19': { label: 'Giao tranh Quân sự / Không kích', category: 'conflict', severity: 'critical' },
+  '20': { label: 'Xung đột Quy mô lớn', category: 'conflict', severity: 'critical' },
+};
+
+function humanizeSlugFromUrl(url: string): string | null {
+  try {
+    const pathname = new URL(url).pathname;
+    const slug = pathname
+      .split('/')
+      .filter(Boolean)
+      .pop()
+      ?.replace(/\.(html?|php|aspx?)$/i, '');
+    if (!slug || slug.length < 8 || /^\d+$/.test(slug)) return null;
+    const words = slug.replace(/[-_]+/g, ' ').replace(/\b\d{5,}\b/g, '').trim();
+    if (words.split(/\s+/).length < 3) return null;
+    return words.charAt(0).toUpperCase() + words.slice(1);
+  } catch {
+    return null;
+  }
+}
+
+export function parseGdeltExportTsv(tsv: string, now = Date.now()): GeoPointFeature[] {
+  const lines = tsv.split(/\r?\n/);
+  const byCoord = new Map<string, GeoPointFeature & { mentions: number }>();
+
+  for (const line of lines) {
+    if (!line) continue;
+    const cols = line.split('\t');
+    if (cols.length < 61) continue;
+
+    const rootCode = cols[28]?.trim() ?? '';
+    const cameo = CAMEO_ROOT_LABELS[rootCode];
+    if (!cameo) continue;
+
+    const lat = Number(cols[56]);
+    const lon = Number(cols[57]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) continue;
+    if (lat === 0 && lon === 0) continue;
+
+    const locationName = (cols[52] ?? '').trim() || 'Global Flashpoint';
+    const mentions = Math.max(1, Number(cols[31] ?? 1));
+    const goldstein = Number(cols[30] ?? 0);
+    const sourceUrl = (cols[60] ?? '').trim();
+    const actor1 = (cols[6] ?? '').trim();
+    const actor2 = (cols[16] ?? '').trim();
+
+    const coordKey = `${lat.toFixed(2)}:${lon.toFixed(2)}:${rootCode}`;
+    const existing = byCoord.get(coordKey);
+    if (existing && existing.mentions >= mentions) continue;
+
+    const actorsLabel = [actor1, actor2].filter(Boolean).join(' ↔ ');
+    const slugHeadline = sourceUrl ? humanizeSlugFromUrl(sourceUrl) : null;
+
+    byCoord.set(coordKey, {
+      id: `gdelt:${cols[0] || coordKey}`,
+      layer: 'geopolitics',
+      title: `${locationName} — ${cameo.label}`,
+      subtitle: `${actorsLabel ? `${actorsLabel} · ` : ''}${slugHeadline ?? `CAMEO ${cols[26]} · ${mentions} nguồn tin`}`,
+      category: cameo.category,
+      severity: cameo.severity,
+      lat,
+      lon,
+      timestamp: now,
+      source: 'GDELT v2 Live Event Stream (15m)',
+      url: sourceUrl.startsWith('http') ? sourceUrl : undefined,
+      magnitude: mentions,
+      mentions,
+      meta: {
+        location: locationName,
+        cameoCode: cols[26] || rootCode,
+        eventType: cameo.label,
+        actors: actorsLabel || null,
+        goldsteinScale: Number.isFinite(goldstein) ? goldstein : null,
+        mentions,
+      },
+    });
+  }
+
+  return [...byCoord.values()]
+    .sort((a, b) => b.mentions - a.mentions)
+    .slice(0, 150)
+    .map(({ mentions: _m, ...rest }) => rest);
+}
+
+function unzipFirstFileFromZipBuffer(buf: Buffer): string {
+  // Local file header signature = 0x04034b50
+  if (buf.length < 30 || buf.readUInt32LE(0) !== 0x04034b50) {
+    throw new Error('Invalid GDELT ZIP header');
+  }
+  const compressionMethod = buf.readUInt16LE(8);
+  const compressedSize = buf.readUInt32LE(18);
+  const fileNameLen = buf.readUInt16LE(26);
+  const extraLen = buf.readUInt16LE(28);
+  const dataOffset = 30 + fileNameLen + extraLen;
+
+  const sliceEnd =
+    compressedSize > 0 && dataOffset + compressedSize <= buf.length
+      ? dataOffset + compressedSize
+      : buf.length;
+  const payload = buf.subarray(dataOffset, sliceEnd);
+
+  if (compressionMethod === 0) {
+    return payload.toString('utf8');
+  }
+  if (compressionMethod === 8) {
+    return inflateRawSync(payload).toString('utf8');
+  }
+  throw new Error(`Unsupported ZIP compression method: ${compressionMethod}`);
+}
+
+async function fetchGdeltBulkLastUpdate(now: number): Promise<GeoPointFeature[]> {
+  const { text } = await fetchTextWithTimeout(GDELT_LASTUPDATE_URL, {
+    timeoutMs: 8_000,
     retries: 1,
-    userAgent: DEFAULT_BROWSER_UA,
-    headers: { Accept: 'application/json' },
+    userAgent: NAMED_APP_UA,
   });
-  return normalizeGdeltGeoJson(text, Date.now());
+
+  const exportLine = text
+    .split(/\r?\n/)
+    .find((line) => line.includes('.export.CSV.zip'));
+  const zipUrl = exportLine?.trim().split(/\s+/)[2];
+  if (!zipUrl || !zipUrl.startsWith('http')) {
+    throw new Error('Could not locate .export.CSV.zip URL in GDELT lastupdate.txt');
+  }
+
+  const resp = await fetch(zipUrl, {
+    headers: { 'User-Agent': NAMED_APP_UA },
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (!resp.ok) {
+    throw new Error(`GDELT export CSV HTTP ${resp.status}`);
+  }
+  const arrayBuf = await resp.arrayBuffer();
+  const tsv = unzipFirstFileFromZipBuffer(Buffer.from(arrayBuf));
+  const events = parseGdeltExportTsv(tsv, now);
+  if (events.length === 0) {
+    throw new Error('GDELT bulk export contained zero conflict/unrest events');
+  }
+  return events;
+}
+
+export async function fetchGeopoliticsGdelt(): Promise<GeoPointFeature[]> {
+  const now = Date.now();
+  // Primary: fast attempt on GDELT Geo 2.0 JSON API; Fallback: authoritative GDELT v2 15-min GCS Event Stream
+  try {
+    const { text } = await fetchTextWithTimeout(GDELT_GEO_URL, {
+      timeoutMs: 6_500,
+      retries: 0,
+      userAgent: DEFAULT_BROWSER_UA,
+      headers: { Accept: 'application/json' },
+    });
+    const geoPoints = normalizeGdeltGeoJson(text, now);
+    if (geoPoints.length > 0) return geoPoints;
+  } catch {
+    // Fall through to GDELT v2 15-min bulk event table (koala73 _conflict-gdelt-bulk pattern)
+  }
+
+  return fetchGdeltBulkLastUpdate(now);
 }

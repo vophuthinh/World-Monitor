@@ -215,9 +215,10 @@ export function normalizeYahooChartQuote(
   if (!Number.isFinite(price) || price <= 0) return null;
 
   const prev = Number(
-    result.meta?.chartPreviousClose ??
-      result.meta?.previousClose ??
-      (closes.length >= 2 ? closes[closes.length - 2] : price),
+    result.meta?.previousClose ??
+      (closes.length >= 2 ? closes[closes.length - 2] : undefined) ??
+      result.meta?.chartPreviousClose ??
+      price,
   );
   const changePct =
     Number.isFinite(prev) && prev > 0 ? ((price - prev) / prev) * 100 : 0;
@@ -254,7 +255,38 @@ const YAHOO_TARGETS: readonly YahooTarget[] = [
 ];
 
 async function fetchVietnamIndexQuote(now: number): Promise<MarketQuote | null> {
-  // Primary: Stooq daily historical CSV for ^VNI (exact VN-Index points on HOSE)
+  // Primary: VNDirect DChart daily feed for HOSE VNINDEX
+  try {
+    const toSec = Math.floor(now / 1000);
+    const fromSec = toSec - 12 * 86_400;
+    const vndUrl = `https://dchart-api.vndirect.com.vn/dchart/history?resolution=D&symbol=VNINDEX&from=${fromSec}&to=${toSec}`;
+    const dchart = await fetchJsonWithTimeout<{ c?: number[]; s?: string }>(vndUrl, {
+      timeoutMs: 7_500,
+      retries: 1,
+      userAgent: DEFAULT_BROWSER_UA,
+      headers: { Accept: '*/*' },
+    });
+    const closes = (dchart?.c ?? []).filter((v) => typeof v === 'number' && Number.isFinite(v) && v > 100);
+    if (closes.length >= 1) {
+      const close = closes[closes.length - 1];
+      const prevClose = closes.length >= 2 ? closes[closes.length - 2] : close;
+      const changePct = prevClose > 0 ? ((close - prevClose) / prevClose) * 100 : 0;
+      return {
+        symbol: 'VN-Index',
+        name: 'VN-Index (HOSE Việt Nam)',
+        group: 'index',
+        price: Number(close.toFixed(2)),
+        changePercent24h: Number(changePct.toFixed(2)),
+        unit: 'pts',
+        updatedAt: now,
+        source: 'HOSE / VNDirect Feed',
+      };
+    }
+  } catch {
+    // Fall through to Stooq / Yahoo VNM ETF
+  }
+
+  // Secondary: Stooq daily historical CSV for ^VNI
   try {
     const { text } = await fetchTextWithTimeout('https://stooq.com/q/d/l/?s=%5Evni&i=d', {
       timeoutMs: 8_000,
@@ -303,37 +335,46 @@ async function fetchVietnamIndexQuote(now: number): Promise<MarketQuote | null> 
 }
 
 async function fetchIndicesAndCommodities(now: number): Promise<MarketQuote[]> {
-  const tasks = YAHOO_TARGETS.map(async (target) => {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(target.yahooSymbol)}?interval=1d&range=5d`;
-    const payload = await fetchJsonWithTimeout<YahooChartPayload>(url, {
-      timeoutMs: 9_000,
-      retries: 1,
-      userAgent: DEFAULT_BROWSER_UA,
-    });
-    return normalizeYahooChartQuote(
-      target.displaySymbol,
-      target.name,
-      target.group,
-      payload,
-      target.unit,
-      now,
-    );
-  });
-
-  const [vnResult, ...yahooResults] = await Promise.allSettled([
-    fetchVietnamIndexQuote(now),
-    ...tasks,
-  ]);
-
   const quotes: MarketQuote[] = [];
-  if (vnResult.status === 'fulfilled' && vnResult.value) {
-    quotes.push(vnResult.value);
+
+  const vnQuote = await fetchVietnamIndexQuote(now);
+  if (vnQuote) {
+    quotes.push(vnQuote);
   }
-  for (const res of yahooResults) {
-    if (res.status === 'fulfilled' && res.value) {
-      quotes.push(res.value);
+
+  // Fetch in small staggered pairs across query1/query2 to avoid Yahoo burst 429s
+  for (let i = 0; i < YAHOO_TARGETS.length; i += 2) {
+    if (i > 0) {
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    const pair = YAHOO_TARGETS.slice(i, i + 2);
+    const pairResults = await Promise.allSettled(
+      pair.map(async (target, idx) => {
+        const host = idx % 2 === 0 ? 'query1.finance.yahoo.com' : 'query2.finance.yahoo.com';
+        const url = `https://${host}/v8/finance/chart/${encodeURIComponent(target.yahooSymbol)}?interval=1d&range=5d`;
+        const payload = await fetchJsonWithTimeout<YahooChartPayload>(url, {
+          timeoutMs: 9_000,
+          retries: 1,
+          userAgent: DEFAULT_BROWSER_UA,
+        });
+        return normalizeYahooChartQuote(
+          target.displaySymbol,
+          target.name,
+          target.group,
+          payload,
+          target.unit,
+          now,
+        );
+      }),
+    );
+
+    for (const res of pairResults) {
+      if (res.status === 'fulfilled' && res.value) {
+        quotes.push(res.value);
+      }
     }
   }
+
   return quotes;
 }
 
@@ -370,10 +411,23 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
 
   const fxQuotes =
     fxRes.status === 'fulfilled' && fxRes.value.length > 0 ? fxRes.value : prevFx;
-  const indexCommodityQuotes =
-    marketQuotesRes.status === 'fulfilled' && marketQuotesRes.value.length > 0
-      ? marketQuotesRes.value
-      : prevNonFx;
+
+  // Merge per-symbol so transient Yahoo throttling on one symbol never drops prior valid quotes
+  const mergedNonFxMap = new Map<string, MarketQuote>();
+  for (const oldQuote of prevNonFx) {
+    mergedNonFxMap.set(oldQuote.symbol, oldQuote);
+  }
+  if (marketQuotesRes.status === 'fulfilled') {
+    for (const freshQuote of marketQuotesRes.value) {
+      mergedNonFxMap.set(freshQuote.symbol, freshQuote);
+    }
+  }
+  const orderedOrder = ['VN-Index', 'VNM ETF', ...YAHOO_TARGETS.map((t) => t.displaySymbol)];
+  const indexCommodityQuotes = [
+    ...orderedOrder
+      .map((sym) => mergedNonFxMap.get(sym))
+      .filter((q): q is MarketQuote => Boolean(q)),
+  ];
 
   const quotes = [...indexCommodityQuotes, ...fxQuotes];
 
