@@ -9,8 +9,8 @@
     "dev": "concurrently -k -n api,web -c cyan,emerald \"tsx watch server/index.ts\" \"vite --config client/vite.config.ts\"",
     "dev:server": "tsx watch server/index.ts",
     "dev:client": "vite --config client/vite.config.ts",
-    "build": "vite build --config client/vite.config.ts && tsc -p tsconfig.server.json",
-    "start": "NODE_ENV=production node dist/server/server/index.js",
+    "build": "tsc --noEmit && vite build --config client/vite.config.ts && node --input-type=module -e \"import { build } from 'esbuild'; await build({ entryPoints: ['server/index.ts'], bundle: true, platform: 'node', format: 'esm', packages: 'external', outfile: 'dist/server/index.js' })\"",
+    "start": "NODE_ENV=production node dist/server/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
