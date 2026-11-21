@@ -1,6 +1,7 @@
 import { XMLParser } from 'fast-xml-parser';
 import type { NewsCategory, NewsItem, PredictionCategory, PredictionItem } from '@shared/types';
 import { DEFAULT_BROWSER_UA, NAMED_APP_UA, fetchJsonWithTimeout, fetchTextWithTimeout } from '../lib/http';
+import { globalViTranslator } from '../lib/translator';
 
 const POLYMARKET_EVENTS_URL =
   'https://gamma-api.polymarket.com/events?active=true&closed=false&order=volume24hr&ascending=false&limit=60';
@@ -45,7 +46,6 @@ function parseYesPercent(rawPrices?: string | number[]): number | null {
 
 function classifyPredictionCategory(title: string, tags: string): PredictionCategory {
   const text = `${title} ${tags}`.toLowerCase();
-  // Filter out pure sports/entertainment when categorizing; prioritize crypto/tech & finance & geopolitics
   if (
     /\b(bitcoin|btc|ethereum|eth|solana|crypto|token|defi|openai|gpt|claude|gemini|apple|nvidia|tesla|ai\b|artificial intelligence|spacex|tiktok)\b/.test(
       text,
@@ -135,18 +135,23 @@ interface GeoKeywordRule {
 }
 
 const GEO_GAZETTEER: readonly GeoKeywordRule[] = [
-  { pattern: /\b(biển đông|south china sea|trường sa|spratly|hoàng sa|paracel)\b/i, name: 'Biển Đông', lat: 14.5, lon: 112.0 },
+  { pattern: /\b(hoàng sa|paracel)\b/i, name: 'Quần đảo Hoàng Sa (VN)', lat: 16.48, lon: 111.98 },
+  { pattern: /\b(trường sa|spratly|song tử tây|sinh tồn)\b/i, name: 'Quần đảo Trường Sa (VN)', lat: 9.95, lon: 113.85 },
+  { pattern: /\b(biển đông|south china sea|vịnh bắc bộ|tonkin)\b/i, name: 'Biển Đông', lat: 14.5, lon: 112.0 },
   { pattern: /\b(hà nội|hanoi)\b/i, name: 'Hà Nội, Việt Nam', lat: 21.0285, lon: 105.8542 },
-  { pattern: /\b(tp\.?\s*hcm|hồ chí minh|ho chi minh|saigon)\b/i, name: 'TP.HCM, Việt Nam', lat: 10.7769, lon: 106.7009 },
+  { pattern: /\b(tp\.?\s*hcm|hồ chí minh|ho chi minh|saigon|sài gòn)\b/i, name: 'TP.HCM, Việt Nam', lat: 10.7769, lon: 106.7009 },
   { pattern: /\b(đà nẵng|da nang)\b/i, name: 'Đà Nẵng, Việt Nam', lat: 16.0544, lon: 108.2022 },
-  { pattern: /\b(việt nam|vietnam|vn-index)\b/i, name: 'Việt Nam', lat: 16.0, lon: 107.8 },
+  { pattern: /\b(hải phòng|hai phong)\b/i, name: 'Hải Phòng, Việt Nam', lat: 20.8449, lon: 106.6881 },
+  { pattern: /\b(phú quốc|phu quoc)\b/i, name: 'Phú Quốc, Việt Nam', lat: 10.2289, lon: 103.9572 },
+  { pattern: /\b(cần thơ|đồng bằng sông cửu long|mekong)\b/i, name: 'ĐBSCL, Việt Nam', lat: 10.0452, lon: 105.7469 },
+  { pattern: /\b(việt nam|vietnam|vn-index|nhnn)\b/i, name: 'Việt Nam', lat: 16.0, lon: 107.8 },
   { pattern: /\b(hormuz)\b/i, name: 'Strait of Hormuz', lat: 26.5, lon: 56.5 },
-  { pattern: /\b(red sea|biển đỏ|bab el-mandeb|houthi)\b/i, name: 'Biển Đỏ / Bab el-Mandeb', lat: 14.5, lon: 42.5 },
+  { pattern: /\b(red sea|biển đỏ|bab el-mandeb|houthi|yemen)\b/i, name: 'Biển Đỏ / Bab el-Mandeb', lat: 14.5, lon: 42.5 },
   { pattern: /\b(suez)\b/i, name: 'Kênh đào Suez', lat: 30.5, lon: 32.3 },
   { pattern: /\b(malacca)\b/i, name: 'Eo biển Malacca', lat: 2.5, lon: 101.5 },
-  { pattern: /\b(taiwan|đài loan|taipei|đài bắc)\b/i, name: 'Đài Loan', lat: 24.0, lon: 120.8 },
-  { pattern: /\b(ukraine|kyiv|kiev|kharkiv|odesa|crimea|zaporizhzhia)\b/i, name: 'Ukraine', lat: 49.0, lon: 31.4 },
-  { pattern: /\b(gaza|israel|tel aviv|jerusalem|lebano|beirut|hezbollah)\b/i, name: 'Israel / Levant', lat: 31.8, lon: 35.0 },
+  { pattern: /\b(taiwan|đài loan|taipei|đài bắc|tsmc)\b/i, name: 'Đài Loan', lat: 24.0, lon: 120.8 },
+  { pattern: /\b(ukraine|kyiv|kiev|kharkiv|odesa|crimea|zaporizhzhia|donetsk)\b/i, name: 'Ukraine', lat: 49.0, lon: 31.4 },
+  { pattern: /\b(gaza|israel|tel aviv|jerusalem|lebanon|beirut|hezbollah|syria|damascus)\b/i, name: 'Trung Đông / Levant', lat: 31.8, lon: 35.0 },
   { pattern: /\b(iran|tehran|natanz)\b/i, name: 'Iran', lat: 32.4, lon: 53.7 },
   { pattern: /\b(russia|moscow|nga|kremlin)\b/i, name: 'Nga (Moscow)', lat: 55.75, lon: 37.62 },
   { pattern: /\b(north korea|triều tiên|pyongyang|bình nhưỡng)\b/i, name: 'Triều Tiên', lat: 39.03, lon: 125.75 },
@@ -155,9 +160,13 @@ const GEO_GAZETTEER: readonly GeoKeywordRule[] = [
   { pattern: /\b(china|trung quốc|beijing|bắc kinh|shanghai|thượng hải)\b/i, name: 'Trung Quốc', lat: 35.86, lon: 104.19 },
   { pattern: /\b(philippines|manila|luzon)\b/i, name: 'Philippines', lat: 14.6, lon: 120.98 },
   { pattern: /\b(singapore)\b/i, name: 'Singapore', lat: 1.35, lon: 103.82 },
+  { pattern: /\b(indonesia|jakarta)\b/i, name: 'Indonesia', lat: -6.2, lon: 106.82 },
+  { pattern: /\b(thailand|thái lan|bangkok)\b/i, name: 'Thái Lan', lat: 13.75, lon: 100.5 },
+  { pattern: /\b(myanmar|yangon)\b/i, name: 'Myanmar', lat: 19.76, lon: 96.07 },
   { pattern: /\b(panama)\b/i, name: 'Kênh đào Panama', lat: 9.1, lon: -79.7 },
-  { pattern: /\b(fed\b|federal reserve|washington|white house|pentagon|wall street|mỹ|hoa kỳ)\b/i, name: 'Hoa Kỳ', lat: 38.9, lon: -77.04 },
+  { pattern: /\b(fed\b|federal reserve|washington|white house|pentagon|wall street|silicon valley|mỹ|hoa kỳ)\b/i, name: 'Hoa Kỳ', lat: 38.9, lon: -77.04 },
   { pattern: /\b(ecb|frankfurt|germany|đức|berlin)\b/i, name: 'Đức / Khu vực Euro', lat: 50.11, lon: 8.68 },
+  { pattern: /\b(france|pháp|paris)\b/i, name: 'Pháp', lat: 48.85, lon: 2.35 },
   { pattern: /\b(uk\b|britain|london|anh)\b/i, name: 'Vương quốc Anh', lat: 51.51, lon: -0.12 },
   { pattern: /\b(india|ấn độ|new delhi|mumbai)\b/i, name: 'Ấn Độ', lat: 20.59, lon: 78.96 },
 ];
@@ -178,6 +187,56 @@ const xmlParser = new XMLParser({
   trimValues: true,
 });
 
+const NAMED_HTML_ENTITIES: Record<string, string> = {
+  quot: '"',
+  apos: "'",
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  nbsp: ' ',
+  ndash: '–',
+  mdash: '—',
+  lsquo: '‘',
+  rsquo: '’',
+  ldquo: '“',
+  rdquo: '”',
+  hellip: '…',
+  agrave: 'à',
+  aacute: 'á',
+  acirc: 'â',
+  atilde: 'ã',
+  egrave: 'è',
+  eacute: 'é',
+  ecirc: 'ê',
+  igrave: 'ì',
+  iacute: 'í',
+  itilde: 'ĩ',
+  ograve: 'ò',
+  oacute: 'ó',
+  ocirc: 'ô',
+  otilde: 'õ',
+  ugrave: 'ù',
+  uacute: 'ú',
+  utilde: 'ũ',
+  yacute: 'ý',
+  Agrave: 'À',
+  Aacute: 'Á',
+  Acirc: 'Â',
+  Atilde: 'Ã',
+  Egrave: 'È',
+  Eacute: 'É',
+  Ecirc: 'Ê',
+  Igrave: 'Ì',
+  Iacute: 'Í',
+  Ograve: 'Ò',
+  Oacute: 'Ó',
+  Ocirc: 'Ô',
+  Otilde: 'Õ',
+  Ugrave: 'Ù',
+  Uacute: 'Ú',
+  Yacute: 'Ý',
+};
+
 export function decodeHtmlEntities(input: string): string {
   return input
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
@@ -190,12 +249,7 @@ export function decodeHtmlEntities(input: string): string {
       const code = parseInt(dec, 10);
       return Number.isFinite(code) && code > 0 ? String.fromCodePoint(code) : '';
     })
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&nbsp;/g, ' ')
+    .replace(/&([a-zA-Z]+);/g, (full, name: string) => NAMED_HTML_ENTITIES[name] ?? full)
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -238,7 +292,7 @@ export function parseRssFeedXml(
   const list = Array.isArray(channelItems) ? channelItems : channelItems ? [channelItems] : [];
 
   const out: NewsItem[] = [];
-  for (const entry of list.slice(0, 15)) {
+  for (const entry of list.slice(0, 12)) {
     const title = cleanText(entry?.title);
     const url = extractLink(entry?.link) || cleanText(entry?.guid);
     if (!title || !url || !url.startsWith('http')) continue;
@@ -252,8 +306,10 @@ export function parseRssFeedXml(
     out.push({
       id: `${sourceName}:${url}`,
       title,
+      titleVi: category === 'vietnam' ? title : undefined,
       source: sourceName,
       category,
+      streamSource: 'rss',
       publishedAt,
       url,
       ...(loc
@@ -269,26 +325,37 @@ export function parseRssFeedXml(
   return out;
 }
 
-interface FeedDefinition {
+export interface FeedDefinition {
   name: string;
   category: NewsCategory;
   url: string;
 }
 
-const CURATED_RSS_FEEDS: readonly FeedDefinition[] = [
-  // International Geopolitics
+export const CURATED_RSS_FEEDS: readonly FeedDefinition[] = [
+  // Báo chí Chính thống Việt Nam (VnExpress, Tuổi Trẻ, Thanh Niên, Dân Trí)
+  { name: 'VnExpress Tin mới', category: 'vietnam', url: 'https://vnexpress.net/rss/tin-moi-nhat.rss' },
+  { name: 'VnExpress Thời sự', category: 'vietnam', url: 'https://vnexpress.net/rss/thoi-su.rss' },
+  { name: 'VnExpress Thế giới', category: 'vietnam', url: 'https://vnexpress.net/rss/the-gioi.rss' },
+  { name: 'VnExpress Kinh doanh', category: 'vietnam', url: 'https://vnexpress.net/rss/kinh-doanh.rss' },
+  { name: 'Tuổi Trẻ Tin mới', category: 'vietnam', url: 'https://tuoitre.vn/rss/tin-moi-nhat.rss' },
+  { name: 'Tuổi Trẻ Thế giới', category: 'vietnam', url: 'https://tuoitre.vn/rss/the-gioi.rss' },
+  { name: 'Tuổi Trẻ Kinh doanh', category: 'vietnam', url: 'https://tuoitre.vn/rss/kinh-doanh.rss' },
+  { name: 'Thanh Niên Thế giới', category: 'vietnam', url: 'https://thanhnien.vn/rss/the-gioi.rss' },
+  { name: 'Thanh Niên Kinh tế', category: 'vietnam', url: 'https://thanhnien.vn/rss/kinh-te.rss' },
+  { name: 'Dân Trí Thế giới', category: 'vietnam', url: 'https://dantri.com.vn/rss/the-gioi.rss' },
+  { name: 'Dân Trí Kinh doanh', category: 'vietnam', url: 'https://dantri.com.vn/rss/kinh-doanh.rss' },
+
+  // Báo chí Địa chính trị Quốc tế
   { name: 'BBC World', category: 'world', url: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
   { name: 'Al Jazeera', category: 'world', url: 'https://www.aljazeera.com/xml/rss/all.xml' },
   { name: 'The Guardian World', category: 'world', url: 'https://www.theguardian.com/world/rss' },
   { name: 'NYT World', category: 'world', url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml' },
-  // Global Finance & Energy
+  { name: 'DW World', category: 'world', url: 'https://rss.dw.com/xml/rss-en-world' },
+
+  // Tài chính, Phố Wall & Năng lượng Quốc tế
   { name: 'CNBC Markets', category: 'finance', url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114' },
   { name: 'MarketWatch', category: 'finance', url: 'https://feeds.content.dowjones.io/public/rss/mw_topstories' },
   { name: 'OilPrice Energy', category: 'finance', url: 'https://oilprice.com/rss/main' },
-  // Vietnam News & Markets
-  { name: 'VnExpress Thế giới', category: 'vietnam', url: 'https://vnexpress.net/rss/the-gioi.rss' },
-  { name: 'VnExpress Kinh doanh', category: 'vietnam', url: 'https://vnexpress.net/rss/kinh-doanh.rss' },
-  { name: 'Tuổi Trẻ Thế giới', category: 'vietnam', url: 'https://tuoitre.vn/rss/the-gioi.rss' },
 ];
 
 export async function fetchCuratedRssNews(): Promise<NewsItem[]> {
@@ -319,8 +386,9 @@ export async function fetchCuratedRssNews(): Promise<NewsItem[]> {
   }
 
   if (merged.length === 0) {
-    throw new Error('All 10 curated RSS feeds failed or timed out');
+    throw new Error('All curated RSS feeds failed or timed out');
   }
 
-  return merged.sort((a, b) => b.publishedAt - a.publishedAt).slice(0, 90);
+  const sorted = merged.sort((a, b) => b.publishedAt - a.publishedAt).slice(0, 110);
+  return globalViTranslator.enrichNewsItems(sorted);
 }

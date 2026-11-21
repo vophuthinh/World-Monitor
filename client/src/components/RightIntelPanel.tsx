@@ -6,8 +6,10 @@ import {
   ChartLineUp,
   Crosshair,
   Gauge,
+  Lightning,
   MagnifyingGlass,
   Newspaper,
+  Translate,
   TrendDown,
   TrendUp,
 } from '@phosphor-icons/react';
@@ -15,6 +17,7 @@ import type {
   MarketSnapshot,
   NewsCategory,
   NewsItem,
+  NewsStreamStats,
   PredictionCategory,
   PredictionItem,
 } from '@shared/types';
@@ -26,6 +29,8 @@ interface RightIntelPanelProps {
   markets: MarketSnapshot;
   predictions: PredictionItem[];
   news: NewsItem[];
+  newsStreamStats?: NewsStreamStats;
+  freshNewsIds?: ReadonlySet<string>;
   priceFlashes: Record<string, FlashDirection>;
   streamConnected: boolean;
   onFlyToLocation: (lat: number, lon: number, zoom?: number) => void;
@@ -35,23 +40,49 @@ function formatCompactUsd(val: number | null): string {
   if (val === null || !Number.isFinite(val) || val <= 0) return '—';
   if (val >= 1_000_000_000_000) return `$${(val / 1_000_000_000_000).toFixed(2)}T`;
   if (val >= 1_000_000_000) return `$${(val / 1_000_000_000).toFixed(0)}B`;
-  if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(1)}M`;
+  if (val >= 1_000_000_000 * 0.001) return `$${(val / 1_000_000).toFixed(1)}M`;
   if (val >= 1_000) return `$${(val / 1_000).toFixed(0)}K`;
   return `$${val.toFixed(0)}`;
 }
 
 function formatRelativeTime(ts: number): string {
-  const diffMin = Math.max(1, Math.round((Date.now() - ts) / 60_000));
+  const diffSec = Math.max(1, Math.round((Date.now() - ts) / 1_000));
+  if (diffSec < 60) return `${diffSec}s trước`;
+  const diffMin = Math.round(diffSec / 60);
   if (diffMin < 60) return `${diffMin}p trước`;
   const diffHr = Math.round(diffMin / 60);
   if (diffHr < 24) return `${diffHr}h trước`;
   return `${Math.round(diffHr / 24)}d trước`;
 }
 
+function sourceBadgeStyle(item: NewsItem): string {
+  if (item.streamSource === 'bluesky') {
+    return 'border border-sky-500/40 bg-sky-500/15 text-sky-300';
+  }
+  if (item.streamSource === 'wikimedia') {
+    return 'border border-purple-500/40 bg-purple-500/15 text-purple-300';
+  }
+  if (item.streamSource === 'gdelt') {
+    return 'border border-rose-500/40 bg-rose-500/15 text-rose-300';
+  }
+  if (item.streamSource === 'hackernews') {
+    return 'border border-orange-500/40 bg-orange-500/15 text-orange-300';
+  }
+  if (item.category === 'vietnam') {
+    return 'bg-emerald-500/15 text-emerald-300';
+  }
+  if (item.category === 'finance') {
+    return 'bg-amber-500/15 text-amber-300';
+  }
+  return 'bg-slate-800 text-slate-300';
+}
+
 export function RightIntelPanel({
   markets,
   predictions,
   news,
+  newsStreamStats,
+  freshNewsIds,
   priceFlashes,
   streamConnected,
   onFlyToLocation,
@@ -61,6 +92,7 @@ export function RightIntelPanel({
   const [predQuery, setPredQuery] = useState('');
   const [newsFilter, setNewsFilter] = useState<'all' | NewsCategory>('all');
   const [newsQuery, setNewsQuery] = useState('');
+  const [translateVi, setTranslateVi] = useState<boolean>(true);
 
   const fxQuotes = useMemo(() => markets.quotes.filter((q) => q.group === 'fx'), [markets.quotes]);
   const indexAndCommodityQuotes = useMemo(
@@ -81,7 +113,12 @@ export function RightIntelPanel({
     const q = newsQuery.trim().toLowerCase();
     return news.filter((item) => {
       if (newsFilter !== 'all' && item.category !== newsFilter) return false;
-      if (q && !`${item.title} ${item.source} ${item.matchedLocation ?? ''}`.toLowerCase().includes(q)) {
+      if (
+        q &&
+        !`${item.title} ${item.titleVi ?? ''} ${item.source} ${item.matchedLocation ?? ''}`
+          .toLowerCase()
+          .includes(q)
+      ) {
         return false;
       }
       return true;
@@ -89,7 +126,7 @@ export function RightIntelPanel({
   }, [news, newsFilter, newsQuery]);
 
   return (
-    <aside className="flex h-full w-full flex-col border-l border-slate-800/95 bg-[#090e18] lg:w-[410px] xl:w-[436px]">
+    <aside className="flex h-full w-full flex-col border-l border-slate-800/95 bg-[#090e18] lg:w-[410px] xl:w-[438px]">
       {/* Tab Header */}
       <div className="grid shrink-0 grid-cols-3 border-b border-slate-800/95 bg-[#070b12]">
         <button
@@ -389,8 +426,8 @@ export function RightIntelPanel({
                   onClick={() => setPredFilter(cat.id)}
                   className={`rounded px-2 py-1 text-[11px] font-medium transition ${
                     predFilter === cat.id
-                      ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-500/40'
-                      : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200'
+                      ? 'border border-cyan-500/40 bg-cyan-500/20 text-cyan-200'
+                      : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
                   }`}
                 >
                   {cat.label}
@@ -460,17 +497,79 @@ export function RightIntelPanel({
         </div>
       )}
 
-      {/* Tab 3: Curated RSS News & Geo-FlyTo */}
+      {/* Tab 3: Unified OSINT Firehose + 19 RSS + Auto-Vietnamese Translation */}
       {activeTab === 'news' && (
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="space-y-2 border-b border-slate-800/90 p-2.5">
+            {/* Realtime OSINT Stream Telemetry + Auto-Translate Toggle */}
+            <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-slate-800/90 bg-[#0d1524] px-2 py-1.5">
+              <div className="flex flex-wrap items-center gap-1.5 font-mono text-[9.5px]">
+                <span
+                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${
+                    newsStreamStats?.blueskyConnected
+                      ? 'bg-sky-500/15 text-sky-300'
+                      : 'bg-slate-800 text-slate-400'
+                  }`}
+                  title="Bluesky Jetstream WebSocket Firehose"
+                >
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      newsStreamStats?.blueskyConnected ? 'animate-pulse bg-sky-400' : 'bg-slate-500'
+                    }`}
+                  />
+                  BSky {newsStreamStats?.blueskyCount ?? 0}
+                </span>
+
+                <span
+                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${
+                    newsStreamStats?.wikimediaConnected
+                      ? 'bg-purple-500/15 text-purple-300'
+                      : 'bg-slate-800 text-slate-400'
+                  }`}
+                  title="Wikimedia EventStreams SSE Crisis Burst Detector"
+                >
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      newsStreamStats?.wikimediaConnected ? 'animate-pulse bg-purple-400' : 'bg-slate-500'
+                    }`}
+                  />
+                  Wiki {newsStreamStats?.wikimediaCount ?? 0}
+                </span>
+
+                <span className="rounded bg-rose-500/15 px-1.5 py-0.5 text-rose-300">
+                  GDELT {newsStreamStats?.gdeltCount ?? 0}
+                </span>
+
+                <span className="rounded bg-orange-500/15 px-1.5 py-0.5 text-orange-300">
+                  HN {newsStreamStats?.hnCount ?? 0}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setTranslateVi((v) => !v)}
+                className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[10px] font-semibold transition ${
+                  translateVi
+                    ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
+                    : 'border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200'
+                }`}
+                title="Bật/tắt tự động dịch tiêu đề báo quốc tế & OSINT sang Tiếng Việt"
+              >
+                <Translate size={12} weight="bold" />
+                <span>{translateVi ? 'Dịch VI: BẬT' : 'Dịch VI: TẮT'}</span>
+              </button>
+            </div>
+
+            {/* Category Filter Pills */}
             <div className="flex flex-wrap gap-1">
               {(
                 [
                   { id: 'all', label: 'Tất cả' },
+                  { id: 'osint_live', label: '⚡ Live OSINT' },
                   { id: 'vietnam', label: 'Việt Nam' },
                   { id: 'world', label: 'Thế giới' },
-                  { id: 'finance', label: 'Tài chính & Dầu' },
+                  { id: 'finance', label: 'Tài chính' },
+                  { id: 'tech', label: 'Tech / HN' },
                 ] as const
               ).map((cat) => (
                 <button
@@ -479,8 +578,8 @@ export function RightIntelPanel({
                   onClick={() => setNewsFilter(cat.id)}
                   className={`rounded px-2 py-1 text-[11px] font-medium transition ${
                     newsFilter === cat.id
-                      ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-500/40'
-                      : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200'
+                      ? 'border border-cyan-500/40 bg-cyan-500/20 text-cyan-200'
+                      : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
                   }`}
                 >
                   {cat.label}
@@ -497,8 +596,8 @@ export function RightIntelPanel({
                 type="text"
                 value={newsQuery}
                 onChange={(e) => setNewsQuery(e.target.value)}
-                placeholder="Tìm từ khóa tin tức hoặc địa danh..."
-                aria-label="Tìm tin tức RSS"
+                placeholder="Tìm tin tức Tiếng Việt, tiếng Anh hoặc địa danh..."
+                aria-label="Tìm tin tức"
                 className="w-full rounded border border-slate-800 bg-[#0d1524] py-1 pl-7 pr-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
               />
             </div>
@@ -510,54 +609,81 @@ export function RightIntelPanel({
                 Không có bản tin nào khớp điều kiện lọc.
               </div>
             ) : (
-              filteredNews.map((item) => (
-                <article key={item.id} className="px-3 py-2.5 transition hover:bg-slate-900/65">
-                  <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
-                    <span
-                      className={`rounded px-1.5 py-0.2 font-semibold ${
-                        item.category === 'vietnam'
-                          ? 'bg-emerald-500/15 text-emerald-300'
-                          : item.category === 'finance'
-                            ? 'bg-amber-500/15 text-amber-300'
-                            : 'bg-slate-800 text-slate-300'
-                      }`}
-                    >
-                      {item.source}
-                    </span>
-                    <span className="text-slate-500 tabular-nums">{formatRelativeTime(item.publishedAt)}</span>
-                  </div>
+              filteredNews.map((item) => {
+                const isTranslated =
+                  Boolean(item.titleVi) && item.titleVi !== item.title && item.category !== 'vietnam';
+                const headline = translateVi ? item.titleVi || item.title : item.title;
+                const isFresh = freshNewsIds?.has(item.id) ?? false;
 
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-1 block text-xs font-medium leading-relaxed text-slate-100 hover:text-cyan-300"
+                return (
+                  <article
+                    key={item.id}
+                    className={`px-3 py-2.5 transition-colors duration-500 hover:bg-slate-900/65 ${
+                      isFresh ? 'bg-cyan-500/12' : ''
+                    }`}
                   >
-                    {item.title}
-                  </a>
+                    <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className={`truncate rounded px-1.5 py-0.2 font-semibold ${sourceBadgeStyle(item)}`}>
+                          {item.source}
+                        </span>
+                        {item.isLiveStream && (
+                          <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-cyan-500/15 px-1 py-0.2 text-[9px] font-semibold text-cyan-300">
+                            <Lightning size={9} weight="fill" />
+                            LIVE
+                          </span>
+                        )}
+                        {translateVi && isTranslated && (
+                          <span className="shrink-0 rounded bg-emerald-500/15 px-1 py-0.2 text-[9px] text-emerald-300">
+                            VI
+                          </span>
+                        )}
+                      </div>
+                      <span className="shrink-0 text-slate-500 tabular-nums">
+                        {formatRelativeTime(item.publishedAt)}
+                      </span>
+                    </div>
 
-                  {item.matchedLat !== undefined && item.matchedLon !== undefined && (
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1 block text-xs font-medium leading-relaxed text-slate-100 hover:text-cyan-300"
+                    >
+                      {headline}
+                    </a>
+
+                    {translateVi && isTranslated && (
+                      <p className="mt-0.5 line-clamp-1 text-[10.5px] text-slate-500" title={item.title}>
+                        Gốc: {item.title}
+                      </p>
+                    )}
+
                     <div className="mt-1.5 flex items-center justify-between">
-                      <button
-                        type="button"
-                        onClick={() => onFlyToLocation(item.matchedLat!, item.matchedLon!, 5.5)}
-                        className="inline-flex items-center gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 font-mono text-[10px] font-medium text-cyan-300 transition hover:bg-cyan-500/20 active:scale-[0.98]"
-                      >
-                        <Crosshair size={11} />
-                        Bay tới: {item.matchedLocation}
-                      </button>
+                      {item.matchedLat !== undefined && item.matchedLon !== undefined ? (
+                        <button
+                          type="button"
+                          onClick={() => onFlyToLocation(item.matchedLat!, item.matchedLon!, 5.5)}
+                          className="inline-flex items-center gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 font-mono text-[10px] font-medium text-cyan-300 transition hover:bg-cyan-500/20 active:scale-[0.98]"
+                        >
+                          <Crosshair size={11} />
+                          Bay tới: {item.matchedLocation}
+                        </button>
+                      ) : (
+                        <span />
+                      )}
                       <a
                         href={item.url}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center gap-0.5 text-[10.5px] text-slate-400 hover:text-slate-200"
                       >
-                        Đọc bài <ArrowSquareOut size={11} />
+                        Mở nguồn <ArrowSquareOut size={11} />
                       </a>
                     </div>
-                  )}
-                </article>
-              ))
+                  </article>
+                );
+              })
             )}
           </div>
         </div>

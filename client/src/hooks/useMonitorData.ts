@@ -67,6 +67,7 @@ export function useMonitorData() {
   const [streamConnected, setStreamConnected] = useState<boolean>(false);
   const [liveTickCount, setLiveTickCount] = useState<number>(0);
   const [priceFlashes, setPriceFlashes] = useState<Record<string, FlashDirection>>({});
+  const [freshNewsIds, setFreshNewsIds] = useState<Set<string>>(new Set());
   const [breakingAlerts, setBreakingAlerts] = useState<BreakingAlertItem[]>([]);
   const [alertsMuted, setAlertsMuted] = useState<boolean>(false);
   const [deadReckoning, setDeadReckoning] = useState<boolean>(true);
@@ -286,6 +287,38 @@ export function useMonitorData() {
             }
           } else if (ev.type === 'breaking_alert' && !alertsMutedRef.current) {
             setBreakingAlerts((prev) => [ev.alert, ...prev.filter((a) => a.id !== ev.alert.id)].slice(0, 4));
+          } else if (ev.type === 'news_prepend') {
+            const addedIds = ev.items.map((i) => i.id);
+            setFreshNewsIds((prev) => {
+              const next = new Set(prev);
+              for (const id of addedIds) next.add(id);
+              return next;
+            });
+            setTimeout(() => {
+              if (!mountedRef.current) return;
+              setFreshNewsIds((prev) => {
+                const next = new Set(prev);
+                for (const id of addedIds) next.delete(id);
+                return next;
+              });
+            }, 6_000);
+
+            setData((prev) => {
+              if (!prev) return prev;
+              const mergedMap = new Map<string, NewsItem>();
+              for (const item of ev.items) mergedMap.set(item.id, item);
+              for (const item of prev.news) {
+                if (!mergedMap.has(item.id)) mergedMap.set(item.id, item);
+              }
+              const mergedNews = [...mergedMap.values()]
+                .sort((a, b) => b.publishedAt - a.publishedAt)
+                .slice(0, 160);
+              return {
+                ...prev,
+                news: mergedNews,
+                newsStreamStats: ev.stats,
+              };
+            });
           }
         } catch {
           // Ignore malformed frame
@@ -483,12 +516,16 @@ export function useMonitorData() {
     }
 
     for (const item of filteredData.news) {
-      if (`${item.title} ${item.source} ${item.matchedLocation ?? ''}`.toLowerCase().includes(q)) {
+      if (
+        `${item.title} ${item.titleVi ?? ''} ${item.source} ${item.matchedLocation ?? ''}`
+          .toLowerCase()
+          .includes(q)
+      ) {
         hits.push({
           id: `nw:${item.id}`,
           kind: 'news',
           badge: 'NEWS',
-          title: item.title,
+          title: item.titleVi || item.title,
           subtitle: `${item.source}${item.matchedLocation ? ` · ${item.matchedLocation}` : ''}`,
           lat: item.matchedLat,
           lon: item.matchedLon,
@@ -511,6 +548,7 @@ export function useMonitorData() {
     streamConnected,
     liveTickCount,
     priceFlashes,
+    freshNewsIds,
     breakingAlerts,
     dismissAlert,
     alertsMuted,

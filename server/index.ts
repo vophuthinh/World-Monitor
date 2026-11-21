@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
-import type { GeoPointFeature, MarketSnapshot } from '@shared/types';
+import type { GeoPointFeature, MarketSnapshot, NewsItem } from '@shared/types';
 import { createApp } from './app';
 import { CollectorScheduler } from './cache/scheduler';
 import { SnapshotStore } from './cache/snapshot-store';
@@ -18,6 +18,7 @@ import { fetchCuratedRssNews, fetchPolymarketPredictions } from './collectors/po
 import { fetchWeatherRadar } from './collectors/weather-radar';
 import { BinanceRealtimeStream } from './realtime/binance-stream';
 import { RealtimeHub } from './realtime/hub';
+import { UnifiedNewsStreamService } from './realtime/news-stream';
 
 for (const envName of ['.env.local', '.env']) {
   const full = resolve(process.cwd(), envName);
@@ -37,6 +38,7 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
   const store = new SnapshotStore(cacheDir);
   const hub = new RealtimeHub();
   const vesselManager = new MaritimeVesselStreamManager(hub, process.env.AISSTREAM_API_KEY);
+  const newsStream = new UnifiedNewsStreamService(hub, store);
 
   const scheduler = new CollectorScheduler(store, (id, data) => {
     const now = Date.now();
@@ -50,6 +52,10 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
       hub.publish({ type: 'vessels_update', vessels, ts: now });
     } else if ((id === 'earthquakes' || id === 'natural-events') && Array.isArray(data)) {
       hub.ingestForAlerts(id, data as GeoPointFeature[]);
+    } else if (id === 'rss-news' && Array.isArray(data)) {
+      newsStream.ingestBatchItems(data as NewsItem[], true);
+    } else if (id === 'geopolitics-gdelt' && Array.isArray(data)) {
+      void newsStream.ingestGdeltGeoFeatures(data as GeoPointFeature[]);
     }
 
     hub.publish({
@@ -147,10 +153,10 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector({
     id: 'rss-news',
-    label: 'Tin nóng Quốc tế / Tài chính / VN (RSS)',
-    intervalMs: 240_000,
+    label: 'News Stream (19 RSS + Bluesky WS + Wiki SSE + HN + GDELT)',
+    intervalMs: 180_000,
     retainMs: 6 * 3_600_000,
-    countItems: (items) => items.length,
+    countItems: (items) => Math.max(items.length, newsStream.getUnifiedNews().length),
     fetcher: () => fetchCuratedRssNews(),
   });
 
@@ -162,19 +168,23 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
     scheduler,
     binanceStream,
     vesselManager,
+    newsStream,
   };
 }
 
 async function main(): Promise<void> {
-  const { store, hub, scheduler, binanceStream, vesselManager } = buildProductionRuntime();
+  const { store, hub, scheduler, binanceStream, vesselManager, newsStream } = buildProductionRuntime();
   await store.hydrateFromDisk();
   scheduler.startAll({ runImmediately: true });
   binanceStream.start();
   vesselManager.start();
+  newsStream.start();
 
   const app = createApp(scheduler, hub, {
     aisStreamConfigured: vesselManager.isAisStreamConfigured(),
     getLiveVessels: () => vesselManager.getCombinedVessels(),
+    getUnifiedNews: () => newsStream.getUnifiedNews(),
+    getNewsStreamStats: () => newsStream.getStats(),
   });
 
   const clientDistDir = resolve(process.cwd(), 'dist/client');
@@ -198,6 +208,7 @@ async function main(): Promise<void> {
   const shutdown = () => {
     binanceStream.stop();
     vesselManager.stop();
+    newsStream.stop();
     scheduler.stopAll();
     server.close(() => process.exit(0));
   };

@@ -179,18 +179,33 @@ export interface PredictionItem {
   url: string;
 }
 
-export type NewsCategory = 'world' | 'finance' | 'vietnam';
+export type NewsCategory = 'world' | 'finance' | 'vietnam' | 'tech' | 'osint_live';
+
+export type NewsStreamSource = 'rss' | 'gdelt' | 'wikimedia' | 'bluesky' | 'hackernews';
 
 export interface NewsItem {
   id: string;
   title: string;
+  titleVi?: string;
   source: string;
   category: NewsCategory;
+  streamSource?: NewsStreamSource;
+  isLiveStream?: boolean;
   publishedAt: number;
   url: string;
   matchedLat?: number;
   matchedLon?: number;
   matchedLocation?: string;
+}
+
+export interface NewsStreamStats {
+  blueskyConnected: boolean;
+  wikimediaConnected: boolean;
+  blueskyCount: number;
+  wikimediaCount: number;
+  gdeltCount: number;
+  hnCount: number;
+  rssCount: number;
 }
 
 export type SourceHealthStatus = 'ok' | 'stale' | 'warming' | 'error';
@@ -240,6 +255,7 @@ export interface BootstrapResponse {
   theaters: TheaterViewPreset[];
   health: SourceHealth[];
   aisStreamConfigured?: boolean;
+  newsStreamStats?: NewsStreamStats;
 }
 
 export interface LiveFastResponse {
@@ -302,4 +318,10 @@ export type RealtimeServerEvent =
   | {
       type: 'breaking_alert';
       alert: BreakingAlertItem;
+    }
+  | {
+      type: 'news_prepend';
+      items: NewsItem[];
+      stats: NewsStreamStats;
+      ts: number;
     };

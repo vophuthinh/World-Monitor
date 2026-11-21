@@ -9,6 +9,7 @@ import type {
   MacroCountryIndicator,
   MarketSnapshot,
   NewsItem,
+  NewsStreamStats,
   PredictionItem,
   RealtimeServerEvent,
   WeatherRadarSnapshot,
@@ -22,7 +23,12 @@ const encoder = new TextEncoder();
 export function createApp(
   scheduler: CollectorScheduler,
   hub: RealtimeHub = new RealtimeHub(),
-  options: { aisStreamConfigured?: boolean; getLiveVessels?: () => GeoPointFeature[] } = {},
+  options: {
+    aisStreamConfigured?: boolean;
+    getLiveVessels?: () => GeoPointFeature[];
+    getUnifiedNews?: () => NewsItem[];
+    getNewsStreamStats?: () => NewsStreamStats;
+  } = {},
 ): Hono {
   const app = new Hono();
   const store = scheduler.getStore();
@@ -114,6 +120,12 @@ export function createApp(
         ? liveWsVessels
         : store.get<GeoPointFeature[]>('maritime-vessels', now) ?? [];
 
+    const liveUnifiedNews = options.getUnifiedNews?.();
+    const resolvedNews =
+      liveUnifiedNews && liveUnifiedNews.length > 0
+        ? liveUnifiedNews
+        : store.get<NewsItem[]>('rss-news', now) ?? [];
+
     const payload: BootstrapResponse = {
       serverTime: now,
       layers: {
@@ -133,10 +145,11 @@ export function createApp(
         updatedAt: rawMarkets?.updatedAt ?? now,
       },
       predictions: store.get<PredictionItem[]>('polymarket', now) ?? [],
-      news: store.get<NewsItem[]>('rss-news', now) ?? [],
+      news: resolvedNews,
       theaters: [...THEATER_PRESETS],
       health: store.getAllHealth(now),
       aisStreamConfigured: Boolean(options.aisStreamConfigured),
+      newsStreamStats: options.getNewsStreamStats?.(),
     };
 
     return c.json(payload);

@@ -20,6 +20,7 @@ export function App() {
     streamConnected,
     liveTickCount,
     priceFlashes,
+    freshNewsIds,
     breakingAlerts,
     dismissAlert,
     setAlertsMuted,
@@ -232,6 +233,8 @@ export function App() {
             }
             predictions={filteredData.predictions}
             news={filteredData.news}
+            newsStreamStats={data?.newsStreamStats}
+            freshNewsIds={freshNewsIds}
             priceFlashes={priceFlashes}
             streamConnected={streamConnected}
             onFlyToLocation={(lat, lon, zoom) => {
@@ -255,6 +258,8 @@ export function App() {
               }
               predictions={filteredData.predictions}
               news={filteredData.news}
+              newsStreamStats={data?.newsStreamStats}
+              freshNewsIds={freshNewsIds}
               priceFlashes={priceFlashes}
               streamConnected={streamConnected}
               onFlyToLocation={(lat, lon, zoom) => {

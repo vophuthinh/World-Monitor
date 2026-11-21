@@ -324,6 +324,9 @@ describe('Collectors Normalizers & Fault-Tolerant Parsers', () => {
     expect(hormuzLoc?.lat).toBeCloseTo(26.5, 1);
 
     expect(decodeHtmlEntities('Britain&#039;s &amp; Don&#x2019;t')).toBe("Britain's & Don’t");
+    expect(decodeHtmlEntities('Tr&ugrave;m ma t&uacute;y kh&eacute;t tiếng &ndash; Thanh Ni&ecirc;n')).toBe(
+      'Trùm ma túy khét tiếng – Thanh Niên',
+    );
   });
 
   it('parses GDELT v2 61-column CAMEO export TSV rows into conflict/sanctions geo points', () => {
