@@ -204,7 +204,7 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector<TechCyberSnapshot>({
     id: 'tech-cyber',
-    label: 'AI · Công nghệ · An ninh mạng (55 nguồn Koala73 + VN)',
+    label: 'AI · Công nghệ · An ninh mạng (58 nguồn Koala73 + Bộ KH&CN)',
     intervalMs: 240_000,
     retainMs: 8 * 3_600_000,
     countItems: (snap) => snap.items.length,
@@ -213,8 +213,8 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector<PolicyLegalSnapshot>({
     id: 'policy-legal',
-    label: 'Policy & Legal Radar VN (Công báo + Văn bản CP + NQ57/66)',
-    intervalMs: 300_000,
+    label: 'Policy Radar VN (Bộ tứ NQ 57·59·66·68 + Bộ KH&CN + Công báo)',
+    intervalMs: 180_000,
     retainMs: 12 * 3_600_000,
     countItems: (snap) => snap.items.length,
     fetcher: () => fetchVietnamPolicyLegal(),

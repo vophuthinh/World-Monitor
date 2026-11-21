@@ -4,6 +4,7 @@ import { DEFAULT_BROWSER_UA, fetchTextWithTimeout } from '../lib/http';
 import { decodeHtmlEntities } from './polymarket-news';
 
 const VANBAN_CHINHPHU_LIST_URL = 'https://vanban.chinhphu.vn/he-thong-van-ban?classid=1&mode=1';
+const MST_VANBAN_LIST_URL = 'https://mst.gov.vn/van-ban-phap-luat.htm';
 
 interface LegalRssFeedDef {
   name: string;
@@ -12,10 +13,11 @@ interface LegalRssFeedDef {
 }
 
 export const VIETNAM_LEGAL_FEEDS: readonly LegalRssFeedDef[] = [
+  // 1. Official Government Gazette & Policy Portals
   {
     name: 'Công báo Chính phủ (Văn bản mới)',
     url: 'https://congbao.chinhphu.vn/cac-van-ban-moi-ban-hanh.rss',
-    maxItems: 15,
+    maxItems: 14,
   },
   {
     name: 'Công báo Chính phủ (Số mới đăng)',
@@ -25,43 +27,105 @@ export const VIETNAM_LEGAL_FEEDS: readonly LegalRssFeedDef[] = [
   {
     name: 'Xây dựng Chính sách & Pháp luật',
     url: 'https://xaydungchinhsach.chinhphu.vn/chinh-sach-moi.rss',
-    maxItems: 12,
+    maxItems: 10,
   },
   {
     name: 'Cổng Chính sách & Pháp luật (Tin mới)',
     url: 'https://xaydungchinhsach.chinhphu.vn/tin-moi-nhat.rss',
-    maxItems: 10,
+    maxItems: 8,
   },
   {
     name: 'Báo Điện tử Chính phủ (Chính sách)',
     url: 'https://baochinhphu.vn/chinh-sach-va-cuoc-song.rss',
-    maxItems: 10,
+    maxItems: 8,
   },
   {
     name: 'Thư Viện Pháp Luật',
     url: 'https://thuvienphapluat.vn/rss.xml',
+    maxItems: 10,
+  },
+
+  // 2. Official Bộ Khoa học và Công nghệ (mst.gov.vn + Tia Sáng + Chính phủ KH&CN)
+  {
+    name: 'Bộ Khoa học & Công nghệ (Tiêu điểm CS)',
+    url: 'https://mst.gov.vn/rss/tieu-diem-chinh-sach.rss',
     maxItems: 12,
   },
   {
-    name: 'Google News · Nghị quyết 57 & 66',
-    url: 'https://news.google.com/rss/search?q=%22Ngh%E1%BB%8B+quy%E1%BA%BFt+57%22+OR+%22Ngh%E1%BB%8B+quy%E1%BA%BFt+66%22+OR+%2257-NQ%2FTW%22+OR+%2266-NQ%2FTW%22&hl=vi&gl=VN&ceid=VN:vi',
+    name: 'Bộ Khoa học & Công nghệ (mst.gov.vn)',
+    url: 'https://mst.gov.vn/rss/tin-tuc-su-kien.rss',
+    maxItems: 10,
+  },
+  {
+    name: 'Tạp chí Tia Sáng (Bộ KH&CN)',
+    url: 'https://tiasang.com.vn/rss/nen-tang-kien-tao.rss',
+    maxItems: 8,
+  },
+  {
+    name: 'Báo Chính phủ · Khoa học & Công nghệ',
+    url: 'https://baochinhphu.vn/khoa-hoc-cong-nghe.rss',
+    maxItems: 8,
+  },
+  {
+    name: 'Xây dựng Chính sách · KH&CN',
+    url: 'https://xaydungchinhsach.chinhphu.vn/khoa-hoc-cong-nghe.rss',
+    maxItems: 8,
+  },
+  {
+    name: 'Google News · Bộ Khoa học & Công nghệ',
+    url: 'https://news.google.com/rss/search?q=%22B%E1%BB%99+Khoa+h%E1%BB%8Dc+v%C3%A0+C%C3%B4ng+ngh%E1%BB%87%22+OR+%22TT-BKHCN%22+OR+%22Q%C4%90-BKHCN%22&hl=vi&gl=VN&ceid=VN:vi',
+    maxItems: 10,
+  },
+
+  // 3. "Bộ tứ Nghị quyết Chiến lược" (Nghị quyết 57, 59, 66, 68) + Nghị định mới
+  {
+    name: 'Nghị quyết 57 · KHCN & Chuyển đổi số',
+    url: 'https://news.google.com/rss/search?q=%22Ngh%E1%BB%8B+quy%E1%BA%BFt+57%22+OR+%2257-NQ%2FTW%22&hl=vi&gl=VN&ceid=VN:vi',
+    maxItems: 10,
+  },
+  {
+    name: 'Nghị quyết 59 · Hội nhập quốc tế',
+    url: 'https://news.google.com/rss/search?q=%22Ngh%E1%BB%8B+quy%E1%BA%BFt+59%22+OR+%2259-NQ%2FTW%22&hl=vi&gl=VN&ceid=VN:vi',
+    maxItems: 9,
+  },
+  {
+    name: 'Nghị quyết 66 · Thể chế & Pháp luật',
+    url: 'https://news.google.com/rss/search?q=%22Ngh%E1%BB%8B+quy%E1%BA%BFt+66%22+OR+%2266-NQ%2FTW%22&hl=vi&gl=VN&ceid=VN:vi',
+    maxItems: 9,
+  },
+  {
+    name: 'Nghị quyết 68 · Kinh tế tư nhân',
+    url: 'https://news.google.com/rss/search?q=%22Ngh%E1%BB%8B+quy%E1%BA%BFt+68%22+OR+%2268-NQ%2FTW%22&hl=vi&gl=VN&ceid=VN:vi',
     maxItems: 10,
   },
   {
     name: 'Google News · Nghị định & Nghị quyết mới',
     url: 'https://news.google.com/rss/search?q=%22Ngh%E1%BB%8B+%C4%91%E1%BB%8Bnh%22+OR+%22Ngh%E1%BB%8B+quy%E1%BA%BFt%22+Ch%C3%ADnh+ph%E1%BB%A7&hl=vi&gl=VN&ceid=VN:vi',
-    maxItems: 10,
+    maxItems: 8,
   },
 ];
 
 const SECTOR_RULES: ReadonlyArray<{ label: string; pattern: RegExp }> = [
   {
-    label: 'Khoa học - Công nghệ & Đổi mới sáng tạo',
-    pattern: /\b(khoa học|công nghệ|đổi mới sáng tạo|bán dẫn|trí tuệ nhân tạo|ai\b|nghiên cứu|nghị quyết 57|57-nq\/tw)\b/i,
+    label: 'Hội nhập Quốc tế trong tình hình mới (NQ 59)',
+    pattern: /\b(nghị quyết\s*(?:số\s*)?59\b|59-nq\/tw|hội nhập quốc tế)\b/i,
   },
   {
-    label: 'Chuyển đổi số & Dữ liệu quốc gia',
-    pattern: /\b(chuyển đổi số|dữ liệu|viễn thông|mạng|chính phủ số|giao dịch điện tử|căn cước|định danh)\b/i,
+    label: 'Phát triển Kinh tế tư nhân (NQ 68)',
+    pattern: /\b(nghị quyết\s*(?:số\s*)?68\b|68-nq\/tw|kinh tế tư nhân)\b/i,
+  },
+  {
+    label: 'Cải cách Thể chế & Pháp luật (NQ 66)',
+    pattern: /\b(nghị quyết\s*(?:số\s*)?66\b|66-nq\/tw|thủ tục hành chính|tổ chức bộ máy|tinh gọn|phân cấp|phân quyền)\b/i,
+  },
+  {
+    label: 'Khoa học - Công nghệ & Đổi mới sáng tạo',
+    pattern:
+      /\b(khoa học|công nghệ|đổi mới sáng tạo|bán dẫn|trí tuệ nhân tạo|ai\b|nghiên cứu|phóng xạ|hạt nhân|sở hữu trí tuệ|tiêu chuẩn đo lường|nghị quyết\s*(?:số\s*)?57\b|57-nq\/tw|bkhcn)\b/i,
+  },
+  {
+    label: 'Chuyển đổi số · Viễn thông · Dữ liệu',
+    pattern: /\b(chuyển đổi số|dữ liệu|viễn thông|tần số|băng tần|mạng|chính phủ số|giao dịch điện tử|căn cước|định danh)\b/i,
   },
   {
     label: 'Tài chính · Thuế · Ngân hàng · Tín dụng',
@@ -72,16 +136,12 @@ const SECTOR_RULES: ReadonlyArray<{ label: string; pattern: RegExp }> = [
     pattern: /\b(đất đai|nhà ở|bất động sản|xây dựng|quy hoạch|đô thị|giải phóng mặt bằng)\b/i,
   },
   {
-    label: 'Cải cách Thể chế & Thủ tục hành chính',
-    pattern: /\b(thủ tục hành chính|tổ chức bộ máy|tinh gọn|phân cấp|phân quyền|nghị quyết 66|66-nq|cán bộ|công chức)\b/i,
-  },
-  {
     label: 'Đầu tư công · Hạ tầng · Năng lượng',
-    pattern: /\b(đầu tư công|cao tốc|đường sắt|sân bay|điện lực|năng lượng|hạt nhân|dầu khí|giao thông|cảng biển)\b/i,
+    pattern: /\b(đầu tư công|cao tốc|đường sắt|sân bay|điện lực|năng lượng|dầu khí|giao thông|cảng biển)\b/i,
   },
   {
     label: 'Doanh nghiệp · Thương mại · Xuất nhập khẩu',
-    pattern: /\b(doanh nghiệp|thương mại|xuất khẩu|nhập khẩu|kinh tế tư nhân|nghị quyết 68|đầu tư)\b/i,
+    pattern: /\b(doanh nghiệp|thương mại|xuất khẩu|nhập khẩu|đầu tư)\b/i,
   },
   {
     label: 'Lao động · Tiền lương · An sinh · Y tế · Giáo dục',
@@ -94,25 +154,49 @@ export interface ClassifiedLegalInfo {
   docType: LegalDocType;
   typeBadge: string;
   sector: string;
+  isMost: boolean;
+  pillarResolution?: '57' | '59' | '66' | '68';
 }
 
-export function classifyVietnameseLegalDoc(rawText: string, explicitCode?: string): ClassifiedLegalInfo {
+function detectPillarResolution(
+  text: string,
+  docCode?: string,
+): '57' | '59' | '66' | '68' | undefined {
+  const code = (docCode ?? '').toUpperCase();
+  if (code === '57-NQ/TW') return '57';
+  if (code === '59-NQ/TW') return '59';
+  if (code === '66-NQ/TW') return '66';
+  if (code === '68-NQ/TW') return '68';
+  // Do not confuse 66/NQ-CP or 68/2026/TT-BKHCN with Politburo Resolutions 57/59/66/68
+  if (code && (code.includes('/NQ-CP') || code.includes('/NĐ-CP') || code.includes('/TT-'))) {
+    return undefined;
+  }
+  if (/\b(?:nghị quyết\s+(?:số\s+)?57|57-nq\/tw)\b/i.test(text)) return '57';
+  if (/\b(?:nghị quyết\s+(?:số\s+)?59|59-nq\/tw)\b/i.test(text)) return '59';
+  if (/\b(?:nghị quyết\s+(?:số\s+)?66|66-nq\/tw)\b/i.test(text)) return '66';
+  if (/\b(?:nghị quyết\s+(?:số\s+)?68|68-nq\/tw)\b/i.test(text)) return '68';
+  return undefined;
+}
+
+export function classifyVietnameseLegalDoc(
+  rawText: string,
+  explicitCode?: string,
+  sourceName = '',
+): ClassifiedLegalInfo {
   const text = rawText.trim();
 
-  // 1. Extract official Vietnamese legal code via Regex
   const stdCodeMatch =
-    /\b(\d{1,4}\/\d{4}\/(?:VBHN-)?(?:NĐ-CP|NQ-CP|QĐ-TTg|QH\d+|UBTVQH\d+|TT-[A-ZĐ0-9-]+|TTL[T]?-[A-ZĐ0-9-]+))\b/i.exec(
+    /\b(\d{1,4}\/\d{4}\/(?:VBHN-)?(?:NĐ-CP|NQ-CP|QĐ-TTg|QH\d+|UBTVQH\d+|TT-[A-ZĐ0-9-]+|QĐ-[A-ZĐ0-9-]+|TTL[T]?-[A-ZĐ0-9-]+))\b/i.exec(
       explicitCode || text,
     ) ??
     /\b(\d{1,3}-NQ\/TW)\b/i.exec(explicitCode || text) ??
     /\b(\d{1,4}\/(?:NQ-CP|QĐ-TTg|CT-TTg))\b/i.exec(explicitCode || text);
 
   let docCode = explicitCode?.trim() || (stdCodeMatch ? stdCodeMatch[1].toUpperCase() : undefined);
+  const pillarResolution = detectPillarResolution(text, docCode);
 
-  if (!docCode) {
-    if (/\bnghị quyết\s+(?:số\s+)?57\b/i.test(text)) docCode = '57-NQ/TW';
-    else if (/\bnghị quyết\s+(?:số\s+)?66\b/i.test(text)) docCode = 'NQ 66';
-    else if (/\bnghị quyết\s+(?:số\s+)?68\b/i.test(text)) docCode = '68-NQ/TW';
+  if (!docCode && pillarResolution) {
+    docCode = `${pillarResolution}-NQ/TW`;
   }
 
   const codeUpper = (docCode ?? '').toUpperCase();
@@ -135,6 +219,7 @@ export function classifyVietnameseLegalDoc(rawText: string, explicitCode?: strin
     codeUpper.includes('QĐ-TTG') ||
     codeUpper.includes('CT-TTG') ||
     codeUpper.includes('/TT-') ||
+    codeUpper.includes('/QĐ-') ||
     /\b(quyết định|thông tư|chỉ thị)\b/i.test(text)
   ) {
     docType = 'quyet_dinh_tt';
@@ -149,11 +234,19 @@ export function classifyVietnameseLegalDoc(rawText: string, explicitCode?: strin
     }
   }
 
+  const combinedMeta = `${codeUpper} ${text} ${sourceName}`;
+  const isMost =
+    /\b(BKHCN|BTTTT|mst\.gov\.vn|Tia Sáng|Bộ Khoa học\s*(?:và|&)\s*Công nghệ|Bộ KH&CN)\b/i.test(
+      combinedMeta,
+    );
+
   return {
     docCode,
     docType,
     typeBadge,
     sector,
+    isMost,
+    ...(pillarResolution ? { pillarResolution } : {}),
   };
 }
 
@@ -168,6 +261,13 @@ function parseVnDate(ddmmyyyy?: string, fallbackNow = Date.now()): number {
   return Number.isFinite(ts) ? ts : fallbackNow;
 }
 
+const PILLAR_RESOLUTION_CONTEXT: Record<'57' | '59' | '66' | '68', string> = {
+  '57': 'Trụ cột Nghị quyết 57-NQ/TW: Đột phá phát triển khoa học, công nghệ, đổi mới sáng tạo & chuyển đổi số quốc gia.',
+  '59': 'Trụ cột Nghị quyết 59-NQ/TW: Chủ động, tích cực hội nhập quốc tế sâu rộng trong tình hình mới.',
+  '66': 'Trụ cột Nghị quyết 66-NQ/TW: Đổi mới toàn diện công tác xây dựng và thi hành pháp luật kỷ nguyên mới.',
+  '68': 'Trụ cột Nghị quyết 68-NQ/TW: Phát triển kinh tế tư nhân trở thành một động lực quan trọng nhất của nền kinh tế.',
+};
+
 function buildStructuredHighlights(params: {
   title: string;
   description?: string;
@@ -176,10 +276,14 @@ function buildStructuredHighlights(params: {
   sector: string;
   issuedDate?: string;
   hasPdf?: boolean;
+  isMost?: boolean;
+  pillarResolution?: '57' | '59' | '66' | '68';
 }): string[] {
   const bullets: string[] = [];
 
-  if (params.docCode) {
+  if (params.pillarResolution) {
+    bullets.push(PILLAR_RESOLUTION_CONTEXT[params.pillarResolution]);
+  } else if (params.docCode) {
     bullets.push(
       `Văn bản: ${params.typeBadge} số ${params.docCode}${params.issuedDate ? ` (ban hành ${params.issuedDate})` : ''}.`,
     );
@@ -187,7 +291,11 @@ function buildStructuredHighlights(params: {
     bullets.push(`Nhóm chính sách: ${params.typeBadge} · Trọng tâm ${params.sector}.`);
   }
 
-  bullets.push(`Lĩnh vực điều chỉnh: ${params.sector}.`);
+  bullets.push(
+    params.isMost
+      ? `Cơ quan / Chuyên ngành: Bộ Khoa học và Công nghệ · ${params.sector}.`
+      : `Lĩnh vực điều chỉnh: ${params.sector}.`,
+  );
 
   const cleanDesc = (params.description ?? '').trim();
   if (cleanDesc && cleanDesc.length > 25 && cleanDesc !== params.title) {
@@ -230,7 +338,7 @@ export function parseVanBanChinhPhuHtml(html: string, fallbackNow = Date.now()):
     const pdfUrl = pdfMatch ? pdfMatch[1].trim() : undefined;
 
     const fullTitle = `${docCode} — ${summary}`;
-    const classified = classifyVietnameseLegalDoc(fullTitle, docCode);
+    const classified = classifyVietnameseLegalDoc(fullTitle, docCode, 'Hệ thống Văn bản Chính phủ');
     const publishedAt = parseVnDate(issuedDate, fallbackNow);
 
     out.push({
@@ -245,6 +353,8 @@ export function parseVanBanChinhPhuHtml(html: string, fallbackNow = Date.now()):
       publishedAt,
       url: detailUrl,
       pdfUrl,
+      isMost: classified.isMost,
+      ...(classified.pillarResolution ? { pillarResolution: classified.pillarResolution } : {}),
       highlights: buildStructuredHighlights({
         title: summary,
         docCode: classified.docCode ?? docCode,
@@ -252,10 +362,83 @@ export function parseVanBanChinhPhuHtml(html: string, fallbackNow = Date.now()):
         sector: classified.sector,
         issuedDate,
         hasPdf: Boolean(pdfUrl),
+        isMost: classified.isMost,
+        pillarResolution: classified.pillarResolution,
       }),
     });
 
     if (out.length >= 18) break;
+  }
+
+  return out;
+}
+
+export function parseMstVanBanHtml(html: string, fallbackNow = Date.now()): PolicyLegalItem[] {
+  if (!html) return [];
+  const rowMatches = [...html.matchAll(/<tr[^>]*class="[^"]*row[^"]*"[^>]*>([\s\S]*?)<\/tr>/gi)];
+  const out: PolicyLegalItem[] = [];
+
+  for (const m of rowMatches) {
+    const rowHtml = m[1];
+    const codeMatch = /<td[^>]*class="[^"]*\bsh\b[^"]*"[^>]*>([\s\S]*?)<\/td>/i.exec(rowHtml);
+    const contentTdMatch = /<td[^>]*class="[^"]*\bnd\b[^"]*"[^>]*>([\s\S]*?)<\/td>/i.exec(rowHtml);
+    if (!codeMatch || !contentTdMatch) continue;
+
+    const docCode = decodeHtmlEntities(codeMatch[1]).trim();
+    const contentHtml = contentTdMatch[1];
+    const pMatch = /<p[^>]*>([\s\S]*?)<\/p>/i.exec(contentHtml);
+    const summary = decodeHtmlEntities(pMatch ? pMatch[1] : contentHtml)
+      .replace(/\bXem chi tiết\b/gi, '')
+      .trim();
+
+    if (!docCode || !summary) continue;
+
+    const fieldMatch = /<td[^>]*class="[^"]*\blv\b[^"]*"[^>]*>([\s\S]*?)<\/td>/i.exec(rowHtml);
+    const explicitField = fieldMatch ? decodeHtmlEntities(fieldMatch[1]).trim() : '';
+
+    const dateMatch = /<td[^>]*class="[^"]*\bnbh\b[^"]*"[^>]*>([\s\S]*?)<\/td>/i.exec(rowHtml);
+    const issuedDate = dateMatch ? decodeHtmlEntities(dateMatch[1]).trim() : undefined;
+
+    const hrefMatch = /<a[^>]+href=['"]([^'"]+)['"]/i.exec(contentHtml);
+    const relHref = hrefMatch ? decodeHtmlEntities(hrefMatch[1]).trim() : '/van-ban-phap-luat.htm';
+    const detailUrl = relHref.startsWith('http')
+      ? relHref
+      : `https://mst.gov.vn${relHref.startsWith('/') ? '' : '/'}${relHref}`;
+
+    const sourceName = 'Bộ Khoa học & Công nghệ (mst.gov.vn)';
+    const classified = classifyVietnameseLegalDoc(
+      `${docCode} ${summary} ${explicitField}`,
+      docCode,
+      sourceName,
+    );
+    const sector = explicitField || classified.sector;
+    const publishedAt = parseVnDate(issuedDate, fallbackNow);
+
+    out.push({
+      id: `mst-vb:${docCode}`,
+      title: summary,
+      docCode: classified.docCode ?? docCode,
+      docType: classified.docType,
+      typeBadge: classified.typeBadge,
+      sector,
+      source: sourceName,
+      issuedDate,
+      publishedAt,
+      url: detailUrl,
+      isMost: true,
+      ...(classified.pillarResolution ? { pillarResolution: classified.pillarResolution } : {}),
+      highlights: buildStructuredHighlights({
+        title: summary,
+        docCode: classified.docCode ?? docCode,
+        typeBadge: classified.typeBadge,
+        sector,
+        issuedDate,
+        isMost: true,
+        pillarResolution: classified.pillarResolution,
+      }),
+    });
+
+    if (out.length >= 15) break;
   }
 
   return out;
@@ -303,6 +486,8 @@ export function parseCongBaoOrLegalRss(
   const entries = Array.isArray(rawItems) ? rawItems : rawItems ? [rawItems] : [];
 
   const out: PolicyLegalItem[] = [];
+  const isGoogleSearchFeed =
+    sourceName.startsWith('Google News') || sourceName.startsWith('Nghị quyết ');
 
   for (const entry of entries.slice(0, maxItems)) {
     const rawTitle = readXmlText(entry?.title);
@@ -310,8 +495,9 @@ export function parseCongBaoOrLegalRss(
 
     // Crucial: Công báo điện tử Chính phủ leaves <title></title> empty and puts full text in <description>!
     let title = rawTitle || rawDesc;
-    // Clean Google News trailing " - Publisher" suffix while keeping publisher context if helpful
-    title = title.replace(/\s+-\s+(VnExpress|Tuổi Trẻ|Thanh Niên|Báo Chính phủ|Thư Viện Pháp Luật|Dân trí).*$/i, '').trim();
+    if (isGoogleSearchFeed) {
+      title = title.replace(/\s+-\s+[^-]{2,42}$/, '').trim();
+    }
 
     const url = readXmlLink(entry?.link) || readXmlText(entry?.guid);
     if (!title || title.length < 12 || !url || !url.startsWith('http')) continue;
@@ -320,7 +506,7 @@ export function parseCongBaoOrLegalRss(
     const parsedTs = rawDate ? Date.parse(rawDate) : Number.NaN;
     const publishedAt = Number.isFinite(parsedTs) ? parsedTs : fallbackNow;
 
-    const classified = classifyVietnameseLegalDoc(`${title} ${rawDesc}`);
+    const classified = classifyVietnameseLegalDoc(`${title} ${rawDesc}`, undefined, sourceName);
 
     out.push({
       id: `legal:${sourceName}:${url}`,
@@ -332,12 +518,16 @@ export function parseCongBaoOrLegalRss(
       source: sourceName,
       publishedAt,
       url,
+      isMost: classified.isMost,
+      ...(classified.pillarResolution ? { pillarResolution: classified.pillarResolution } : {}),
       highlights: buildStructuredHighlights({
         title,
         description: rawDesc !== title ? rawDesc : undefined,
         docCode: classified.docCode,
         typeBadge: classified.typeBadge,
         sector: classified.sector,
+        isMost: classified.isMost,
+        pillarResolution: classified.pillarResolution,
       }),
     });
   }
@@ -427,8 +617,13 @@ async function maybeEnrichTopDecreesWithFreeAi(items: PolicyLegalItem[]): Promis
 export async function fetchVietnamPolicyLegal(): Promise<PolicyLegalSnapshot> {
   const now = Date.now();
 
-  const [vbHtmlRes, ...rssResults] = await Promise.allSettled([
+  const [vbHtmlRes, mstHtmlRes, ...rssResults] = await Promise.allSettled([
     fetchTextWithTimeout(VANBAN_CHINHPHU_LIST_URL, {
+      timeoutMs: 8_500,
+      retries: 0,
+      userAgent: DEFAULT_BROWSER_UA,
+    }),
+    fetchTextWithTimeout(MST_VANBAN_LIST_URL, {
       timeoutMs: 8_500,
       retries: 0,
       userAgent: DEFAULT_BROWSER_UA,
@@ -455,6 +650,14 @@ export async function fetchVietnamPolicyLegal(): Promise<PolicyLegalSnapshot> {
     }
   }
 
+  if (mstHtmlRes.status === 'fulfilled') {
+    const mstDocs = parseMstVanBanHtml(mstHtmlRes.value.text, now);
+    if (mstDocs.length > 0) {
+      activeSourceCount += 1;
+      collected.push(...mstDocs);
+    }
+  }
+
   for (const res of rssResults) {
     if (res.status === 'fulfilled' && res.value.length > 0) {
       activeSourceCount += 1;
@@ -466,13 +669,16 @@ export async function fetchVietnamPolicyLegal(): Promise<PolicyLegalSnapshot> {
     throw new Error('All Vietnam Policy & Legal Radar sources failed or timed out');
   }
 
-  // Deduplicate by docCode (preferring items with signed pdfUrl!) or normalized title/URL
+  // Deduplicate by official docCode or normalized URL/title while preferring signed PDF entries
   const byIdentity = new Map<string, PolicyLegalItem>();
   for (const item of collected) {
+    const isOfficialTable =
+      item.source === 'Hệ thống Văn bản Chính phủ' ||
+      item.source === 'Bộ Khoa học & Công nghệ (mst.gov.vn)';
     const key =
-      item.docCode && item.source === 'Hệ thống Văn bản Chính phủ'
+      item.docCode && isOfficialTable
         ? `official:${item.docCode}`
-        : `url:${item.url.split('?')[0].toLowerCase()}`;
+        : `title:${item.title.toLowerCase().slice(0, 90)}`;
     const existing = byIdentity.get(key);
     if (!existing || (!existing.pdfUrl && item.pdfUrl)) {
       byIdentity.set(key, item);
@@ -481,7 +687,7 @@ export async function fetchVietnamPolicyLegal(): Promise<PolicyLegalSnapshot> {
 
   const sorted = [...byIdentity.values()]
     .sort((a, b) => b.publishedAt - a.publishedAt)
-    .slice(0, 95);
+    .slice(0, 160);
 
   const enriched = await maybeEnrichTopDecreesWithFreeAi(sorted);
 

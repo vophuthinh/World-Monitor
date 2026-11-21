@@ -206,7 +206,8 @@ export function RightIntelPanel({
   const [newsQuery, setNewsQuery] = useState('');
   const [techFilter, setTechFilter] = useState<'all' | TechSubCategory>('all');
   const [techQuery, setTechQuery] = useState('');
-  const [legalFilter, setLegalFilter] = useState<'all' | LegalDocType>('all');
+  const [legalFilter, setLegalFilter] = useState<'all' | 'most' | LegalDocType>('all');
+  const [legalPillar, setLegalPillar] = useState<'57' | '59' | '66' | '68' | null>(null);
   const [legalQuery, setLegalQuery] = useState('');
   const [translateVi, setTranslateVi] = useState<boolean>(true);
 
@@ -321,10 +322,28 @@ export function RightIntelPanel({
 
   const policyItems = policyLegal?.items ?? [];
 
+  const mostPolicyCount = useMemo(
+    () => policyItems.filter((d) => d.isMost).length,
+    [policyItems],
+  );
+
+  const pillarCounts = useMemo(() => {
+    const counts = { '57': 0, '59': 0, '66': 0, '68': 0 };
+    for (const d of policyItems) {
+      if (d.pillarResolution) counts[d.pillarResolution] += 1;
+    }
+    return counts;
+  }, [policyItems]);
+
   const filteredPolicy = useMemo(() => {
     const q = legalQuery.trim().toLowerCase();
     return policyItems.filter((doc) => {
-      if (legalFilter !== 'all' && doc.docType !== legalFilter) return false;
+      if (legalPillar && doc.pillarResolution !== legalPillar) return false;
+      if (legalFilter === 'most') {
+        if (!doc.isMost) return false;
+      } else if (legalFilter !== 'all' && doc.docType !== legalFilter) {
+        return false;
+      }
       if (
         q &&
         !`${doc.title} ${doc.docCode ?? ''} ${doc.typeBadge} ${doc.sector} ${doc.source}`
@@ -335,7 +354,7 @@ export function RightIntelPanel({
       }
       return true;
     });
-  }, [policyItems, legalFilter, legalQuery]);
+  }, [policyItems, legalFilter, legalPillar, legalQuery]);
 
   return (
     <aside className="flex h-full w-full flex-col border-l border-slate-800/95 bg-[#090e18] lg:w-[454px] xl:w-[494px]">
@@ -1311,7 +1330,7 @@ export function RightIntelPanel({
         </div>
       )}
 
-      {/* Tab 4: Vietnam Policy & Legal Radar (Công báo, Văn bản Chính phủ PDF Dấu đỏ, NQ 57/66, Thư Viện Pháp Luật) */}
+      {/* Tab 4: Vietnam Policy & Legal Radar (Bộ tứ NQ 57·59·66·68, Bộ KH&CN mst.gov.vn, Công báo, Văn bản Chính phủ PDF Dấu đỏ) */}
       {activeTab === 'policy' && (
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="space-y-2 border-b border-slate-800/90 p-2.5">
@@ -1322,39 +1341,59 @@ export function RightIntelPanel({
                   POLICY &amp; LEGAL RADAR
                 </span>
                 <span className="text-slate-400">
-                  {policyLegal?.activeSourceCount ?? 9} nguồn Chính phủ &amp; Pháp luật
+                  {policyLegal?.activeSourceCount ?? 18} nguồn Chính phủ · Bộ KH&amp;CN · Bộ tứ NQ
                 </span>
               </div>
-              <span
-                className={`rounded px-1.5 py-0.5 font-semibold ${
-                  policyLegal?.aiSummaryEnabled
-                    ? 'bg-emerald-500/15 text-emerald-300'
-                    : 'bg-amber-500/15 text-amber-200'
-                }`}
-              >
-                {policyLegal?.aiSummaryEnabled ? 'AI TÓM TẮT 3 Ý' : 'REGEX + TRÍCH YẾU'}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={`rounded px-1.5 py-0.5 font-semibold ${
+                    policyLegal?.aiSummaryEnabled
+                      ? 'bg-emerald-500/15 text-emerald-300'
+                      : 'bg-amber-500/15 text-amber-200'
+                  }`}
+                >
+                  {policyLegal?.aiSummaryEnabled ? 'AI TÓM TẮT 3 Ý' : 'REGEX + TRÍCH YẾU'}
+                </span>
+                {onForceRefresh && (
+                  <button
+                    type="button"
+                    onClick={() => onForceRefresh('policy-legal')}
+                    title="Làm mới Chính sách & Văn bản Bộ KH&CN"
+                    className="inline-flex items-center rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-slate-300 hover:border-amber-400/50 hover:text-amber-200"
+                  >
+                    <ArrowsClockwise
+                      size={10}
+                      className={refreshingIds?.has('policy-legal') ? 'animate-spin text-amber-300' : ''}
+                    />
+                  </button>
+                )}
+              </div>
             </div>
 
-            {/* Legal Document Type Filter Pills */}
+            {/* Legal Document Type & Bộ KH&CN Filter Pills */}
             <div className="flex flex-wrap gap-1">
               {(
                 [
                   { id: 'all', label: `Tất cả (${policyItems.length})` },
-                  { id: 'nq_tw_cp', label: '⭐ Nghị quyết (NQ57/66/CP)' },
+                  { id: 'most', label: `🔬 Bộ KH&CN (${mostPolicyCount})` },
+                  { id: 'nq_tw_cp', label: '⭐ Nghị quyết (57·59·66·68)' },
                   { id: 'nghi_dinh', label: '📜 Nghị định (NĐ-CP)' },
-                  { id: 'luat_qh', label: '⚖️ Luật / Quốc hội' },
+                  { id: 'luat_qh', label: '⚖️ Luật / QH' },
                   { id: 'quyet_dinh_tt', label: '📋 QĐ / Thông tư' },
-                  { id: 'phan_tich', label: '🔍 Điểm mới' },
                 ] as const
               ).map((cat) => (
                 <button
                   key={cat.id}
                   type="button"
-                  onClick={() => setLegalFilter(cat.id)}
+                  onClick={() => {
+                    setLegalFilter(cat.id);
+                    if (cat.id === 'all') setLegalPillar(null);
+                  }}
                   className={`rounded px-2 py-1 text-[10.5px] font-medium transition ${
                     legalFilter === cat.id
-                      ? 'border border-amber-500/50 bg-amber-500/20 text-amber-200'
+                      ? cat.id === 'most'
+                        ? 'border border-violet-400/55 bg-violet-500/20 text-violet-200'
+                        : 'border border-amber-500/50 bg-amber-500/20 text-amber-200'
                       : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
                   }`}
                 >
@@ -1363,21 +1402,48 @@ export function RightIntelPanel({
               ))}
             </div>
 
-            {/* Quick Resolution/Topic Chips + Search */}
+            {/* Dedicated "Bộ tứ Nghị quyết Chiến lược: 57 · 59 · 66 · 68" + Quick Topic Chips */}
             <div className="flex flex-wrap items-center gap-1 font-mono text-[9.5px]">
-              <span className="text-slate-500">Theo dõi nhanh:</span>
-              {['57', '66', 'NĐ-CP', 'Chuyển đổi số', 'Thuế', 'Đất đai'].map((kw) => (
+              <span className="text-slate-500">Bộ tứ NQ:</span>
+              {(
+                [
+                  { id: '57', label: `NQ 57 · KHCN (${pillarCounts['57']})` },
+                  { id: '59', label: `NQ 59 · Hội nhập (${pillarCounts['59']})` },
+                  { id: '66', label: `NQ 66 · Pháp luật (${pillarCounts['66']})` },
+                  { id: '68', label: `NQ 68 · KT tư nhân (${pillarCounts['68']})` },
+                ] as const
+              ).map((pil) => (
+                <button
+                  key={pil.id}
+                  type="button"
+                  onClick={() => {
+                    setLegalFilter('all');
+                    setLegalPillar((prev) => (prev === pil.id ? null : pil.id));
+                  }}
+                  className={`rounded border px-1.5 py-0.5 font-semibold transition ${
+                    legalPillar === pil.id
+                      ? 'border-amber-400/70 bg-red-600/25 text-amber-200'
+                      : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-amber-500/40 hover:text-amber-200'
+                  }`}
+                >
+                  {pil.label}
+                </button>
+              ))}
+              {['TT-BKHCN', 'NĐ-CP', 'Chuyển đổi số', 'Thuế', 'Đất đai'].map((kw) => (
                 <button
                   key={kw}
                   type="button"
-                  onClick={() => setLegalQuery((prev) => (prev === kw ? '' : kw))}
+                  onClick={() => {
+                    setLegalPillar(null);
+                    setLegalQuery((prev) => (prev === kw ? '' : kw));
+                  }}
                   className={`rounded border px-1.5 py-0.5 transition ${
                     legalQuery === kw
-                      ? 'border-amber-400/60 bg-amber-500/20 text-amber-200'
+                      ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-200'
                       : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  {kw.match(/^\d+$/) ? `NQ ${kw}` : kw}
+                  {kw}
                 </button>
               ))}
             </div>
@@ -1391,7 +1457,7 @@ export function RightIntelPanel({
                 type="text"
                 value={legalQuery}
                 onChange={(e) => setLegalQuery(e.target.value)}
-                placeholder="Tìm số hiệu (416/2026/NĐ-CP, 57-NQ/TW), Nghị quyết 66, lĩnh vực..."
+                placeholder="Tìm NQ 57, NQ 59, NQ 66, NQ 68, TT-BKHCN, Bộ Khoa học & Công nghệ..."
                 aria-label="Tìm văn bản pháp luật"
                 className="w-full rounded border border-slate-800 bg-[#0d1524] py-1 pl-7 pr-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
               />
@@ -1402,7 +1468,7 @@ export function RightIntelPanel({
             {filteredPolicy.length === 0 ? (
               <div className="py-10 text-center text-xs text-slate-400">
                 {policyItems.length === 0
-                  ? 'Đang đồng bộ Công báo điện tử, Hệ thống Văn bản Chính phủ & Thư Viện Pháp Luật...'
+                  ? 'Đang đồng bộ Công báo điện tử, Bộ KH&CN (mst.gov.vn) & Bộ tứ Nghị quyết 57·59·66·68...'
                   : 'Không có văn bản nào khớp điều kiện lọc.'}
               </div>
             ) : (
@@ -1416,6 +1482,11 @@ export function RightIntelPanel({
                       {doc.docCode && (
                         <span className="shrink-0 rounded border border-cyan-500/40 bg-cyan-500/12 px-1.5 py-0.2 font-semibold text-cyan-200">
                           {doc.docCode}
+                        </span>
+                      )}
+                      {doc.isMost && (
+                        <span className="shrink-0 rounded border border-violet-500/45 bg-violet-500/20 px-1.5 py-0.2 font-bold text-violet-200">
+                          BỘ KH&amp;CN
                         </span>
                       )}
                       <span className="truncate text-[9.5px] text-slate-400">{doc.source}</span>

@@ -84,7 +84,10 @@ export const TECH_CYBER_FEEDS: readonly TechFeedDefinition[] = [
   { name: 'Tech in Asia', subCategory: 'tech_infra', url: 'https://www.techinasia.com/feed', maxItems: 3 },
   { name: 'Rest of World Tech', subCategory: 'tech_infra', url: 'https://restofworld.org/feed/latest/', maxItems: 3 },
 
-  // 4. Báo Công nghệ & Chuyển đổi số Việt Nam (6 feeds)
+  // 4. Bộ Khoa học & Công nghệ + Báo Công nghệ & Chuyển đổi số Việt Nam (9 feeds)
+  { name: 'Bộ KH&CN (mst.gov.vn)', subCategory: 'vn_tech', url: 'https://mst.gov.vn/rss/home.rss', maxItems: 6 },
+  { name: 'Bộ KH&CN Chính sách', subCategory: 'vn_tech', url: 'https://mst.gov.vn/rss/tieu-diem-chinh-sach.rss', maxItems: 5 },
+  { name: 'Tạp chí Tia Sáng (Bộ KH&CN)', subCategory: 'vn_tech', url: 'https://tiasang.com.vn/rss/khoa-hoc-cong-nghe.rss', maxItems: 5 },
   { name: 'VnExpress Số hóa', subCategory: 'vn_tech', url: 'https://vnexpress.net/rss/so-hoa.rss', maxItems: 5 },
   { name: 'VnExpress KH-CN', subCategory: 'vn_tech', url: 'https://vnexpress.net/rss/khoa-hoc-cong-nghe.rss', maxItems: 5 },
   { name: 'Tuổi Trẻ Công nghệ', subCategory: 'vn_tech', url: 'https://tuoitre.vn/rss/nhip-song-so.rss', maxItems: 5 },

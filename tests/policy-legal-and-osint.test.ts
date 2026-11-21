@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   classifyVietnameseLegalDoc,
   parseCongBaoOrLegalRss,
+  parseMstVanBanHtml,
   parseVanBanChinhPhuHtml,
 } from '../server/collectors/vietnam-policy-legal';
 import {
@@ -26,6 +27,27 @@ describe('Vietnam Policy & Legal Radar + Open OSINT (SNAPI, Reddit JSON, Google 
     expect(nq57.docType).toBe('nq_tw_cp');
     expect(nq57.typeBadge).toBe('NGHỊ QUYẾT TW');
 
+    const nq59 = classifyVietnameseLegalDoc(
+      'Quán triệt Nghị quyết 59 của Bộ Chính trị về hội nhập quốc tế trong tình hình mới',
+    );
+    expect(nq59.docCode).toBe('59-NQ/TW');
+    expect(nq59.docType).toBe('nq_tw_cp');
+    expect(nq59.typeBadge).toBe('NGHỊ QUYẾT TW');
+    expect(nq59.sector).toContain('Hội nhập');
+
+    const nq66Tw = classifyVietnameseLegalDoc(
+      'Triển khai Nghị quyết 66 về đổi mới công tác xây dựng và thi hành pháp luật',
+    );
+    expect(nq66Tw.docCode).toBe('66-NQ/TW');
+    expect(nq66Tw.typeBadge).toBe('NGHỊ QUYẾT TW');
+
+    const nq68 = classifyVietnameseLegalDoc(
+      'Nghị quyết 68 tạo đột phá phát triển kinh tế tư nhân trở thành động lực quan trọng nhất',
+    );
+    expect(nq68.docCode).toBe('68-NQ/TW');
+    expect(nq68.typeBadge).toBe('NGHỊ QUYẾT TW');
+    expect(nq68.sector).toContain('Kinh tế tư nhân');
+
     const nqCp = classifyVietnameseLegalDoc('Nghị quyết 66/NQ-CP chương trình cắt giảm thủ tục hành chính');
     expect(nqCp.docCode).toBe('66/NQ-CP');
     expect(nqCp.docType).toBe('nq_tw_cp');
@@ -33,6 +55,33 @@ describe('Vietnam Policy & Legal Radar + Open OSINT (SNAPI, Reddit JSON, Google 
     const luat = classifyVietnameseLegalDoc('Luật số 136/2024/QH15 sửa đổi Luật Đất đai');
     expect(luat.docCode).toBe('136/2024/QH15');
     expect(luat.docType).toBe('luat_qh');
+  });
+
+  it('parses Bộ Khoa học và Công nghệ (mst.gov.vn/van-ban-phap-luat.htm) HTML table rows cleanly', () => {
+    const mstHtml = `
+      <table class="table">
+        <tr class="row">
+          <td class="sh">68/2026/TT-BKHCN</td>
+          <td class="cq">Bộ Khoa học và Công nghệ</td>
+          <td class="ht">Thông tư</td>
+          <td class="lv">Công nghệ chiến lược</td>
+          <td class="nd">
+            <p>Thông tư quy định tiêu chí lựa chọn phòng thí nghiệm trọng điểm quốc gia tập trung cho công nghệ chiến lược</p>
+            <a href="/van-ban-phap-luat/25581.htm" class="view-more">Xem chi tiết</a>
+          </td>
+          <td class="nbh">12/11/2026</td>
+        </tr>
+      </table>
+    `;
+    const docs = parseMstVanBanHtml(mstHtml);
+    expect(docs).toHaveLength(1);
+    expect(docs[0].docCode).toBe('68/2026/TT-BKHCN');
+    expect(docs[0].docType).toBe('quyet_dinh_tt');
+    expect(docs[0].typeBadge).toBe('THÔNG TƯ');
+    expect(docs[0].source).toContain('Bộ Khoa học & Công nghệ');
+    expect(docs[0].issuedDate).toBe('12/11/2026');
+    expect(docs[0].url).toBe('https://mst.gov.vn/van-ban-phap-luat/25581.htm');
+    expect(docs[0].isMost).toBe(true);
   });
 
   it('parses vanban.chinhphu.vn HTML table rows including official code, summary, and signed PDF URL', () => {
