@@ -1,4 +1,6 @@
+import { getConnInfo } from '@hono/node-server/conninfo';
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { compress } from 'hono/compress';
 import { cors } from 'hono/cors';
 import { THEATER_PRESETS, buildStaticGeoBundle } from '@shared/registries/index';
@@ -47,6 +49,31 @@ function resolveAllowedOrigin(origin: string): string | null {
   return extra.includes(origin) ? origin : null;
 }
 
+function allowedHostnames(): Set<string> {
+  const hosts = new Set(['localhost', '127.0.0.1', '[::1]']);
+  for (const o of (process.env.ALLOWED_ORIGINS ?? '').split(',')) {
+    try {
+      hosts.add(new URL(o.trim()).hostname);
+    } catch {
+      // ignore malformed entry
+    }
+  }
+  return hosts;
+}
+
+/** Socket address by default; X-Forwarded-For only when TRUST_PROXY=1 (header is client-controlled otherwise). */
+function clientIpOf(c: Context): string {
+  if (process.env.TRUST_PROXY === '1') {
+    const fwd = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip');
+    if (fwd) return fwd;
+  }
+  try {
+    return getConnInfo(c).remote.address ?? 'local';
+  } catch {
+    return 'local';
+  }
+}
+
 export function createApp(
   scheduler: CollectorScheduler,
   hub: RealtimeHub = new RealtimeHub(),
@@ -62,6 +89,29 @@ export function createApp(
   const store = scheduler.getStore();
   let lastSitrepRefreshMs = 0;
   const policySummaryBuckets = new Map<string, number[]>();
+
+  // Anti DNS-rebinding: only answer for known Host names.
+  app.use('/api/*', async (c, next) => {
+    if (!allowedHostnames().has(new URL(c.req.url).hostname)) {
+      return c.json({ error: 'Host not allowed' }, 403);
+    }
+    await next();
+  });
+
+  // Anti CSRF: browsers always send Origin on cross-origin writes. CORS only hides responses,
+  // it does not stop a simple POST from executing, so reject untrusted write origins here.
+  app.use('/api/*', async (c, next) => {
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) {
+      const origin = c.req.header('origin');
+      if (origin && !resolveAllowedOrigin(origin)) {
+        return c.json({ error: 'Origin not allowed' }, 403);
+      }
+      if (c.req.header('sec-fetch-site') === 'cross-site') {
+        return c.json({ error: 'Cross-site request blocked' }, 403);
+      }
+    }
+    await next();
+  });
 
   app.use(
     '/api/*',
@@ -187,10 +237,7 @@ export function createApp(
   app.post('/api/ai-ask', async (c) => {
     try {
       const body = (await c.req.json()) as { question?: string };
-      const clientIp =
-        c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
-        c.req.header('x-real-ip') ||
-        'local';
+      const clientIp = clientIpOf(c);
       const res = await answerMonitorQuestion(String(body?.question ?? ''), store, clientIp);
       return c.json(res);
     } catch (err) {
@@ -203,22 +250,13 @@ export function createApp(
 
   app.post('/api/policy-summarize', async (c) => {
     try {
-      const body = (await c.req.json()) as {
-        id?: string;
-        title?: string;
-        docCode?: string;
-        sector?: string;
-        source?: string;
-      };
-      if (!body?.id || !body?.title) {
-        return c.json({ error: 'Thiếu thông tin văn bản cần tóm tắt' }, 400);
+      const body = (await c.req.json()) as { id?: string };
+      if (typeof body?.id !== 'string' || !body.id || body.id.length > 200) {
+        return c.json({ error: 'Thiếu mã văn bản cần tóm tắt' }, 400);
       }
 
       const now = Date.now();
-      const clientIp =
-        c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
-        c.req.header('x-real-ip') ||
-        'local';
+      const clientIp = clientIpOf(c);
       const windowMs = 60_000;
       const recent = (policySummaryBuckets.get(clientIp) ?? []).filter((t) => now - t < windowMs);
       if (recent.length >= 6) {
@@ -238,15 +276,22 @@ export function createApp(
         if (firstKey) policySummaryBuckets.delete(firstKey);
       }
 
+      // Never trust client-supplied title/docCode: they feed the AI prompt and the result is
+      // persisted on the item, so take them from the server-side snapshot by id.
+      const currentPolicy = store.get<PolicyLegalSnapshot>('policy-legal');
+      const target = currentPolicy?.items.find((item) => item.id === body.id);
+      if (!currentPolicy || !target) {
+        return c.json({ error: 'Không tìm thấy văn bản' }, 404);
+      }
+
       const summary = await summarizeSinglePolicyItemWithAi({
-        id: body.id,
-        title: body.title,
-        docCode: body.docCode,
-        sector: body.sector,
-        source: body.source,
+        id: target.id,
+        title: target.title,
+        docCode: target.docCode,
+        sector: target.sector,
+        source: target.source,
       });
 
-      const currentPolicy = store.get<PolicyLegalSnapshot>('policy-legal');
       if (currentPolicy) {
         const updatedPolicy: PolicyLegalSnapshot = {
           ...currentPolicy,

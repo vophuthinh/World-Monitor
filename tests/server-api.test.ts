@@ -137,17 +137,54 @@ describe('Hono Backend API Routes', () => {
     for (let i = 0; i < 6; i++) {
       const r = await app.request('/api/policy-summarize', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-real-ip': '10.0.0.42' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: `doc-${i}`, title: `Nghị quyết ${i}` }),
       });
-      expect([200, 400]).toContain(r.status);
+      expect([200, 400, 404]).toContain(r.status);
     }
 
     const throttledPolicy = await app.request('/api/policy-summarize', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-real-ip': '10.0.0.42' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: 'doc-overflow', title: 'Nghị quyết tràn hạn mức' }),
     });
     expect(throttledPolicy.status).toBe(429);
+  });
+
+  it('blocks cross-origin writes (CSRF) and unknown Host names (DNS rebinding)', async () => {
+    const app = createApp(scheduler);
+
+    const evilOrigin = await app.request('/api/refresh/earthquakes', {
+      method: 'POST',
+      headers: { Origin: 'https://evil.example.com' },
+    });
+    expect(evilOrigin.status).toBe(403);
+
+    const crossSite = await app.request('/api/refresh/earthquakes', {
+      method: 'POST',
+      headers: { 'Sec-Fetch-Site': 'cross-site' },
+    });
+    expect(crossSite.status).toBe(403);
+
+    const rebinding = await app.request('http://evil.example.com:8787/api/health');
+    expect(rebinding.status).toBe(403);
+
+    const trusted = await app.request('/api/refresh/earthquakes', {
+      method: 'POST',
+      headers: { Origin: 'http://localhost:5173' },
+    });
+    expect(trusted.status).toBe(200);
+  });
+
+  it('ignores spoofed X-Forwarded-For for rate limits and never trusts client-supplied policy title', async () => {
+    const app = createApp(scheduler);
+    const post = (i: number) =>
+      app.request('/api/policy-summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-forwarded-for': `1.2.3.${i}` },
+        body: JSON.stringify({ id: `missing-${i}`, title: 'injected title' }),
+      });
+    for (let i = 0; i < 6; i++) expect((await post(i)).status).toBe(404);
+    expect((await post(99)).status).toBe(429);
   });
 });

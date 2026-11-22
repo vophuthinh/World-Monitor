@@ -21,13 +21,13 @@ Project: `/Users/vophuthinh/Code/worldmonitor` — independent World Monitor. Ca
 `military-flights` (adsb.fi/adsb.lol failover), `maritime-vessels` (AISStream), `cyber-threats`, `gps-outages`, `earthquakes` (USGS), `natural-events` (EONET+GDACS), `geopolitics-gdelt`, `weather-radar`, `vietnam-env`, `markets-crypto`, `macro-worldbank`, `polymarket`, `google-trends`, `rss-news`, `tech-cyber`, `policy-legal`, `hpt-intel`, `ai-sitrep`. Intervals 30s–6h; tuned to avoid 429s — do not shorten without checking.
 
 ## API (all under `/api`)
-`GET /stream` (SSE), `/health`, `/bootstrap`, `/live-fast`, `/ioc-lookup`, `/ai-sitrep`; `POST /ai-sitrep/refresh`, `/ai-ask`, `/policy-summarize`, `/refresh/:collectorName`. AI and refresh endpoints are rate-limited. CORS whitelist: localhost origins + `ALLOWED_ORIGINS`.
+`GET /stream` (SSE), `/health`, `/bootstrap`, `/live-fast`, `/ioc-lookup`, `/ai-sitrep`; `POST /ai-sitrep/refresh`, `/ai-ask`, `/policy-summarize`, `/refresh/:collectorName`. AI and refresh endpoints are rate-limited. Guards on `/api/*`: Host allowlist (anti DNS-rebinding), Origin/`Sec-Fetch-Site` check on writes (anti CSRF), CORS whitelist (localhost + `ALLOWED_ORIGINS`). Client IP = socket address; `X-Forwarded-For` only trusted with `TRUST_PROXY=1`. `/policy-summarize` takes only `id` and reads title from the server snapshot.
 
 ## Right panel tabs
 `intel` (Live Intel), `techCyber`, `news`, `policy` (Vietnam policy/legal), `markets` (markets + Macro Health + Investment Compass), `hpt` (HPT Corporate Radar; alerts via Telegram run headless from `.env`, no UI config).
 
 ## Env (`.env`, optional — app runs without any)
-`AISSTREAM_API_KEY`, `GROQ_API_KEY`, `GEMINI_API_KEY`, `FRED_API_KEY`, `NASA_FIRMS_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `PORT`, `HOST`, `ALLOWED_ORIGINS`. Never commit `.env`.
+`AISSTREAM_API_KEY`, `GROQ_API_KEY`, `GEMINI_API_KEY`, `FRED_API_KEY`, `NASA_FIRMS_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `PORT`, `HOST`, `ALLOWED_ORIGINS` (also extends allowed Host names), `TRUST_PROXY`. Never commit `.env`.
 
 ## Commands
 `npm run dev` · `npm test` · `npm run typecheck` · `npm run build` · `npm start`. Verify with typecheck + tests + build before claiming done.
