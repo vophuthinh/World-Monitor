@@ -2,6 +2,7 @@ import { getConnInfo } from '@hono/node-server/conninfo';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { compress } from 'hono/compress';
+import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { THEATER_PRESETS, buildStaticGeoBundle } from '@shared/registries/index';
 import type {
@@ -89,6 +90,16 @@ export function createApp(
   const store = scheduler.getStore();
   let lastSitrepRefreshMs = 0;
   const policySummaryBuckets = new Map<string, number[]>();
+  const SITREP_COOLDOWN_MS = 20_000;
+  /** One shared cooldown for every path that triggers an AI sitrep call. */
+  const claimSitrep = (): { ok: boolean; retryAfterMs: number } => {
+    const now = Date.now();
+    if (now - lastSitrepRefreshMs < SITREP_COOLDOWN_MS) {
+      return { ok: false, retryAfterMs: SITREP_COOLDOWN_MS - (now - lastSitrepRefreshMs) };
+    }
+    lastSitrepRefreshMs = now;
+    return { ok: true, retryAfterMs: 0 };
+  };
 
   // Anti DNS-rebinding: only answer for known Host names.
   app.use('/api/*', async (c, next) => {
@@ -112,6 +123,9 @@ export function createApp(
     }
     await next();
   });
+
+  // All JSON bodies here are tiny (question <= 400 chars, a doc id).
+  app.use('/api/*', bodyLimit({ maxSize: 16 * 1024, onError: (c) => c.json({ error: 'Payload too large' }, 413) }));
 
   app.use(
     '/api/*',
@@ -217,18 +231,16 @@ export function createApp(
   });
 
   app.post('/api/ai-sitrep/refresh', async (c) => {
-    const now = Date.now();
-    const sitrepCooldownMs = 20_000;
-    if (now - lastSitrepRefreshMs < sitrepCooldownMs) {
+    const claim = claimSitrep();
+    if (!claim.ok) {
       return c.json(
         {
           error: 'Bản tin AI Sitrep vừa mới cập nhật, vui lòng đợi ít giây.',
-          retryAfterMs: sitrepCooldownMs - (now - lastSitrepRefreshMs),
+          retryAfterMs: claim.retryAfterMs,
         },
         429,
       );
     }
-    lastSitrepRefreshMs = now;
     const sitrep = await generateAiSitrep(store, true);
     store.set('ai-sitrep', sitrep, 2 * 3_600_000, sitrep.bullets.length);
     return c.json(sitrep);
@@ -292,17 +304,14 @@ export function createApp(
         source: target.source,
       });
 
-      if (currentPolicy) {
-        const updatedPolicy: PolicyLegalSnapshot = {
-          ...currentPolicy,
-          items: currentPolicy.items.map((item) =>
-            item.id === summary.id
-              ? { ...item, highlights: summary.highlights, aiSummarized: true }
-              : item,
-          ),
-        };
-        store.set('policy-legal', updatedPolicy, 12 * 3_600_000, updatedPolicy.items.length);
-      }
+      const latestPolicy = store.get<PolicyLegalSnapshot>('policy-legal') ?? currentPolicy;
+      const updatedPolicy: PolicyLegalSnapshot = {
+        ...latestPolicy,
+        items: latestPolicy.items.map((item) =>
+          item.id === summary.id ? { ...item, highlights: summary.highlights, aiSummarized: true } : item,
+        ),
+      };
+      store.set('policy-legal', updatedPolicy, 12 * 3_600_000, updatedPolicy.items.length);
 
       return c.json(summary);
     } catch (err) {
@@ -430,6 +439,16 @@ export function createApp(
 
     if (!scheduler.hasCollector(name)) {
       return c.json({ error: `Unknown collector "${name}"` }, 404);
+    }
+
+    if (name === 'ai-sitrep') {
+      const sitrepClaim = claimSitrep();
+      if (!sitrepClaim.ok) {
+        return c.json(
+          { error: 'AI sitrep cooldown active', retryAfterMs: sitrepClaim.retryAfterMs },
+          429,
+        );
+      }
     }
 
     const claim = store.tryClaimForceRefresh(name);

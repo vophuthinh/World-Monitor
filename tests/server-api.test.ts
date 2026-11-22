@@ -187,4 +187,26 @@ describe('Hono Backend API Routes', () => {
     for (let i = 0; i < 6; i++) expect((await post(i)).status).toBe(404);
     expect((await post(99)).status).toBe(429);
   });
+
+  it('shares the AI sitrep cooldown between /api/ai-sitrep/refresh and /api/refresh/ai-sitrep, and caps body size', async () => {
+    scheduler.registerCollector({
+      id: 'ai-sitrep',
+      label: 'AI Sitrep',
+      intervalMs: 900_000,
+      retainMs: 7_200_000,
+      countItems: () => 1,
+      fetcher: async () => ({ bullets: ['x'] }) as never,
+    });
+    const app = createApp(scheduler);
+
+    expect((await app.request('/api/ai-sitrep/refresh', { method: 'POST' })).status).toBe(200);
+    expect((await app.request('/api/refresh/ai-sitrep', { method: 'POST' })).status).toBe(429);
+
+    const big = await app.request('/api/ai-ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: 'x'.repeat(40_000) }),
+    });
+    expect(big.status).toBe(413);
+  });
 });
