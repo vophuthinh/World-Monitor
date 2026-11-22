@@ -3,6 +3,12 @@ import { NAMED_APP_UA, fetchJsonWithTimeout, fetchTextWithTimeout } from '../lib
 
 const EONET_URL = 'https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=100';
 const GDACS_MAP_URL = 'https://www.gdacs.org/gdacsapi/api/events/geteventlist/MAP';
+const NWS_SEVERE_ALERTS_URL =
+  'https://api.weather.gov/alerts/active?status=actual&severity=Extreme,Severe';
+const NOAA_NHC_FEEDS = [
+  'https://www.nhc.noaa.gov/index-at.xml',
+  'https://www.nhc.noaa.gov/index-ep.xml',
+] as const;
 const NASA_FIRMS_SEA_MODIS_URL =
   'https://firms.modaps.eosdis.nasa.gov/data/active_fire/modis-c6.1/csv/MODIS_C6_1_SouthEast_Asia_24h.csv';
 const WILDFIRE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
@@ -342,9 +348,123 @@ async function fetchNasaFirmsHotspots(now: number): Promise<GeoPointFeature[]> {
   return parseNasaFirmsCsv(res.text, now, 36, 'ĐNÁ');
 }
 
+export interface NwsAlertsGeoJsonPayload {
+  features?: Array<{
+    id?: string;
+    geometry?: {
+      type?: string;
+      coordinates?: unknown;
+    } | null;
+    properties?: {
+      id?: string;
+      event?: string;
+      headline?: string;
+      severity?: string;
+      areaDesc?: string;
+      sent?: string;
+      web?: string;
+    };
+  }>;
+}
+
+export function normalizeNwsWeatherAlerts(
+  payload: NwsAlertsGeoJsonPayload,
+  now = Date.now(),
+  maxAlerts = 18,
+): GeoPointFeature[] {
+  const features = payload?.features;
+  if (!Array.isArray(features)) return [];
+
+  const out: GeoPointFeature[] = [];
+  for (const feat of features) {
+    const props = feat?.properties;
+    if (!props?.event || !feat.geometry) continue;
+
+    const coords = extractCoordinates(feat.geometry.type, feat.geometry.coordinates);
+    if (!coords) continue;
+
+    const [lon, lat] = coords;
+    const isExtreme = String(props.severity ?? '').toLowerCase() === 'extreme';
+    const ts = props.sent ? Date.parse(props.sent) : now;
+    const areaShort = (props.areaDesc ?? '').split(';').slice(0, 2).join(', ').trim();
+
+    out.push({
+      id: `nws:${props.id ?? feat.id ?? `${lat.toFixed(2)}:${lon.toFixed(2)}`}`,
+      layer: 'natural',
+      title: `NWS ${props.event}${areaShort ? ` — ${areaShort}` : ''}`,
+      subtitle: props.headline || `NOAA Weather.gov · ${props.severity ?? 'Severe'}`,
+      category: /flood/i.test(props.event) ? 'floods' : 'severeStorms',
+      severity: isExtreme ? 'critical' : 'high',
+      lat,
+      lon,
+      timestamp: Number.isFinite(ts) ? ts : now,
+      source: 'NOAA NWS Weather.gov',
+      url: props.web || 'https://www.weather.gov',
+      meta: {
+        provider: 'NWS Weather.gov',
+        event: props.event,
+        severity: props.severity ?? 'Severe',
+        area: areaShort || null,
+      },
+    });
+
+    if (out.length >= maxAlerts) break;
+  }
+
+  return out;
+}
+
+export function parseNoaaNhcCycloneRss(xml: string, now = Date.now()): GeoPointFeature[] {
+  if (!xml) return [];
+  const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)];
+  const out: GeoPointFeature[] = [];
+
+  for (const m of items) {
+    const block = m[1];
+    const centerRaw = block.match(/<nhc:center>([^<]+)<\/nhc:center>/i)?.[1]?.trim();
+    if (!centerRaw) continue;
+
+    const parts = centerRaw.split(/[,\s]+/).map(Number);
+    if (parts.length < 2 || !Number.isFinite(parts[0]) || !Number.isFinite(parts[1])) continue;
+    const [lat, lon] = parts;
+
+    const name = block.match(/<nhc:name>([^<]+)<\/nhc:name>/i)?.[1]?.trim() || 'Tropical Cyclone';
+    const cycType = block.match(/<nhc:type>([^<]+)<\/nhc:type>/i)?.[1]?.trim() || 'Cyclone';
+    const windMph = Number(block.match(/<nhc:wind>([^<]+)<\/nhc:wind>/i)?.[1]?.trim() ?? 0);
+    const pressure = block.match(/<nhc:pressure>([^<]+)<\/nhc:pressure>/i)?.[1]?.trim() ?? '';
+    const link = block.match(/<link>([^<]+)<\/link>/i)?.[1]?.trim() || 'https://www.nhc.noaa.gov/';
+    const pubDate = block.match(/<pubDate>([^<]+)<\/pubDate>/i)?.[1]?.trim();
+    const ts = pubDate ? Date.parse(pubDate) : now;
+
+    out.push({
+      id: `nhc:${name.toLowerCase().replace(/\s+/g, '-')}`,
+      layer: 'natural',
+      title: `${cycType} ${name}${windMph > 0 ? ` (${windMph} mph)` : ''}`,
+      subtitle: `NOAA NHC · Tâm bão ${lat.toFixed(1)}°, ${lon.toFixed(1)}°${pressure ? ` · Áp suất ${pressure}` : ''}`,
+      category: 'severeStorms',
+      severity: windMph >= 74 ? 'critical' : 'high',
+      lat,
+      lon,
+      timestamp: Number.isFinite(ts) ? ts : now,
+      source: 'NOAA National Hurricane Center',
+      url: link,
+      magnitude: windMph > 0 ? windMph : undefined,
+      meta: {
+        provider: 'NOAA NHC',
+        cycloneName: name,
+        cycloneType: cycType,
+        maxWindMph: windMph || null,
+        centralPressure: pressure || null,
+      },
+    });
+  }
+
+  return out;
+}
+
 export async function fetchNaturalEvents(): Promise<GeoPointFeature[]> {
   const now = Date.now();
-  const [eonetRes, gdacsRes, firmsRes] = await Promise.allSettled([
+  const [eonetRes, gdacsRes, firmsRes, nwsRes, ...nhcResults] = await Promise.allSettled([
     fetchJsonWithTimeout<EonetPayload>(EONET_URL, {
       timeoutMs: 12_000,
       retries: 1,
@@ -357,16 +477,39 @@ export async function fetchNaturalEvents(): Promise<GeoPointFeature[]> {
       userAgent: NAMED_APP_UA,
     }).then((data) => normalizeGdacsEvents(data, now)),
     fetchNasaFirmsHotspots(now),
+    fetchJsonWithTimeout<NwsAlertsGeoJsonPayload>(NWS_SEVERE_ALERTS_URL, {
+      timeoutMs: 10_000,
+      retries: 0,
+      userAgent: '(WorldMonitorVN/1.0, contact@worldmonitor.vn)',
+      headers: { Accept: 'application/geo+json' },
+    }).then((data) => normalizeNwsWeatherAlerts(data, now, 16)),
+    ...NOAA_NHC_FEEDS.map((url) =>
+      fetchTextWithTimeout(url, { timeoutMs: 8_000, retries: 0, userAgent: NAMED_APP_UA }).then(
+        (r) => parseNoaaNhcCycloneRss(r.text, now),
+      ),
+    ),
   ]);
 
-  if (eonetRes.status === 'rejected' && gdacsRes.status === 'rejected' && firmsRes.status === 'rejected') {
+  if (
+    eonetRes.status === 'rejected' &&
+    gdacsRes.status === 'rejected' &&
+    firmsRes.status === 'rejected' &&
+    nwsRes.status === 'rejected'
+  ) {
     throw new Error(
       `Natural event sources failed: EONET=${eonetRes.reason?.message ?? eonetRes.reason}; GDACS=${gdacsRes.reason?.message ?? gdacsRes.reason}`,
     );
   }
 
+  const nhcFeatures: GeoPointFeature[] = [];
+  for (const r of nhcResults) {
+    if (r.status === 'fulfilled') nhcFeatures.push(...r.value);
+  }
+
   const merged = [
+    ...nhcFeatures,
     ...(gdacsRes.status === 'fulfilled' ? gdacsRes.value : []),
+    ...(nwsRes.status === 'fulfilled' ? nwsRes.value : []),
     ...(eonetRes.status === 'fulfilled' ? eonetRes.value : []),
     ...(firmsRes.status === 'fulfilled' ? firmsRes.value : []),
   ];

@@ -121,6 +121,7 @@ export interface WeatherRadarFrame {
   time: number; // Unix seconds
   path: string;
   tileUrlTemplate: string;
+  isForecast?: boolean;
 }
 
 export interface WeatherRadarSnapshot {
@@ -313,9 +314,19 @@ export interface VietnamEnvLocation {
   lat: number;
   lon: number;
   tempC: number;
+  tempMinC?: number;
+  tempMaxC?: number;
+  humidityPct?: number;
+  precipMm?: number;
+  rainProbPct?: number;
+  uvIndex?: number;
   windKmh: number;
   windGustKmh: number;
+  windDirDeg?: number;
+  windDirLabel?: string;
   beaufortScale: number;
+  waveHeightM?: number;
+  wavePeriodS?: number;
   weatherCode: number;
   weatherLabel: string;
   stormWarning: boolean;
@@ -324,9 +335,21 @@ export interface VietnamEnvLocation {
   aqiBand?: AqiBand;
 }
 
+export interface VietnamWeatherAlert {
+  id: string;
+  title: string;
+  badge: string;
+  severity: 'critical' | 'high' | 'medium';
+  source: string;
+  publishedAt: number;
+  url: string;
+}
+
 export interface VietnamEnvSnapshot {
   locations: VietnamEnvLocation[];
+  alerts?: VietnamWeatherAlert[];
   maxSeaGustKmh: number;
+  maxWaveHeightM?: number;
   worstAqiCity?: string;
   worstAqi?: number;
   updatedAt: number;

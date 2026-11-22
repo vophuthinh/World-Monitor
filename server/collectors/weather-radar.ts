@@ -28,20 +28,33 @@ export function normalizeRainViewerRadar(
       time: f.time,
       path: f.path,
       tileUrlTemplate: `${host}${f.path}/256/{z}/{x}/{y}/6/1_1.png`,
+      isForecast: false,
     }));
 
   if (pastFrames.length === 0) {
     throw new Error('RainViewer radar.past contained no valid frames');
   }
 
+  const nowcastFrames: WeatherRadarFrame[] = (payload?.radar?.nowcast ?? [])
+    .filter((f): f is { time: number; path: string } => typeof f?.time === 'number' && typeof f?.path === 'string' && f.path.length > 0)
+    .slice(0, 3)
+    .map((f) => ({
+      time: f.time,
+      path: f.path,
+      tileUrlTemplate: `${host}${f.path}/256/{z}/{x}/{y}/6/1_1.png`,
+      isForecast: true,
+    }));
+
   const latest = pastFrames[pastFrames.length - 1];
+  const timelineFrames = [...pastFrames.slice(-8), ...nowcastFrames];
+
   return {
     host,
     path: latest.path,
     tileUrlTemplate: latest.tileUrlTemplate,
     frameTime: latest.time,
     generatedAt: payload.generated ? payload.generated * 1000 : now,
-    pastFrames: pastFrames.slice(-6),
+    pastFrames: timelineFrames,
   };
 }
 

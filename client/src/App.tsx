@@ -3,7 +3,7 @@ import { ArrowsClockwise, SidebarSimple, WarningDiamond } from '@phosphor-icons/
 import type { BasemapTheme, TheaterViewPreset } from '@shared/types';
 import { FeatureInspector } from './components/FeatureInspector';
 import { LayerControlDock } from './components/LayerControlDock';
-import { LiveAlertStack, LiveTvPipWindow } from './components/LiveOverlays';
+import { LiveAlertStack, LiveTvPipWindow, WindyWeatherWindow } from './components/LiveOverlays';
 import { RightIntelPanel } from './components/RightIntelPanel';
 import { TopCommandBar } from './components/TopCommandBar';
 import { WorldMap } from './components/WorldMap';
@@ -55,6 +55,39 @@ export function App() {
   const [mobileIntelOpen, setMobileIntelOpen] = useState<boolean>(false);
   const [desktopIntelOpen, setDesktopIntelOpen] = useState<boolean>(true);
   const [liveTvOpen, setLiveTvOpen] = useState<boolean>(false);
+  const [windyOpen, setWindyOpen] = useState<boolean>(false);
+  const [radarPlaying, setRadarPlaying] = useState<boolean>(false);
+  const [radarFrameIndex, setRadarFrameIndex] = useState<number>(-1);
+
+  const radarFrames = data?.weatherRadar?.pastFrames ?? [];
+  const defaultRadarIdx = Math.max(
+    0,
+    radarFrames.reduce((lastPast, f, idx) => (!f.isForecast ? idx : lastPast), 0),
+  );
+  const resolvedRadarIdx =
+    radarFrameIndex >= 0 && radarFrameIndex < radarFrames.length
+      ? radarFrameIndex
+      : defaultRadarIdx;
+  const activeRadarSnapshot =
+    data?.weatherRadar && radarFrames[resolvedRadarIdx]
+      ? {
+          ...data.weatherRadar,
+          path: radarFrames[resolvedRadarIdx].path,
+          tileUrlTemplate: radarFrames[resolvedRadarIdx].tileUrlTemplate,
+          frameTime: radarFrames[resolvedRadarIdx].time,
+        }
+      : (data?.weatherRadar ?? null);
+
+  useEffect(() => {
+    if (!radarPlaying || radarFrames.length <= 1) return;
+    const timer = setInterval(() => {
+      setRadarFrameIndex((prev) => {
+        const cur = prev >= 0 && prev < radarFrames.length ? prev : defaultRadarIdx;
+        return (cur + 1) % radarFrames.length;
+      });
+    }, 850);
+    return () => clearInterval(timer);
+  }, [radarPlaying, radarFrames.length, defaultRadarIdx]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -157,7 +190,7 @@ export function App() {
             basemap={basemap}
             activeLayers={activeLayers}
             radarOpacity={radarOpacity}
-            weatherRadar={data?.weatherRadar ?? null}
+            weatherRadar={activeRadarSnapshot}
             military={filteredData.military}
             vessels={filteredData.vessels}
             cyberThreats={filteredData.cyberThreats}
@@ -192,7 +225,17 @@ export function App() {
               onApplyPreset={applyLayerPreset}
               radarOpacity={radarOpacity}
               onChangeRadarOpacity={setRadarOpacity}
-              weatherRadar={data?.weatherRadar ?? null}
+              weatherRadar={activeRadarSnapshot}
+              radarFrames={radarFrames}
+              radarFrameIndex={resolvedRadarIdx}
+              radarPlaying={radarPlaying}
+              onToggleRadarPlay={() => setRadarPlaying((p) => !p)}
+              onChangeRadarFrame={(idx) => {
+                setRadarPlaying(false);
+                setRadarFrameIndex(idx);
+              }}
+              windyOpen={windyOpen}
+              onToggleWindy={() => setWindyOpen((v) => !v)}
               aisStreamConfigured={data?.aisStreamConfigured}
             />
           </div>
@@ -220,8 +263,9 @@ export function App() {
             </div>
           )}
 
-          {/* Floating Bottom-Right Live News TV PiP */}
-          <div className="pointer-events-none absolute bottom-10 right-12 z-20">
+          {/* Floating Bottom-Right Live News TV & Windy Weather Streamlines PiP */}
+          <div className="pointer-events-none absolute bottom-10 right-12 z-20 flex flex-col items-end gap-2.5">
+            <WindyWeatherWindow open={windyOpen} onClose={() => setWindyOpen(false)} />
             <LiveTvPipWindow open={liveTvOpen} onClose={() => setLiveTvOpen(false)} />
           </div>
 
@@ -282,6 +326,7 @@ export function App() {
               onFlyToLocation={(lat, lon, zoom) => {
                 flyTo(lat, lon, zoom ?? 5.5);
               }}
+              onOpenWindy={() => setWindyOpen(true)}
             />
           </div>
         )}
@@ -322,6 +367,10 @@ export function App() {
               onFlyToLocation={(lat, lon, zoom) => {
                 setMobileIntelOpen(false);
                 flyTo(lat, lon, zoom ?? 5.5);
+              }}
+              onOpenWindy={() => {
+                setMobileIntelOpen(false);
+                setWindyOpen(true);
               }}
             />
           </div>

@@ -5,6 +5,7 @@ import {
   Crosshair,
   Television,
   WarningOctagon,
+  Wind,
   X,
 } from '@phosphor-icons/react';
 import type { BreakingAlertItem } from '@shared/types';
@@ -166,6 +167,73 @@ export function LiveTvPipWindow({ open, onClose }: { open: boolean; onClose: () 
           {current.label}
         </span>
         <span>24/7 STREAM</span>
+      </div>
+    </div>
+  );
+}
+
+type WindyOverlayId = 'wind' | 'rain' | 'waves' | 'pressure';
+
+const WINDY_OVERLAYS: ReadonlyArray<{ id: WindyOverlayId; label: string }> = [
+  { id: 'wind', label: '💨 Gió' },
+  { id: 'rain', label: '🌧️ Mưa/Sét' },
+  { id: 'waves', label: '🌊 Sóng biển' },
+  { id: 'pressure', label: '🌀 Áp suất' },
+];
+
+export function WindyWeatherWindow({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [overlay, setOverlay] = useState<WindyOverlayId>('wind');
+
+  if (!open) return null;
+
+  const windyUrl = `https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=%C2%B0C&metricWind=km%2Fh&zoom=5&overlay=${overlay}&product=ecmwf&level=surface&lat=14.8&lon=111.5&detailLat=16.05&detailLon=108.2&marker=false&pressure=true&message=true`;
+
+  return (
+    <div className="pointer-events-auto w-[420px] max-w-[92vw] overflow-hidden rounded-md border border-sky-500/45 bg-[#080d16]/96 shadow-2xl backdrop-blur-md sm:w-[480px]">
+      <div className="flex flex-wrap items-center justify-between gap-1 border-b border-slate-800 px-2.5 py-1.5">
+        <div className="flex items-center gap-1.5">
+          <Wind size={14} className="text-sky-400" weight="bold" />
+          <span className="font-mono text-[10.5px] font-bold text-sky-200">
+            WINDY · DÒNG GIÓ &amp; BÃO BIỂN ĐÔNG
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          {WINDY_OVERLAYS.map((ov) => (
+            <button
+              key={ov.id}
+              type="button"
+              onClick={() => setOverlay(ov.id)}
+              className={`rounded px-1.5 py-0.5 font-mono text-[9.5px] font-semibold transition ${
+                overlay === ov.id
+                  ? 'border border-sky-400/50 bg-sky-500/25 text-sky-100'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {ov.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Đóng bản đồ gió Windy"
+            className="ml-1 rounded p-0.5 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      </div>
+
+      <div className="relative h-[300px] w-full bg-[#050911] sm:h-[340px]">
+        <iframe
+          key={overlay}
+          src={windyUrl}
+          title="Windy Biển Đông & Việt Nam Streamlines"
+          className="h-full w-full border-0"
+        />
+      </div>
+      <div className="flex items-center justify-between px-2.5 py-1 font-mono text-[9.5px] text-slate-400">
+        <span>Mô hình ECMWF · Tâm điểm Việt Nam &amp; Biển Đông</span>
+        <span>LIVE STREAMLINES</span>
       </div>
     </div>
   );

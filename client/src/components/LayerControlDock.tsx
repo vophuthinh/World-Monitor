@@ -11,14 +11,17 @@ import {
   CloudRain,
   Cpu,
   Fire,
+  Pause,
+  Play,
   Pulse,
   RocketLaunch,
   ShareNetwork,
   ShieldWarning,
   SlidersHorizontal,
   Target,
+  Wind,
 } from '@phosphor-icons/react';
-import type { MapLayerId, WeatherRadarSnapshot } from '@shared/types';
+import type { MapLayerId, WeatherRadarFrame, WeatherRadarSnapshot } from '@shared/types';
 import type { LayerPresetId } from '../hooks/useMonitorData';
 
 interface LayerControlDockProps {
@@ -30,6 +33,13 @@ interface LayerControlDockProps {
   radarOpacity: number;
   onChangeRadarOpacity: (val: number) => void;
   weatherRadar: WeatherRadarSnapshot | null;
+  radarFrames?: WeatherRadarFrame[];
+  radarFrameIndex?: number;
+  radarPlaying?: boolean;
+  onToggleRadarPlay?: () => void;
+  onChangeRadarFrame?: (idx: number) => void;
+  windyOpen?: boolean;
+  onToggleWindy?: () => void;
   aisStreamConfigured?: boolean;
 }
 
@@ -74,6 +84,13 @@ export const LayerControlDock = memo(function LayerControlDock({
   radarOpacity,
   onChangeRadarOpacity,
   weatherRadar,
+  radarFrames = [],
+  radarFrameIndex = 0,
+  radarPlaying = false,
+  onToggleRadarPlay,
+  onChangeRadarFrame,
+  windyOpen = false,
+  onToggleWindy,
   aisStreamConfigured,
 }: LayerControlDockProps) {
   const [collapsed, setCollapsed] = useState(false);
@@ -214,28 +231,77 @@ export const LayerControlDock = memo(function LayerControlDock({
         ))}
 
       {activeLayers.weatherRadar && (
-        <div className="mt-2 rounded border border-slate-800/80 bg-[#0d1524] px-2.5 py-2">
-          <div className="flex items-center justify-between font-mono text-[10px] text-slate-400">
-            <span>ĐỘ ĐẬM RADAR MƯA</span>
-            <span className="text-cyan-300 tabular-nums">{Math.round(radarOpacity * 100)}%</span>
-          </div>
-          <input
-            type="range"
-            min={0.15}
-            max={0.9}
-            step={0.05}
-            value={radarOpacity}
-            onChange={(e) => onChangeRadarOpacity(Number(e.target.value))}
-            className="mt-1.5 h-1 w-full cursor-pointer accent-cyan-400"
-          />
-          {weatherRadar && (
-            <div className="mt-1 font-mono text-[9.5px] text-slate-500 tabular-nums">
-              Frame RainViewer:{' '}
-              {new Date(weatherRadar.frameTime * 1000).toLocaleTimeString('vi-VN', {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
+        <div className="mt-2 space-y-2 rounded border border-slate-800/80 bg-[#0d1524] px-2.5 py-2">
+          <div>
+            <div className="flex items-center justify-between font-mono text-[10px] text-slate-400">
+              <span>ĐỘ ĐẬM RADAR MƯA</span>
+              <span className="text-cyan-300 tabular-nums">{Math.round(radarOpacity * 100)}%</span>
             </div>
+            <input
+              type="range"
+              min={0.15}
+              max={0.9}
+              step={0.05}
+              value={radarOpacity}
+              onChange={(e) => onChangeRadarOpacity(Number(e.target.value))}
+              className="mt-1 h-1 w-full cursor-pointer accent-cyan-400"
+            />
+          </div>
+
+          {radarFrames.length > 1 && onChangeRadarFrame && onToggleRadarPlay && (
+            <div className="border-t border-slate-800/80 pt-1.5">
+              <div className="flex items-center justify-between gap-1 font-mono text-[9.5px]">
+                <button
+                  type="button"
+                  onClick={onToggleRadarPlay}
+                  className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-semibold transition ${
+                    radarPlaying
+                      ? 'border-cyan-400/60 bg-cyan-500/25 text-cyan-100'
+                      : 'border-slate-700 bg-slate-900 text-slate-200 hover:border-cyan-500/45'
+                  }`}
+                >
+                  {radarPlaying ? <Pause size={10} weight="fill" /> : <Play size={10} weight="fill" />}
+                  <span>{radarPlaying ? 'Tạm dừng' : 'Phát động'}</span>
+                </button>
+                <span className="text-slate-300 tabular-nums">
+                  {weatherRadar
+                    ? new Date(weatherRadar.frameTime * 1000).toLocaleTimeString('vi-VN', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : ''}
+                  {radarFrames[radarFrameIndex]?.isForecast ? (
+                    <span className="ml-1 rounded bg-amber-500/20 px-1 py-0.1 text-[8.5px] font-bold text-amber-300">
+                      DỰ BÁO
+                    </span>
+                  ) : null}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={Math.max(0, radarFrames.length - 1)}
+                step={1}
+                value={Math.min(radarFrameIndex, Math.max(0, radarFrames.length - 1))}
+                onChange={(e) => onChangeRadarFrame(Number(e.target.value))}
+                className="mt-1 h-1 w-full cursor-pointer accent-sky-400"
+              />
+            </div>
+          )}
+
+          {onToggleWindy && (
+            <button
+              type="button"
+              onClick={onToggleWindy}
+              className={`flex w-full items-center justify-center gap-1.5 rounded border py-1 font-mono text-[10px] font-semibold transition ${
+                windyOpen
+                  ? 'border-sky-400/65 bg-sky-500/25 text-sky-100'
+                  : 'border-sky-500/35 bg-sky-500/12 text-sky-200 hover:bg-sky-500/22'
+              }`}
+            >
+              <Wind size={12} weight="bold" />
+              <span>{windyOpen ? 'Đóng Bản đồ Gió Windy' : 'Bản đồ Dòng Gió & Sóng Windy'}</span>
+            </button>
           )}
         </div>
       )}

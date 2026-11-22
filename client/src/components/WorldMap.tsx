@@ -503,19 +503,22 @@ export const WorldMap = memo(function WorldMap({
         maxzoom: 7,
         attribution: 'RainViewer',
       });
-      map.addLayer({
-        id: 'radar-layer',
-        type: 'raster',
-        source: 'radar-src',
-        layout: {
-          visibility: state.activeLayers.weatherRadar ? 'visible' : 'none',
+      map.addLayer(
+        {
+          id: 'radar-layer',
+          type: 'raster',
+          source: 'radar-src',
+          layout: {
+            visibility: state.activeLayers.weatherRadar ? 'visible' : 'none',
+          },
+          paint: {
+            'raster-opacity': state.radarOpacity,
+            'raster-fade-duration': 180,
+            'raster-resampling': 'linear',
+          },
         },
-        paint: {
-          'raster-opacity': state.radarOpacity,
-          'raster-fade-duration': 200,
-          'raster-resampling': 'linear',
-        },
-      });
+        map.getLayer('vn-zones-fill') ? 'vn-zones-fill' : undefined,
+      );
       appliedRadarPathRef.current = desiredTile;
     } else if (map.getLayer('radar-layer')) {
       map.setLayoutProperty(

@@ -5,9 +5,10 @@ import type {
   SeverityLevel,
   VietnamEnvLocation,
   VietnamEnvSnapshot,
+  VietnamWeatherAlert,
 } from '@shared/types';
 import { DEFAULT_BROWSER_UA, NAMED_APP_UA, fetchJsonWithTimeout, fetchTextWithTimeout } from '../lib/http';
-import { matchGeoLocation } from './polymarket-news';
+import { decodeHtmlEntities, matchGeoLocation } from './polymarket-news';
 
 interface VietnamStationDef {
   id: string;
@@ -21,16 +22,30 @@ const VIETNAM_STATIONS: readonly VietnamStationDef[] = [
   { id: 'vn-hcmc', name: 'TP.HCM', region: 'mainland', lat: 10.7769, lon: 106.7009 },
   { id: 'vn-hanoi', name: 'Hà Nội', region: 'mainland', lat: 21.0285, lon: 105.8542 },
   { id: 'vn-danang', name: 'Đà Nẵng', region: 'mainland', lat: 16.0544, lon: 108.2022 },
+  { id: 'vn-haiphong', name: 'Hải Phòng · VBB', region: 'mainland', lat: 20.8449, lon: 106.6881 },
   { id: 'vn-hoang-sa', name: 'QĐ. Hoàng Sa', region: 'maritime', lat: 16.53, lon: 111.62 },
   { id: 'vn-truong-sa', name: 'QĐ. Trường Sa', region: 'maritime', lat: 8.64, lon: 111.92 },
 ];
 
+const NCHMF_WEATHER_RSS_URL =
+  'https://news.google.com/rss/search?q=(site:nchmf.gov.vn+OR+%22Trung+t%C3%A2m+D%E1%BB%B1+b%C3%A1o+Kh%C3%AD+t%C6%B0%E1%BB%A3ng+Th%E1%BB%A7y+v%C4%83n+Qu%E1%BB%91c+gia%22+OR+%22%C3%A1p+th%E1%BA%A5p+nhi%E1%BB%87t+%C4%91%E1%BB%9Bi%22+OR+%22b%C3%A3o+tr%C3%AAn+Bi%E1%BB%83n+%C4%90%C3%B4ng%22+OR+%22c%E1%BA%A3nh+b%C3%A1o+l%C5%A9+qu%C3%A9t%22+OR+%22kh%C3%B4ng+kh%C3%AD+l%E1%BA%A1nh+t%C4%83ng+c%C6%B0%E1%BB%9Dng%22)+when:7d&hl=vi&gl=VN&ceid=VN:vi';
+
 export interface OpenMeteoForecastEntry {
   current?: {
     temperature_2m?: number;
+    relative_humidity_2m?: number;
+    precipitation?: number;
+    uv_index?: number;
     wind_speed_10m?: number;
+    wind_direction_10m?: number;
     wind_gusts_10m?: number;
     weather_code?: number;
+  };
+  daily?: {
+    temperature_2m_max?: number[];
+    temperature_2m_min?: number[];
+    precipitation_probability_max?: number[];
+    uv_index_max?: number[];
   };
 }
 
@@ -39,6 +54,21 @@ export interface OpenMeteoAqiEntry {
     us_aqi?: number;
     pm2_5?: number;
   };
+}
+
+export interface OpenMeteoMarineEntry {
+  current?: {
+    wave_height?: number;
+    wave_direction?: number;
+    wave_period?: number;
+  };
+}
+
+function degToCompassVi(deg?: number): string | undefined {
+  if (deg === undefined || !Number.isFinite(deg)) return undefined;
+  const dirs = ['B', 'ĐB', 'Đ', 'ĐN', 'N', 'TN', 'T', 'TB'];
+  const idx = Math.round((((deg % 360) + 360) % 360) / 45) % 8;
+  return dirs[idx];
 }
 
 function kmhToBeaufort(kmh: number): number {
@@ -78,36 +108,79 @@ function classifyUsAqiBand(aqi: number): AqiBand {
 export function normalizeVietnamEnvLocations(
   forecasts: OpenMeteoForecastEntry[],
   aqis: OpenMeteoAqiEntry[],
+  marines: OpenMeteoMarineEntry[] = [],
 ): VietnamEnvLocation[] {
   const out: VietnamEnvLocation[] = [];
+  let mainlandIdx = 0;
+  let maritimeIdx = 0;
 
   for (let idx = 0; idx < VIETNAM_STATIONS.length; idx++) {
     const st = VIETNAM_STATIONS[idx];
-    const fc = forecasts[idx]?.current;
-    if (!fc) continue;
+    const entry = forecasts[idx];
+    const fc = entry?.current;
+    if (!fc) {
+      if (st.region === 'mainland') mainlandIdx += 1;
+      else maritimeIdx += 1;
+      continue;
+    }
 
     const tempC = Number((Number(fc.temperature_2m) || 0).toFixed(1));
+    const humidityRaw = Number(fc.relative_humidity_2m);
+    const humidityPct = Number.isFinite(humidityRaw) ? Math.round(humidityRaw) : undefined;
+    const precipRaw = Number(fc.precipitation);
+    const precipMm = Number.isFinite(precipRaw) ? Number(precipRaw.toFixed(1)) : undefined;
+    const uvRaw = Number(fc.uv_index ?? entry?.daily?.uv_index_max?.[0]);
+    const uvIndex = Number.isFinite(uvRaw) ? Number(uvRaw.toFixed(1)) : undefined;
+
+    const minRaw = Number(entry?.daily?.temperature_2m_min?.[0]);
+    const maxRaw = Number(entry?.daily?.temperature_2m_max?.[0]);
+    const tempMinC = Number.isFinite(minRaw) ? Math.round(minRaw) : undefined;
+    const tempMaxC = Number.isFinite(maxRaw) ? Math.round(maxRaw) : undefined;
+    const rainProbRaw = Number(entry?.daily?.precipitation_probability_max?.[0]);
+    const rainProbPct = Number.isFinite(rainProbRaw) ? Math.round(rainProbRaw) : undefined;
+
     const windKmh = Math.round(Number(fc.wind_speed_10m) || 0);
     const windGustKmh = Math.round(Number(fc.wind_gusts_10m) || windKmh);
+    const windDirRaw = Number(fc.wind_direction_10m);
+    const windDirDeg = Number.isFinite(windDirRaw) ? Math.round(windDirRaw) : undefined;
+    const windDirLabel = degToCompassVi(windDirDeg);
+
     const weatherCode = Number(fc.weather_code ?? 1);
     const beaufortScale = kmhToBeaufort(Math.max(windKmh, windGustKmh * 0.8));
-    const stormWarning = windGustKmh >= 50 || weatherCode >= 95;
 
     let usAqi: number | undefined;
     let pm25: number | undefined;
     let aqiBand: AqiBand | undefined;
+    let waveHeightM: number | undefined;
+    let wavePeriodS: number | undefined;
 
-    if (st.region === 'mainland' && aqis[idx]?.current) {
-      const rawAqi = Number(aqis[idx].current?.us_aqi);
-      const rawPm25 = Number(aqis[idx].current?.pm2_5);
-      if (Number.isFinite(rawAqi) && rawAqi >= 0) {
-        usAqi = Math.round(rawAqi);
-        aqiBand = classifyUsAqiBand(usAqi);
+    if (st.region === 'mainland') {
+      const aqiCur = aqis[mainlandIdx]?.current;
+      mainlandIdx += 1;
+      if (aqiCur) {
+        const rawAqi = Number(aqiCur.us_aqi);
+        const rawPm25 = Number(aqiCur.pm2_5);
+        if (Number.isFinite(rawAqi) && rawAqi >= 0) {
+          usAqi = Math.round(rawAqi);
+          aqiBand = classifyUsAqiBand(usAqi);
+        }
+        if (Number.isFinite(rawPm25) && rawPm25 >= 0) {
+          pm25 = Number(rawPm25.toFixed(1));
+        }
       }
-      if (Number.isFinite(rawPm25) && rawPm25 >= 0) {
-        pm25 = Number(rawPm25.toFixed(1));
+    } else {
+      const marineCur = marines[maritimeIdx]?.current;
+      maritimeIdx += 1;
+      if (marineCur) {
+        const wh = Number(marineCur.wave_height);
+        const wp = Number(marineCur.wave_period);
+        if (Number.isFinite(wh) && wh >= 0) waveHeightM = Number(wh.toFixed(2));
+        if (Number.isFinite(wp) && wp > 0) wavePeriodS = Number(wp.toFixed(1));
       }
     }
+
+    const stormWarning =
+      windGustKmh >= 50 || weatherCode >= 95 || (waveHeightM !== undefined && waveHeightM >= 3.0);
 
     out.push({
       id: st.id,
@@ -116,9 +189,19 @@ export function normalizeVietnamEnvLocations(
       lat: st.lat,
       lon: st.lon,
       tempC,
+      tempMinC,
+      tempMaxC,
+      humidityPct,
+      precipMm,
+      rainProbPct,
+      uvIndex,
       windKmh,
       windGustKmh,
+      windDirDeg,
+      windDirLabel,
       beaufortScale,
+      waveHeightM,
+      wavePeriodS,
       weatherCode,
       weatherLabel: classifyWeatherCodeVi(weatherCode),
       stormWarning,
@@ -131,6 +214,75 @@ export function normalizeVietnamEnvLocations(
   return out;
 }
 
+const vnEnvXmlParser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: '@_',
+  trimValues: true,
+});
+
+export function parseNchmfWeatherRss(xml: string, fallbackNow = Date.now()): VietnamWeatherAlert[] {
+  if (!xml) return [];
+  try {
+    const parsed = vnEnvXmlParser.parse(xml) as Record<string, any>;
+    const rawItems = parsed?.rss?.channel?.item ?? [];
+    const entries = Array.isArray(rawItems) ? rawItems : rawItems ? [rawItems] : [];
+    const out: VietnamWeatherAlert[] = [];
+    const seenTitles = new Set<string>();
+
+    for (const entry of entries.slice(0, 12)) {
+      const fullTitle = decodeHtmlEntities(String(entry?.title ?? '')).trim();
+      const link = String(entry?.link ?? '').trim();
+      if (!fullTitle || !link.startsWith('http')) continue;
+
+      let title = fullTitle;
+      let source = 'NCHMF / Báo chí KTTV';
+      const srcTag = entry?.source;
+      if (srcTag && typeof srcTag === 'object' && '#text' in srcTag) {
+        source = String(srcTag['#text']).trim() || source;
+      } else if (typeof srcTag === 'string' && srcTag.trim()) {
+        source = srcTag.trim();
+      }
+      title = title.replace(/\s+-\s+[^-]{2,42}$/, '').trim();
+      const normKey = title.toLowerCase().slice(0, 64);
+      if (seenTitles.has(normKey)) continue;
+      seenTitles.add(normKey);
+
+      let badge = 'DỰ BÁO KTTV';
+      let severity: VietnamWeatherAlert['severity'] = 'medium';
+      if (/\b(bão|siêu bão|áp thấp nhiệt đới|atnđ)\b/i.test(title)) {
+        badge = 'BÃO / ATNĐ';
+        severity = 'critical';
+      } else if (/\b(lũ quét|sạt lở|ngập lụt|mưa rất to|mưa lớn|triều cường)\b/i.test(title)) {
+        badge = 'LŨ · MƯA LỚN';
+        severity = 'high';
+      } else if (/\b(không khí lạnh|gió mùa|biển động|gió mạnh|sóng lớn|nắng nóng)\b/i.test(title)) {
+        badge = 'GIÓ MÙA · BIỂN';
+        severity = 'high';
+      }
+
+      const rawPub = String(entry?.pubDate ?? '');
+      const parsedTs = rawPub ? Date.parse(rawPub) : Number.NaN;
+      const publishedAt = Number.isFinite(parsedTs) ? parsedTs : fallbackNow;
+
+      out.push({
+        id: `nchmf:${link}`,
+        title,
+        badge,
+        severity,
+        source,
+        publishedAt,
+        url: link,
+      });
+
+      if (out.length >= 5) break;
+    }
+
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchVietnamEnvironment(): Promise<VietnamEnvSnapshot> {
   const now = Date.now();
   const lats = VIETNAM_STATIONS.map((s) => s.lat).join(',');
@@ -140,12 +292,17 @@ export async function fetchVietnamEnvironment(): Promise<VietnamEnvSnapshot> {
   const mLats = mainlandStations.map((s) => s.lat).join(',');
   const mLons = mainlandStations.map((s) => s.lon).join(',');
 
-  const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,wind_speed_10m,wind_gusts_10m,weather_code&wind_speed_unit=kmh`;
-  const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${mLats}&longitude=${mLons}&current=us_aqi,pm2_5`;
+  const seaStations = VIETNAM_STATIONS.filter((s) => s.region === 'maritime');
+  const sLats = seaStations.map((s) => s.lat).join(',');
+  const sLons = seaStations.map((s) => s.lon).join(',');
 
-  const [fcRaw, aqiRaw] = await Promise.all([
+  const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,precipitation,uv_index,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max&forecast_days=2&wind_speed_unit=kmh&timezone=Asia%2FHo_Chi_Minh`;
+  const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${mLats}&longitude=${mLons}&current=us_aqi,pm2_5`;
+  const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${sLats}&longitude=${sLons}&current=wave_height,wave_direction,wave_period`;
+
+  const [fcRaw, aqiRaw, marineRaw, nchmfRssText] = await Promise.all([
     fetchJsonWithTimeout<OpenMeteoForecastEntry[] | OpenMeteoForecastEntry>(forecastUrl, {
-      timeoutMs: 8_000,
+      timeoutMs: 8_500,
       retries: 1,
       userAgent: NAMED_APP_UA,
     }),
@@ -154,19 +311,38 @@ export async function fetchVietnamEnvironment(): Promise<VietnamEnvSnapshot> {
       retries: 1,
       userAgent: NAMED_APP_UA,
     }).catch(() => [] as OpenMeteoAqiEntry[]),
+    fetchJsonWithTimeout<OpenMeteoMarineEntry[] | OpenMeteoMarineEntry>(marineUrl, {
+      timeoutMs: 8_000,
+      retries: 1,
+      userAgent: NAMED_APP_UA,
+    }).catch(() => [] as OpenMeteoMarineEntry[]),
+    fetchTextWithTimeout(NCHMF_WEATHER_RSS_URL, {
+      timeoutMs: 7_500,
+      retries: 0,
+      userAgent: DEFAULT_BROWSER_UA,
+    })
+      .then((r) => r.text)
+      .catch(() => ''),
   ]);
 
   const fcArray = Array.isArray(fcRaw) ? fcRaw : [fcRaw];
   const aqiArray = Array.isArray(aqiRaw) ? aqiRaw : [aqiRaw];
+  const marineArray = Array.isArray(marineRaw) ? marineRaw : [marineRaw];
 
-  const locations = normalizeVietnamEnvLocations(fcArray, aqiArray);
+  const locations = normalizeVietnamEnvLocations(fcArray, aqiArray, marineArray);
   if (locations.length === 0) {
     throw new Error('Open-Meteo Vietnam environment feed returned no stations');
   }
 
+  const alerts = parseNchmfWeatherRss(nchmfRssText, now);
+
   const maxSeaGustKmh = locations
     .filter((l) => l.region === 'maritime')
     .reduce((mx, l) => Math.max(mx, l.windGustKmh), 0);
+
+  const maxWaveHeightM = locations
+    .filter((l) => l.region === 'maritime' && l.waveHeightM !== undefined)
+    .reduce((mx, l) => Math.max(mx, l.waveHeightM ?? 0), 0);
 
   const mainlandByAqi = locations
     .filter((l) => l.usAqi !== undefined)
@@ -174,7 +350,9 @@ export async function fetchVietnamEnvironment(): Promise<VietnamEnvSnapshot> {
 
   return {
     locations,
+    alerts,
     maxSeaGustKmh,
+    maxWaveHeightM: maxWaveHeightM > 0 ? maxWaveHeightM : undefined,
     worstAqiCity: mainlandByAqi[0]?.name,
     worstAqi: mainlandByAqi[0]?.usAqi,
     updatedAt: now,

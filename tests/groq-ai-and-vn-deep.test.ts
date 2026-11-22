@@ -8,11 +8,16 @@ import {
   normalizeVn30DchartQuote,
   normalizeYahooChartQuote,
 } from '../server/collectors/markets-crypto';
-import { parseNasaFirmsCsv } from '../server/collectors/natural-events';
+import {
+  normalizeNwsWeatherAlerts,
+  parseNasaFirmsCsv,
+  parseNoaaNhcCycloneRss,
+} from '../server/collectors/natural-events';
 import {
   normalizeAdsbGpsJammingZone,
   normalizeRipeBgpCountryAnomaly,
   normalizeVietnamEnvLocations,
+  parseNchmfWeatherRss,
 } from '../server/collectors/vietnam-env-outages';
 import {
   GROQ_MODEL_CHAIN,
@@ -177,30 +182,44 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     expect(fpt?.changePercent).toBeLessThan(0);
   });
 
-  it('normalizes Open-Meteo Vietnam AQI + Hoàng Sa / Trường Sa marine weather & gusts', () => {
+  it('normalizes Open-Meteo Vietnam AQI, UV, Rain Prob, Hoàng Sa / Trường Sa wave heights & NCHMF / NWS / NHC alerts', () => {
     const locations = normalizeVietnamEnvLocations(
       [
-        { current: { temperature_2m: 31.2, wind_speed_10m: 10, wind_gusts_10m: 18, weather_code: 3 } },
+        {
+          current: { temperature_2m: 31.2, relative_humidity_2m: 62, uv_index: 7.4, wind_speed_10m: 10, wind_direction_10m: 180, wind_gusts_10m: 18, weather_code: 3 },
+          daily: { precipitation_probability_max: [45], temperature_2m_min: [26], temperature_2m_max: [33] },
+        },
         { current: { temperature_2m: 26.4, wind_speed_10m: 12, wind_gusts_10m: 20, weather_code: 2 } },
         { current: { temperature_2m: 28.1, wind_speed_10m: 15, wind_gusts_10m: 24, weather_code: 1 } },
-        { current: { temperature_2m: 27.8, wind_speed_10m: 44, wind_gusts_10m: 66, weather_code: 95 } },
+        { current: { temperature_2m: 25.0, wind_speed_10m: 18, wind_gusts_10m: 28, weather_code: 2 } },
+        { current: { temperature_2m: 27.8, wind_speed_10m: 44, wind_direction_10m: 45, wind_gusts_10m: 66, weather_code: 95 } },
         { current: { temperature_2m: 28.5, wind_speed_10m: 28, wind_gusts_10m: 42, weather_code: 80 } },
       ],
       [
         { current: { us_aqi: 78, pm2_5: 24.5 } },
         { current: { us_aqi: 138, pm2_5: 50.4 } },
         { current: { us_aqi: 42, pm2_5: 10.1 } },
+        { current: { us_aqi: 65, pm2_5: 18.2 } },
+      ],
+      [
+        { current: { wave_height: 2.85, wave_period: 7.2 } },
+        { current: { wave_height: 1.65, wave_period: 6.1 } },
       ],
     );
 
-    expect(locations.length).toBe(5);
+    expect(locations.length).toBe(6);
     expect(locations.map((l) => l.id)).toEqual([
       'vn-hcmc',
       'vn-hanoi',
       'vn-danang',
+      'vn-haiphong',
       'vn-hoang-sa',
       'vn-truong-sa',
     ]);
+    const hcmc = locations.find((l) => l.id === 'vn-hcmc')!;
+    expect(hcmc.uvIndex).toBe(7.4);
+    expect(hcmc.rainProbPct).toBe(45);
+
     const hanoi = locations.find((l) => l.id === 'vn-hanoi')!;
     expect(hanoi.usAqi).toBe(138);
     expect(hanoi.aqiBand).toBe('sensitive');
@@ -208,7 +227,57 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     const hoangSa = locations.find((l) => l.id === 'vn-hoang-sa')!;
     expect(hoangSa.region).toBe('maritime');
     expect(hoangSa.stormWarning).toBe(true);
+    expect(hoangSa.waveHeightM).toBe(2.85);
+    expect(hoangSa.windDirLabel).toBe('ĐB');
     expect(hoangSa.beaufortScale).toBeGreaterThanOrEqual(6);
+
+    const nchmf = parseNchmfWeatherRss(`
+      <rss><channel>
+        <item>
+          <title>Cảnh báo áp thấp nhiệt đới mạnh lên thành bão trên Biển Đông - Báo Chính phủ</title>
+          <link>https://baochinhphu.vn/canh-bao-bao-1</link>
+          <pubDate>Sun, 22 Nov 2026 08:00:00 GMT</pubDate>
+          <source>Báo Chính phủ</source>
+        </item>
+      </channel></rss>
+    `);
+    expect(nchmf).toHaveLength(1);
+    expect(nchmf[0].badge).toBe('BÃO / ATNĐ');
+    expect(nchmf[0].severity).toBe('critical');
+
+    const nws = normalizeNwsWeatherAlerts({
+      features: [
+        {
+          id: 'urn:oid:1',
+          geometry: { type: 'Point', coordinates: [-80.19, 25.76] },
+          properties: {
+            id: 'urn:oid:1',
+            event: 'Hurricane Warning',
+            severity: 'Extreme',
+            areaDesc: 'Miami-Dade, FL',
+            headline: 'Hurricane Warning issued by NWS Miami',
+          },
+        },
+      ],
+    });
+    expect(nws).toHaveLength(1);
+    expect(nws[0].severity).toBe('critical');
+
+    const nhc = parseNoaaNhcCycloneRss(`
+      <rss><channel>
+        <item>
+          <nhc:center>18.4, -66.2</nhc:center>
+          <nhc:type>Hurricane</nhc:type>
+          <nhc:name>Maria</nhc:name>
+          <nhc:wind>115</nhc:wind>
+          <nhc:pressure>952 mb</nhc:pressure>
+          <link>https://www.nhc.noaa.gov/</link>
+        </item>
+      </channel></rss>
+    `);
+    expect(nhc).toHaveLength(1);
+    expect(nhc[0].title).toContain('Hurricane Maria');
+    expect(nhc[0].severity).toBe('critical');
   });
 
   it('normalizes ADS-B low-NIC GPS jamming zones and RIPE BGP country routing anomalies', () => {

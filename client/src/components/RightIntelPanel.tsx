@@ -90,6 +90,7 @@ interface RightIntelPanelProps {
   onForceRefresh?: (collectorId: CollectorId | 'polymarket-news') => void;
   streamConnected: boolean;
   onFlyToLocation: (lat: number, lon: number, zoom?: number) => void;
+  onOpenWindy?: () => void;
 }
 
 function formatCompactUsd(val: number | null): string {
@@ -210,8 +211,9 @@ const VN_ENV_DISPLAY_ORDER: Record<string, number> = {
   'vn-hcmc': 0,
   'vn-hanoi': 1,
   'vn-danang': 2,
-  'vn-hoang-sa': 3,
-  'vn-truong-sa': 4,
+  'vn-haiphong': 3,
+  'vn-hoang-sa': 4,
+  'vn-truong-sa': 5,
 };
 
 function MiniSparkline({ values, positive }: { values?: number[]; positive: boolean }) {
@@ -352,6 +354,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
   onForceRefresh,
   streamConnected,
   onFlyToLocation,
+  onOpenWindy,
 }: RightIntelPanelProps) {
   const [activeTab, setActiveTab] = useState<RightTabId>('intel');
   const [intelTopic, setIntelTopic] = useState<IntelTopicId | 'c2_ioc'>('cyber');
@@ -1023,27 +1026,40 @@ export const RightIntelPanel = memo(function RightIntelPanel({
             </div>
           </section>
 
-          {/* 1b. Vietnam Marine Weather (Hoàng Sa · Trường Sa) & Mainland AQI (Open-Meteo Live) */}
+          {/* 1b. Vietnam Marine Weather (Hoàng Sa · Trường Sa · Sóng biển), UV/Rain, AQI & NCHMF Storm Alerts */}
           {vietnamEnv && vietnamEnv.locations.length > 0 && (
             <section>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-1.5">
                 <h2 className="flex items-center gap-1.5 font-mono text-[10.5px] font-semibold tracking-wider text-slate-200">
                   <CloudSun size={13} className="text-sky-400" weight="fill" />
-                  <span>KHÍ TƯỢNG BIỂN ĐÔNG &amp; CHẤT LƯỢNG KHÔNG KHÍ VN</span>
+                  <span>KHÍ TƯỢNG · SÓNG BIỂN ĐÔNG &amp; AQI VN</span>
                 </h2>
-                {onForceRefresh && (
-                  <button
-                    type="button"
-                    onClick={() => onForceRefresh('vietnam-env')}
-                    title="Làm mới Khí tượng Hoàng Sa - Trường Sa & AQI"
-                    className="inline-flex items-center rounded border border-slate-700/90 bg-slate-900 px-1.5 py-0.5 text-slate-300 transition hover:border-sky-400/50 hover:text-sky-200"
-                  >
-                    <ArrowsClockwise
-                      size={10}
-                      className={refreshingIds?.has('vietnam-env') ? 'animate-spin text-sky-300' : ''}
-                    />
-                  </button>
-                )}
+                <div className="flex items-center gap-1">
+                  {onOpenWindy && (
+                    <button
+                      type="button"
+                      onClick={onOpenWindy}
+                      title="Mở Bản đồ Dòng chảy Gió & Sóng Biển Đông trực tiếp (Windy)"
+                      className="inline-flex items-center gap-1 rounded border border-sky-500/40 bg-sky-500/15 px-1.5 py-0.5 font-mono text-[9.5px] font-semibold text-sky-200 transition hover:bg-sky-500/25"
+                    >
+                      <Wind size={10} weight="bold" />
+                      <span>Gió/Bão Windy</span>
+                    </button>
+                  )}
+                  {onForceRefresh && (
+                    <button
+                      type="button"
+                      onClick={() => onForceRefresh('vietnam-env')}
+                      title="Làm mới Khí tượng Hoàng Sa - Trường Sa, UV, Sóng biển & Cảnh báo KTTV"
+                      className="inline-flex items-center rounded border border-slate-700/90 bg-slate-900 px-1.5 py-0.5 text-slate-300 transition hover:border-sky-400/50 hover:text-sky-200"
+                    >
+                      <ArrowsClockwise
+                        size={10}
+                        className={refreshingIds?.has('vietnam-env') ? 'animate-spin text-sky-300' : ''}
+                      />
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="mt-1.5 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
@@ -1078,36 +1094,104 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                           <div className="flex items-center justify-between text-sky-200">
                             <span className="inline-flex items-center gap-0.5">
                               <Wind size={10} /> Cấp {loc.beaufortScale}
+                              {loc.windDirLabel ? ` ${loc.windDirLabel}` : ''}
                             </span>
                             <span>Giật {loc.windGustKmh}km/h</span>
                           </div>
-                          <div
-                            className={`text-[9px] font-semibold ${loc.stormWarning ? 'text-rose-300' : 'text-slate-400'
-                              }`}
-                          >
-                            {loc.stormWarning ? '⚠️ BIỂN ĐỘNG MẠNH' : loc.weatherLabel}
+                          <div className="flex items-center justify-between text-[9px]">
+                            <span className={loc.stormWarning ? 'font-bold text-rose-300' : 'text-slate-400'}>
+                              {loc.stormWarning ? '⚠️ BIỂN ĐỘNG' : loc.weatherLabel}
+                            </span>
+                            {loc.waveHeightM !== undefined && (
+                              <span className="font-semibold text-cyan-300 tabular-nums">
+                                Sóng {loc.waveHeightM.toFixed(1)}m
+                              </span>
+                            )}
                           </div>
                         </div>
                       ) : (
-                        <div className="mt-1 flex items-center justify-between gap-1 font-mono text-[9.5px]">
-                          {loc.usAqi !== undefined && aqiMeta ? (
-                            <span className={`rounded border px-1 py-0.1 font-bold ${aqiMeta.cls}`}>
-                              AQI {loc.usAqi} · {aqiMeta.label}
+                        <div className="mt-1 space-y-0.5 font-mono text-[9.5px]">
+                          <div className="flex items-center justify-between gap-1">
+                            {loc.usAqi !== undefined && aqiMeta ? (
+                              <span className={`rounded border px-1 py-0.1 font-bold ${aqiMeta.cls}`}>
+                                AQI {loc.usAqi} · {aqiMeta.label}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">{loc.weatherLabel}</span>
+                            )}
+                            {loc.pm25 !== undefined && (
+                              <span className="text-[9px] text-slate-400 tabular-nums">
+                                PM2.5 {loc.pm25}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between text-[9px] text-slate-400 tabular-nums">
+                            <span>
+                              {loc.rainProbPct !== undefined ? `Mưa ${loc.rainProbPct}%` : loc.weatherLabel}
+                              {loc.humidityPct !== undefined ? ` · Ẩm ${loc.humidityPct}%` : ''}
                             </span>
-                          ) : (
-                            <span className="text-slate-400">{loc.weatherLabel}</span>
-                          )}
-                          {loc.pm25 !== undefined && (
-                            <span className="text-[9px] text-slate-400 tabular-nums">
-                              PM2.5 {loc.pm25}
-                            </span>
-                          )}
+                            {loc.uvIndex !== undefined && (
+                              <span className={loc.uvIndex >= 7 ? 'font-semibold text-amber-300' : 'text-slate-400'}>
+                                UV {loc.uvIndex.toFixed(1)}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       )}
                     </button>
                   );
                 })}
               </div>
+
+              {/* Official Vietnam Hydrometeorological Warnings (NCHMF — Bão, ATNĐ, Lũ quét, Gió mùa) */}
+              {vietnamEnv.alerts && vietnamEnv.alerts.length > 0 && (
+                <div className="mt-2 rounded border border-sky-500/30 bg-[#0a1322] px-2.5 py-2">
+                  <div className="mb-1 flex items-center justify-between font-mono text-[9.5px]">
+                    <span className="font-bold text-sky-300">
+                      ⚠️ BẢN TIN CẢNH BÁO KTTV VIỆT NAM (NCHMF · BÃO &amp; LŨ)
+                    </span>
+                    <a
+                      href="https://nchmf.gov.vn"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-slate-400 hover:text-sky-200"
+                    >
+                      nchmf.gov.vn ↗
+                    </a>
+                  </div>
+                  <div className="divide-y divide-slate-800/75">
+                    {vietnamEnv.alerts.slice(0, 3).map((al) => (
+                      <a
+                        key={al.id}
+                        href={al.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-start justify-between gap-2 py-1.5 first:pt-0.5 last:pb-0 transition hover:text-sky-200"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <span
+                            className={`mr-1.5 inline-block rounded border px-1 py-0.1 font-mono text-[8.5px] font-bold ${
+                              al.severity === 'critical'
+                                ? 'border-rose-500/50 bg-rose-500/20 text-rose-200'
+                                : al.severity === 'high'
+                                  ? 'border-amber-500/45 bg-amber-500/18 text-amber-200'
+                                  : 'border-sky-500/40 bg-sky-500/15 text-sky-200'
+                            }`}
+                          >
+                            {al.badge}
+                          </span>
+                          <span className="text-[11px] leading-snug text-slate-200 hover:text-sky-200">
+                            {al.title}
+                          </span>
+                        </div>
+                        <span className="shrink-0 font-mono text-[9px] text-slate-500 tabular-nums">
+                          {formatRelativeTime(al.publishedAt)}
+                        </span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </section>
           )}
 
