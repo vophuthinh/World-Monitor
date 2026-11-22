@@ -96,23 +96,23 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
     });
   });
 
-  // 10s high-frequency ADS-B military aircraft polling + SSE push
+  // 30s multi-provider ADS-B military aircraft polling (adsb.fi + adsb.lol failover) + client Dead-Reckoning
   scheduler.registerCollector({
     id: 'military-flights',
-    label: 'Quân sự ADS-B (adsb.lol · 10s)',
-    intervalMs: 10_000,
+    label: 'Quân sự ADS-B (adsb.fi + adsb.lol · 30s)',
+    intervalMs: 30_000,
     retainMs: 30 * 60_000,
     countItems: (items) => items.length,
     fetcher: () => fetchMilitaryFlights(),
   });
 
-  // 20s Open AIS + optional real-time AISStream Biển Đông/Hormuz WebSocket
+  // Real-time AISStream Biển Đông/Malacca WebSocket + 45s Open AIS snapshot
   scheduler.registerCollector({
     id: 'maritime-vessels',
     label: vesselManager.isAisStreamConfigured()
-      ? 'Tàu biển AIS (AISStream WS + Open AIS)'
-      : 'Tàu biển AIS (Open Maritime Live)',
-    intervalMs: 20_000,
+      ? 'Tàu biển AIS (AISStream WS + Open AIS · 45s)'
+      : 'Tàu biển AIS (Open Maritime · 45s)',
+    intervalMs: 45_000,
     retainMs: 60 * 60_000,
     countItems: (items) => items.length,
     fetcher: () => vesselManager.fetchSnapshot(),
@@ -120,8 +120,8 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector({
     id: 'cyber-threats',
-    label: 'Đe dọa Mạng C2/APT (Feodo + C2Intel + SANS + FireHOL + SSH)',
-    intervalMs: 300_000,
+    label: 'Đe dọa Mạng C2/APT (Feodo + C2Intel + SANS + FireHOL · 6p)',
+    intervalMs: 360_000,
     retainMs: 6 * 3_600_000,
     countItems: (items) => items.length,
     fetcher: () => fetchCyberThreats(),
@@ -129,8 +129,8 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector({
     id: 'gps-outages',
-    label: 'Tác chiến Điện tử GPS (NIC≤4) & Định tuyến BGP (RIPE/CF)',
-    intervalMs: 240_000,
+    label: 'Tác chiến Điện tử GPS (NIC≤4) & Định tuyến BGP (6p)',
+    intervalMs: 360_000,
     retainMs: 6 * 3_600_000,
     countItems: (items) => items.length,
     fetcher: () => fetchGpsAndBgpOutages(),
@@ -138,8 +138,8 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector({
     id: 'earthquakes',
-    label: 'Động đất Toàn cầu (USGS)',
-    intervalMs: 120_000,
+    label: 'Động đất Toàn cầu (USGS · 3p)',
+    intervalMs: 180_000,
     retainMs: 6 * 3_600_000,
     countItems: (items) => items.length,
     fetcher: () => fetchEarthquakes(),
@@ -147,7 +147,7 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector({
     id: 'natural-events',
-    label: 'Thiên tai & Điểm nhiệt ĐNÁ (EONET + GDACS + NASA FIRMS)',
+    label: 'Thiên tai, Bão & Điểm nhiệt (GDACS + EONET + NWS + FIRMS · 10p)',
     intervalMs: 600_000,
     retainMs: 18 * 3_600_000,
     countItems: (items) => items.length,
@@ -156,7 +156,7 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector({
     id: 'geopolitics-gdelt',
-    label: 'Địa chính trị (GDELT v2 Live)',
+    label: 'Địa chính trị (GDELT v2 · 10p)',
     intervalMs: 600_000,
     retainMs: 12 * 3_600_000,
     countItems: (items) => items.length,
@@ -165,7 +165,7 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector({
     id: 'weather-radar',
-    label: 'Radar Mưa/Bão (RainViewer)',
+    label: 'Radar Mưa/Bão (RainViewer · 5p)',
     intervalMs: 300_000,
     retainMs: 2 * 3_600_000,
     countItems: (radar) => (radar ? radar.pastFrames.length : 0),
@@ -174,17 +174,17 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector<VietnamEnvSnapshot>({
     id: 'vietnam-env',
-    label: 'Khí tượng Biển Đông (Hoàng Sa · Trường Sa) & AQI Việt Nam',
+    label: 'Khí tượng, Sóng Biển Đông, NCHMF & AQI VN (5p)',
     intervalMs: 300_000,
     retainMs: 4 * 3_600_000,
-    countItems: (snap) => snap.locations.length,
+    countItems: (snap) => snap.locations.length + (snap.alerts?.length ?? 0),
     fetcher: () => fetchVietnamEnvironment(),
   });
 
   scheduler.registerCollector<MarketSnapshot>({
     id: 'markets-crypto',
-    label: 'Tài chính, Vàng SJC, VN30, FX & Crypto (+ Binance WS)',
-    intervalMs: 90_000,
+    label: 'Tài chính, Vàng SJC, VN30, FRED & Crypto (+ WS · 2p)',
+    intervalMs: 120_000,
     retainMs: 6 * 3_600_000,
     countItems: (snap) =>
       snap.quotes.length + snap.crypto.length + (snap.vnGold?.length ?? 0) + (snap.vn30?.length ?? 0),
@@ -193,7 +193,7 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector({
     id: 'macro-worldbank',
-    label: 'Vĩ mô 8 nền kinh tế (World Bank)',
+    label: 'Vĩ mô 8 nền kinh tế (World Bank · 6h)',
     intervalMs: 21_600_000,
     retainMs: 7 * 86_400_000,
     countItems: (rows) => rows.length,
@@ -202,8 +202,8 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector({
     id: 'polymarket',
-    label: 'Polymarket Top Hot (+ CLOB Live WS · 45s)',
-    intervalMs: 45_000,
+    label: 'Polymarket Top Hot (+ CLOB Live WS · 90s)',
+    intervalMs: 90_000,
     retainMs: 6 * 3_600_000,
     countItems: (items) => items.length,
     fetcher: () => fetchPolymarketPredictions(),
@@ -211,8 +211,8 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector<GoogleTrendsSnapshot>({
     id: 'google-trends',
-    label: 'Google Trends Realtime (VN + Thế giới · 60s)',
-    intervalMs: 60_000,
+    label: 'Google Trends Realtime (VN + Thế giới · 3p)',
+    intervalMs: 180_000,
     retainMs: 6 * 3_600_000,
     countItems: (snap) => snap.vn.length + snap.global.length,
     fetcher: () => fetchGoogleTrendsRealtime(),
@@ -220,8 +220,8 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector({
     id: 'rss-news',
-    label: 'News Stream (RSS + Wiki SSE + GDELT + Reddit + SNAPI + HN)',
-    intervalMs: 180_000,
+    label: 'News Stream (RSS + Wiki SSE + GDELT + Reddit · 4p)',
+    intervalMs: 240_000,
     retainMs: 6 * 3_600_000,
     countItems: (items) => Math.max(items.length, newsStream.getUnifiedNews().length),
     fetcher: () => fetchCuratedRssNews(),
@@ -229,8 +229,8 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector<TechCyberSnapshot>({
     id: 'tech-cyber',
-    label: 'AI · GitHub Trending & Releases · Cyber NVD/KEV',
-    intervalMs: 240_000,
+    label: 'AI · GitHub Trending & Releases · Cyber NVD/KEV (5p)',
+    intervalMs: 300_000,
     retainMs: 8 * 3_600_000,
     countItems: (snap) =>
       snap.items.length + (snap.githubTrending?.daily.length ?? 0),
@@ -239,8 +239,8 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector<PolicyLegalSnapshot>({
     id: 'policy-legal',
-    label: 'Policy Radar VN (Bộ tứ NQ 57·59·66·68 + Bộ KH&CN + Công báo)',
-    intervalMs: 180_000,
+    label: 'Policy Radar VN (Bộ tứ NQ · Bộ KH&CN · Công báo · 5p)',
+    intervalMs: 300_000,
     retainMs: 12 * 3_600_000,
     countItems: (snap) => snap.items.length,
     fetcher: () => fetchVietnamPolicyLegal(),
@@ -248,8 +248,8 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector<HptCompanyIntelSnapshot>({
     id: 'hpt-intel',
-    label: 'Tin về HPT (HNX/UBCK + Đấu thầu + Simplize + Báo CNTT)',
-    intervalMs: 240_000,
+    label: 'Tin về HPT (HNX/UBCK + Đấu thầu + Simplize · 5p)',
+    intervalMs: 300_000,
     retainMs: 12 * 3_600_000,
     countItems: (snap) => snap.items.length + (snap.stock ? 1 : 0),
     fetcher: (prev) => fetchHptCompanyIntelligence(prev),
@@ -257,8 +257,8 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector<AiSitrepSnapshot>({
     id: 'ai-sitrep',
-    label: 'Bản tin Tình báo AI Sitrep (Groq LPU · 12p)',
-    intervalMs: 720_000,
+    label: 'Bản tin Tình báo AI Sitrep (Groq LPU · 15p)',
+    intervalMs: 900_000,
     retainMs: 6 * 3_600_000,
     countItems: (snap) => snap.bullets.length,
     fetcher: () => generateAiSitrep(store, true),

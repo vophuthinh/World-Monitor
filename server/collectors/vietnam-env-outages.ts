@@ -580,21 +580,47 @@ async function fetchCloudflareOutagePosts(now: number): Promise<GeoPointFeature[
   }
 }
 
+async function probeEwZonesStaggered(now: number): Promise<GeoPointFeature[]> {
+  const results: GeoPointFeature[] = [];
+
+  // Alternate between adsb.fi and adsb.lol with a 650ms stagger so neither provider ever sees >1 req/sec (prevents HTTP 429)
+  for (let idx = 0; idx < EW_THEATER_PROBES.length; idx++) {
+    if (idx > 0) {
+      await new Promise((r) => setTimeout(r, 650));
+    }
+    const zone = EW_THEATER_PROBES[idx];
+    const fiUrl = `https://opendata.adsb.fi/api/v2/lat/${zone.lat}/lon/${zone.lon}/dist/250`;
+    const lolUrl = `https://api.adsb.lol/v2/point/${zone.lat}/${zone.lon}/250`;
+    const urls = idx % 2 === 0 ? [fiUrl, lolUrl] : [lolUrl, fiUrl];
+
+    for (const url of urls) {
+      try {
+        const payload = await fetchJsonWithTimeout<{
+          ac?: AdsbRawPointAircraft[];
+          aircraft?: AdsbRawPointAircraft[];
+        }>(url, {
+          timeoutMs: 6_500,
+          retries: 0,
+          userAgent: 'Mozilla/5.0',
+        });
+        const list = payload.ac ?? payload.aircraft ?? [];
+        const zoneFeature = normalizeAdsbGpsJammingZone(zone, list, now);
+        if (zoneFeature) results.push(zoneFeature);
+        break;
+      } catch {
+        // Fail over cleanly to sibling ADS-B provider
+      }
+    }
+  }
+
+  return results;
+}
+
 export async function fetchGpsAndBgpOutages(): Promise<GeoPointFeature[]> {
   const now = Date.now();
 
-  const [ewResults, ripeResults, cfOutages] = await Promise.all([
-    Promise.allSettled(
-      EW_THEATER_PROBES.map(async (zone) => {
-        const url = `https://api.adsb.lol/v2/point/${zone.lat}/${zone.lon}/250`;
-        const payload = await fetchJsonWithTimeout<{ ac?: AdsbRawPointAircraft[] }>(url, {
-          timeoutMs: 7_000,
-          retries: 0,
-          userAgent: NAMED_APP_UA,
-        });
-        return normalizeAdsbGpsJammingZone(zone, payload.ac ?? [], now);
-      }),
-    ),
+  const [ewFeatures, ripeResults, cfOutages] = await Promise.all([
+    probeEwZonesStaggered(now),
     Promise.allSettled(
       RIPE_BGP_WATCHLIST.map(async (country) => {
         const url = `https://stat.ripe.net/data/country-routing-stats/data.json?resource=${country.code}`;
@@ -609,10 +635,7 @@ export async function fetchGpsAndBgpOutages(): Promise<GeoPointFeature[]> {
     fetchCloudflareOutagePosts(now),
   ]);
 
-  const features: GeoPointFeature[] = [];
-  for (const r of ewResults) {
-    if (r.status === 'fulfilled' && r.value) features.push(r.value);
-  }
+  const features: GeoPointFeature[] = [...ewFeatures];
   for (const r of ripeResults) {
     if (r.status === 'fulfilled' && r.value) features.push(r.value);
   }

@@ -47,6 +47,8 @@ export class CollectorScheduler {
     if (this.running) return;
     this.running = true;
     const { runImmediately = true } = options;
+    const enableStartupStagger = process.env.VITEST !== 'true';
+    let startupDelayMs = 0;
 
     for (const collector of this.collectors.values()) {
       if (runImmediately) {
@@ -59,7 +61,18 @@ export class CollectorScheduler {
           Date.now() - health.lastSuccessAt < collector.intervalMs;
 
         if (!isFreshEnough) {
-          void this.refreshCollector(collector.id);
+          if (enableStartupStagger && startupDelayMs > 0) {
+            const cid = collector.id;
+            const d = startupDelayMs;
+            const bootTimer = setTimeout(() => {
+              if (this.running) void this.refreshCollector(cid);
+            }, d);
+            if (typeof bootTimer.unref === 'function') bootTimer.unref();
+          } else {
+            void this.refreshCollector(collector.id);
+          }
+          // Put gps-outages further behind military-flights so ADS-B providers never get simultaneous boot bursts
+          startupDelayMs += collector.id === 'military-flights' ? 900 : 350;
         }
       }
 

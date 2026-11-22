@@ -1,7 +1,12 @@
 import type { GeoPointFeature, SeverityLevel } from '@shared/types';
-import { DEFAULT_BROWSER_UA, fetchJsonWithTimeout } from '../lib/http';
+import { fetchJsonWithTimeout } from '../lib/http';
 
-const ADSBLOL_MIL_URL = 'https://api.adsb.lol/v2/mil';
+const ADSB_MIL_PROVIDERS = [
+  { name: 'adsb.fi /v2/mil', url: 'https://opendata.adsb.fi/api/v2/mil' },
+  { name: 'adsb.lol /v2/mil', url: 'https://api.adsb.lol/v2/mil' },
+] as const;
+
+let adsbProviderCursor = 0;
 
 export type MilitaryRole =
   | 'vip'
@@ -161,6 +166,7 @@ export interface RawAdsbAircraft {
 export interface RawAdsbResponse {
   now?: number;
   ac?: RawAdsbAircraft[];
+  aircraft?: RawAdsbAircraft[];
 }
 
 export function isKnownMilitaryHex(rawHex: string): HexMatch | null {
@@ -310,9 +316,14 @@ export function classifyMilitaryAircraft(
   };
 }
 
-export function normalizeMilitaryFlights(payload: RawAdsbResponse, fallbackNowMs = Date.now()): GeoPointFeature[] {
-  if (!payload || !Array.isArray(payload.ac)) {
-    throw new Error('adsb.lol response missing ac[] array');
+export function normalizeMilitaryFlights(
+  payload: RawAdsbResponse,
+  fallbackNowMs = Date.now(),
+  providerLabel = 'adsb.lol /v2/mil',
+): GeoPointFeature[] {
+  const list = payload?.ac ?? payload?.aircraft;
+  if (!payload || !Array.isArray(list)) {
+    throw new Error('ADS-B military response missing ac[]/aircraft[] array');
   }
 
   const rawNow = Number(payload.now);
@@ -326,7 +337,7 @@ export function normalizeMilitaryFlights(payload: RawAdsbResponse, fallbackNowMs
   const seenHex = new Set<string>();
   const features: GeoPointFeature[] = [];
 
-  for (const ac of payload.ac) {
+  for (const ac of list) {
     const cleanHex = (ac.hex ?? '').trim().replace(/~/g, '').toUpperCase();
     if (!cleanHex || seenHex.has(cleanHex)) continue;
 
@@ -336,17 +347,39 @@ export function normalizeMilitaryFlights(payload: RawAdsbResponse, fallbackNowMs
     if (!classified) continue;
 
     seenHex.add(cleanHex);
-    features.push(classified);
+    features.push({
+      ...classified,
+      source: providerLabel,
+    });
   }
 
   return features;
 }
 
 export async function fetchMilitaryFlights(): Promise<GeoPointFeature[]> {
-  const payload = await fetchJsonWithTimeout<RawAdsbResponse>(ADSBLOL_MIL_URL, {
-    timeoutMs: 15_000,
-    retries: 1,
-    userAgent: DEFAULT_BROWSER_UA,
-  });
-  return normalizeMilitaryFlights(payload, Date.now());
+  const startIdx = adsbProviderCursor++ % ADSB_MIL_PROVIDERS.length;
+  const ordered = [
+    ADSB_MIL_PROVIDERS[startIdx],
+    ADSB_MIL_PROVIDERS[(startIdx + 1) % ADSB_MIL_PROVIDERS.length],
+  ];
+
+  let lastErr: unknown;
+  for (const provider of ordered) {
+    try {
+      const payload = await fetchJsonWithTimeout<RawAdsbResponse>(provider.url, {
+        timeoutMs: 10_000,
+        // Never retry against the same rate-limited ADS-B host; fail over immediately to sibling provider
+        retries: 0,
+        userAgent: 'Mozilla/5.0',
+      });
+      const normalized = normalizeMilitaryFlights(payload, Date.now(), provider.name);
+      if (normalized.length > 0) {
+        return normalized;
+      }
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+
+  throw lastErr instanceof Error ? lastErr : new Error('All ADS-B military providers failed');
 }

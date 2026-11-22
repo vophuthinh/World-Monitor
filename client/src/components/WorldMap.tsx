@@ -1323,7 +1323,7 @@ export const WorldMap = memo(function WorldMap({
       if (state.activeLayers.military && state.military.length > 0) {
         const milSrc = map.getSource('military-src') as GeoJSONSource | undefined;
         if (milSrc) {
-          const advanced = advanceDeadReckoning(state.military, now, 22, state.militaryAnchorMs);
+          const advanced = advanceDeadReckoning(state.military, now, 36, state.militaryAnchorMs);
           milSrc.setData(pointsToFeatureCollection(advanced));
         }
       }
@@ -1332,7 +1332,7 @@ export const WorldMap = memo(function WorldMap({
       if (tickStep % 2 === 0 && state.activeLayers.vessels && state.vessels.length > 0) {
         const vslSrc = map.getSource('vessels-src') as GeoJSONSource | undefined;
         if (vslSrc) {
-          const advancedVessels = advanceDeadReckoning(state.vessels, now, 30, state.vesselsAnchorMs);
+          const advancedVessels = advanceDeadReckoning(state.vessels, now, 50, state.vesselsAnchorMs);
           vslSrc.setData(pointsToFeatureCollection(advancedVessels));
         }
       }
