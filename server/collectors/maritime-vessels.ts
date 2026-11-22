@@ -167,6 +167,11 @@ export function normalizeDigitrafficVessels(
           ? Math.round(cog) % 360
           : 0;
 
+    const cogRaw = item.properties?.cog;
+    const headingKnown =
+      (Number.isFinite(rawHeading) && rawHeading >= 0 && rawHeading < 360) ||
+      (cogRaw !== undefined && cogRaw !== null && Number.isFinite(cog) && cog >= 0 && cog < 360);
+
     const ts = Number(item.properties?.timestampExternal) || now;
     if (now - ts > 30 * 60_000) continue;
 
@@ -193,6 +198,7 @@ export function normalizeDigitrafficVessels(
           country: flag,
           speedKt,
           headingDeg: validHeading,
+          headingKnown,
           onGround: speedKt < 0.5,
           corridor: 'Baltic / Northern Maritime',
         },

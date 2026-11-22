@@ -19,6 +19,9 @@ export function advanceDeadReckoning(
     const speedKt = Number(f.meta.speedKt ?? 0);
     const headingDeg = Number(f.heading ?? 0);
 
+    // Collectors default a missing heading to 0; do not extrapolate those towards north.
+    if (f.meta.headingKnown === false) return f;
+
     if (onGround || !Number.isFinite(speedKt) || speedKt < 1.5 || !Number.isFinite(headingDeg)) {
       return f;
     }

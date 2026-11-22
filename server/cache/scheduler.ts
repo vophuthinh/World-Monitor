@@ -38,7 +38,13 @@ export class CollectorScheduler {
     const previous = this.store.get(id);
     const updated = await this.store.refresh(id, () => collector.fetcher(previous));
     if (updated !== null && this.onSync) {
-      this.onSync(id, updated);
+      // A failing hook must never reject: callers use `void refreshCollector(...)` and Node
+      // would turn the unhandled rejection into a process crash.
+      try {
+        this.onSync(id, updated);
+      } catch (err) {
+        console.error(`[scheduler] onSync hook failed for ${id}:`, (err as Error)?.message);
+      }
     }
     return updated;
   }

@@ -280,7 +280,8 @@ export function classifyMilitaryAircraft(
   const onGround = ac.alt_baro === 'ground';
   const altitudeFt = typeof ac.alt_baro === 'number' && Number.isFinite(ac.alt_baro) ? Math.round(ac.alt_baro) : 0;
   const speedKt = typeof ac.gs === 'number' && Number.isFinite(ac.gs) ? Math.round(ac.gs) : 0;
-  const heading = typeof ac.track === 'number' && Number.isFinite(ac.track) ? Math.round(ac.track) % 360 : 0;
+  const headingKnown = typeof ac.track === 'number' && Number.isFinite(ac.track);
+  const heading = headingKnown ? Math.round(ac.track as number) % 360 : 0;
 
   const displayCallsign = callsign || ac.r?.trim() || hex;
   const modelText = desc || typeCode || ROLE_LABELS[role];
@@ -311,6 +312,7 @@ export function classifyMilitaryAircraft(
       onGround,
       speedKt,
       headingDeg: heading,
+      headingKnown,
       squawk: ac.squawk ?? null,
     },
   };
