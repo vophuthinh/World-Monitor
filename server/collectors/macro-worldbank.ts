@@ -136,6 +136,7 @@ export function normalizeWorldBankIndicators(
       fdiPctGdp: fdi ? Number(fdi.value.toFixed(2)) : null,
       unemploymentPct: uem ? Number(uem.value.toFixed(2)) : null,
       currentAccountPctGdp: cab ? Number(cab.value.toFixed(2)) : null,
+      currentAccountYear: cab ? cab.year : null,
       creditPctGdp: credit ? Number(credit.value.toFixed(1)) : null,
       realInterestRatePct: rir ? Number(rir.value.toFixed(2)) : null,
     };

@@ -31,6 +31,7 @@ import {
   parseMultplSp500PeHtml,
   parseSimplizeIndexValuationHtml,
   parseTradingEconomicsVietnamHtml,
+  parseVietnamOfficialYtdContext,
 } from '../server/collectors/markets-crypto';
 import {
   normalizeNwsWeatherAlerts,
@@ -964,5 +965,91 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
+  });
+
+  it('aligns Vietnam CPI strictly on YTD Average vs 4.5% National Assembly target and flags lagged 2025 Current Account vs 2026 YTD Trade Deficit', () => {
+    const ytdCtx = parseVietnamOfficialYtdContext({
+      now: Date.UTC(2026, 10, 22, 12, 0, 0),
+      cpiRssXml: `
+        <rss><channel>
+          <item>
+            <title>Bình quân 11 tháng năm 2025, CPI tăng 3,29%, lạm phát cơ bản tăng 3,21% và kịch bản 2026</title>
+            <pubDate>Sat, 06 Dec 2025 08:00:00 GMT</pubDate>
+          </item>
+          <item>
+            <title>10 tháng đầu năm 2026, CPI tăng 4,57%, lạm phát cơ bản tăng 4,24% - Thị trường Tài chính Tiền tệ</title>
+            <pubDate>Fri, 06 Nov 2026 08:00:00 GMT</pubDate>
+          </item>
+        </channel></rss>
+      `,
+      tradeRssXml: `
+        <rss><channel>
+          <item><title>11 tháng năm 2025 Việt Nam xuất siêu 24,31 tỷ USD</title><pubDate>Sat, 06 Dec 2025 08:00:00 GMT</pubDate></item>
+          <item><title>Việt Nam xuất siêu hơn 7 tỷ USD trong tháng 10/2026</title><pubDate>Fri, 06 Nov 2026 09:00:00 GMT</pubDate></item>
+          <item><title>Xuất nhập khẩu vượt 1.070 tỷ USD, nhập siêu còn 11,74 tỷ USD</title><pubDate>Wed, 18 Nov 2026 09:00:00 GMT</pubDate></item>
+        </channel></rss>
+      `,
+      vcbFxXml: `<ExrateList><Exrate CurrencyCode="USD" Buy="25,570.00" Transfer="25,600.00" Sell="25,980.00" /></ExrateList>`,
+    });
+
+    expect(ytdCtx.ytdCpiMonths).toBe(10);
+    expect(ytdCtx.ytdAvgCpiPct).toBe(4.57);
+    expect(ytdCtx.ytdCoreCpiPct).toBe(4.24);
+    expect(ytdCtx.ytdTradeBalanceBillionUsd).toBe(-11.74);
+    expect(ytdCtx.vcbSellUsdVnd).toBe(25980);
+
+    const health = evaluateMacroHealth({
+      quotes: [
+        { symbol: 'USD/VND', name: 'USD/VND', group: 'fx', price: 25783, changePercent24h: 0, updatedAt: 1, source: 'FX' },
+        { symbol: 'VN-Index', name: 'VN-Index', group: 'index', price: 1689, changePercent24h: -0.05, peRatio: 10.46, pbRatio: 1.8, updatedAt: 1, source: 'HOSE' },
+      ],
+      crypto: [],
+      fearGreed: null,
+      macro: [
+        {
+          countryCode: 'VNM',
+          countryName: 'Việt Nam',
+          regionLabel: 'ASEAN',
+          isVietnam: true,
+          gdpGrowthPct: 8.02,
+          gdpGrowthYear: 2025,
+          gdpCurrentUsd: 514_000_000_000,
+          gdpCurrentYear: 2025,
+          cpiInflationPct: 3.31,
+          cpiYear: 2025,
+          fdiPctGdp: 4.27,
+          currentAccountPctGdp: 6.44,
+          currentAccountYear: 2025,
+          creditPctGdp: 125.0,
+        },
+      ],
+      vnMacroPulse: {
+        quarterlyGdpPct: 9.95,
+        manufacturingPmi: 52.3,
+        monthlyCpiPct: 5.09,
+        ytdAvgCpiPct: 4.57,
+        ytdCoreCpiPct: 4.24,
+        ytdCpiMonths: 10,
+        tradeBalanceBillionUsd: 7.31,
+        ytdTradeBalanceBillionUsd: -11.74,
+        interbankRatePct: 7.66,
+        vn10yYieldPct: 4.57,
+        vcbSellUsdVnd: 25980,
+        updatedAt: 1,
+      },
+      updatedAt: 1,
+    });
+
+    const vnCpiMetric = health.vn?.pillars[1].metrics.find((m) => m.id === 'vn-cpi');
+    // Must compare YTD Average CPI (4.57%), NOT single-month 5.09%, against the 4.5% National Assembly target!
+    expect(vnCpiMetric?.actual).toBe(4.57);
+    expect(vnCpiMetric?.deltaVsBenchmark).toBe(0.07);
+    expect(vnCpiMetric?.status).toBe('watch');
+    expect(vnCpiMetric?.trendLabel).toContain('Lõi BQ 4.24%');
+    expect(vnCpiMetric?.trendLabel).toContain('Tháng YoY 5.09%');
+
+    // Must NEVER emit false-present "Lá chắn ngoại hối vững +6.44% GDP" when 6.44% is lagged 2025 data & 2026 YTD trade is in deficit!
+    expect(health.vn?.warningFlags.some((f) => f.text.includes('Lá chắn ngoại hối vững'))).toBe(false);
+    expect(health.vn?.warningFlags.some((f) => f.text.includes('năm 2025') && f.text.includes('~0.3% GDP'))).toBe(true);
   });
 });

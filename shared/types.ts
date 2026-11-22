@@ -237,6 +237,7 @@ export interface MacroCountryIndicator {
   fdiPctGdp?: number | null;
   unemploymentPct?: number | null;
   currentAccountPctGdp?: number | null;
+  currentAccountYear?: number | null;
   creditPctGdp?: number | null;
   realInterestRatePct?: number | null;
 }
@@ -331,11 +332,16 @@ export interface VietnamLiveMacroPulse {
   sbvPolicyRatePct?: number;
   monthlyCpiPct?: number;
   monthlyCpiPrevPct?: number;
+  ytdAvgCpiPct?: number;
+  ytdCoreCpiPct?: number;
+  ytdCpiMonths?: number;
   manufacturingPmi?: number;
   manufacturingPmiPrev?: number;
   quarterlyGdpPct?: number;
   quarterlyGdpPrevPct?: number;
   tradeBalanceBillionUsd?: number;
+  ytdTradeBalanceBillionUsd?: number;
+  vcbSellUsdVnd?: number;
   sp500PeRatio?: number;
   updatedAt: number;
 }

@@ -601,8 +601,170 @@ export function parseMultplSp500PeHtml(html: string): number | undefined {
   return Number.isFinite(val) && val > 5 && val < 90 ? Number(val.toFixed(2)) : undefined;
 }
 
+const VN_WORD_MONTHS: Record<string, number> = {
+  một: 1,
+  hai: 2,
+  ba: 3,
+  bốn: 4,
+  năm: 5,
+  sáu: 6,
+  bảy: 7,
+  tám: 8,
+  chín: 9,
+  mười: 10,
+  'mười một': 11,
+  'mười hai': 12,
+};
+
+function extractRssItems(xml: string): Array<{ title: string; pubYear?: number }> {
+  const itemBlocks = [...xml.matchAll(/<item\b[^>]*>([\s\S]*?)<\/item>/gi)];
+  if (itemBlocks.length > 0) {
+    const out: Array<{ title: string; pubYear?: number }> = [];
+    for (const block of itemBlocks) {
+      const inner = block[1];
+      const titleMatch = inner.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/i);
+      if (!titleMatch) continue;
+      const pubMatch = inner.match(/<pubDate>([^<]+)<\/pubDate>/i);
+      let pubYear: number | undefined;
+      if (pubMatch) {
+        const parsedTs = Date.parse(pubMatch[1].trim());
+        if (Number.isFinite(parsedTs)) {
+          pubYear = new Date(parsedTs + 7 * 3_600_000).getUTCFullYear();
+        }
+      }
+      out.push({ title: titleMatch[1].trim(), pubYear });
+    }
+    return out;
+  }
+  return [...xml.matchAll(/<title>([^<]+)<\/title>/gi)].map((m) => ({ title: m[1].trim() }));
+}
+
+/**
+ * Extracts official GSO cumulative YTD Average CPI (to compare apples-to-apples with the
+ * National Assembly's full-year average CPI target), Core CPI, cumulative YTD Trade Balance,
+ * and Vietcombank commercial USD sell rate — strictly guarded by statistical year & GSO release calendar
+ * so prior-year (e.g. 11M 2025) headlines never leak into current-year (e.g. 10M 2026) metrics.
+ */
+export function parseVietnamOfficialYtdContext(params: {
+  cpiRssXml?: string;
+  tradeRssXml?: string;
+  vcbFxXml?: string;
+  now?: number;
+}): Partial<VietnamLiveMacroPulse> {
+  const out: Partial<VietnamLiveMacroPulse> = {};
+  const vnNow = new Date((params.now ?? Date.now()) + 7 * 3_600_000);
+  const currentYear = vnNow.getUTCFullYear();
+  const currentMonth = vnNow.getUTCMonth() + 1;
+  const dayOfMonth = vnNow.getUTCDate();
+
+  // GSO releases cumulative M-month CPI around the 6th day of month M+1.
+  // Before Feb 5 of a new year, multi-month YTD belongs to the prior year (12M); otherwise cap to published months of currentYear.
+  const isEarlyNewYear = currentMonth === 1 || (currentMonth === 2 && dayOfMonth < 5);
+  const targetStatYear = isEarlyNewYear ? currentYear - 1 : currentYear;
+  const maxPublishedMonths = isEarlyNewYear
+    ? 12
+    : Math.max(2, currentMonth - (dayOfMonth < 5 ? 2 : 1));
+
+  if (params.vcbFxXml) {
+    const vcbMatch = params.vcbFxXml.match(/CurrencyCode=["']USD["'][^>]*Sell=["']([0-9,.]+)["']/i);
+    if (vcbMatch) {
+      const num = Number(vcbMatch[1].replace(/,/g, ''));
+      if (Number.isFinite(num) && num > 18_000 && num < 40_000) {
+        out.vcbSellUsdVnd = Math.round(num);
+      }
+    }
+  }
+
+  const isStaleItemYear = (rawTitle: string, pubYear?: number): boolean => {
+    if (pubYear !== undefined && pubYear < targetStatYear) return true;
+    const boundYearMatch = rawTitle.match(/(?:tháng(?:\s+đầu)?(?:\s+năm)?|năm|\/)\s*(20\d{2})\b/i);
+    if (boundYearMatch && Number(boundYearMatch[1]) !== targetStatYear) return true;
+    const allYears = [...rawTitle.matchAll(/\b(20\d{2})\b/g)].map((m) => Number(m[1]));
+    if (allYears.length > 0 && !allYears.includes(targetStatYear)) return true;
+    return false;
+  };
+
+  if (params.cpiRssXml) {
+    const items = extractRssItems(params.cpiRssXml);
+    let bestScore = -1;
+    for (const { title: rawTitle, pubYear } of items) {
+      if (isStaleItemYear(rawTitle, pubYear)) continue;
+      const t = rawTitle.toLowerCase();
+      let months = 0;
+      const numMonthMatch = t.match(/\b(1[0-2]|[2-9])\s*tháng\b/);
+      if (numMonthMatch) {
+        months = Number(numMonthMatch[1]);
+      } else {
+        for (const [word, mVal] of Object.entries(VN_WORD_MONTHS)) {
+          if (t.includes(`${word} tháng`)) {
+            months = Math.max(months, mVal);
+          }
+        }
+      }
+      if (months < 2 || months > maxPublishedMonths) continue;
+
+      const cpiMatch = rawTitle.match(/CPI[^0-9]{0,40}?tăng\s+([0-9]+[.,][0-9]+)\s*%/i);
+      const coreMatch = rawTitle.match(/lạm\s+phát\s+cơ\s+bản[^0-9]{0,40}?([0-9]+[.,][0-9]+)\s*%/i);
+      if (!cpiMatch) continue;
+
+      const avgCpi = Number(cpiMatch[1].replace(',', '.'));
+      if (!Number.isFinite(avgCpi) || avgCpi <= 0 || avgCpi >= 25) continue;
+
+      const hasExplicitTargetYear = rawTitle.includes(String(targetStatYear));
+      const candidateScore = months * 10 + (hasExplicitTargetYear ? 4 : 0) + (coreMatch ? 2 : 0);
+      if (candidateScore > bestScore) {
+        bestScore = candidateScore;
+        out.ytdCpiMonths = months;
+        out.ytdAvgCpiPct = Number(avgCpi.toFixed(2));
+        if (coreMatch) {
+          const coreVal = Number(coreMatch[1].replace(',', '.'));
+          if (Number.isFinite(coreVal) && coreVal > 0 && coreVal < 25) {
+            out.ytdCoreCpiPct = Number(coreVal.toFixed(2));
+          }
+        } else {
+          delete out.ytdCoreCpiPct;
+        }
+      }
+    }
+  }
+
+  if (params.tradeRssXml) {
+    const items = extractRssItems(params.tradeRssXml);
+    for (const { title: rawTitle, pubYear } of items) {
+      if (isStaleItemYear(rawTitle, pubYear)) continue;
+      // Skip single-month headlines ("trong tháng 10/2026" or "Tháng 10/2026, xuất siêu...") so we only capture cumulative YTD balance
+      if (/\btrong\s+tháng\s+\d+/i.test(rawTitle) || /^\s*tháng\s+\d+\b/i.test(rawTitle)) continue;
+      const deficitMatch = rawTitle.match(/nhập\s+siêu[^0-9]{0,25}?([0-9]+[.,][0-9]+)\s*tỷ\s*USD/i);
+      const surplusMatch = rawTitle.match(/xuất\s+siêu[^0-9]{0,25}?([0-9]+[.,][0-9]+)\s*tỷ\s*USD/i);
+      if (deficitMatch) {
+        const val = Number(deficitMatch[1].replace(',', '.'));
+        if (Number.isFinite(val) && val > 0 && val < 100) {
+          out.ytdTradeBalanceBillionUsd = -Number(val.toFixed(2));
+          break;
+        }
+      } else if (surplusMatch && /\b\d+\s*tháng|cả\s+năm|đầu\s+năm\b/i.test(rawTitle)) {
+        const val = Number(surplusMatch[1].replace(',', '.'));
+        if (Number.isFinite(val) && val > 0 && val < 100) {
+          out.ytdTradeBalanceBillionUsd = Number(val.toFixed(2));
+          break;
+        }
+      }
+    }
+  }
+
+  return out;
+}
+
 async function fetchVietnamAndGlobalMacroPulse(now: number): Promise<VietnamLiveMacroPulse | undefined> {
-  const [teIndRes, teBondRes, multplRes] = await Promise.allSettled([
+  const currentYear = new Date(now + 7 * 3_600_000).getUTCFullYear();
+  const cpiRssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(
+    `"tháng" "CPI tăng" "lạm phát cơ bản" ${currentYear}`,
+  )}&hl=vi&gl=VN&ceid=VN:vi`;
+  const tradeRssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(
+    `("nhập siêu" OR "xuất siêu") "tỷ USD" "xuất nhập khẩu" ${currentYear} Việt Nam`,
+  )}&hl=vi&gl=VN&ceid=VN:vi`;
+
+  const [teIndRes, teBondRes, multplRes, cpiRssRes, tradeRssRes, vcbRes] = await Promise.allSettled([
     fetchTextWithTimeout('https://tradingeconomics.com/vietnam/indicators', {
       timeoutMs: 6_500,
       retries: 0,
@@ -618,17 +780,39 @@ async function fetchVietnamAndGlobalMacroPulse(now: number): Promise<VietnamLive
       retries: 0,
       userAgent: 'Mozilla/5.0',
     }),
+    fetchTextWithTimeout(cpiRssUrl, {
+      timeoutMs: 5_500,
+      retries: 0,
+      userAgent: 'Mozilla/5.0',
+    }),
+    fetchTextWithTimeout(tradeRssUrl, {
+      timeoutMs: 5_500,
+      retries: 0,
+      userAgent: 'Mozilla/5.0',
+    }),
+    fetchTextWithTimeout('https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx', {
+      timeoutMs: 5_500,
+      retries: 0,
+      userAgent: 'Mozilla/5.0',
+    }),
   ]);
 
   const indHtml = teIndRes.status === 'fulfilled' ? teIndRes.value.text : '';
   const bondHtml = teBondRes.status === 'fulfilled' ? teBondRes.value.text : '';
   const multplHtml = multplRes.status === 'fulfilled' ? multplRes.value.text : '';
+  const ytdContext = parseVietnamOfficialYtdContext({
+    cpiRssXml: cpiRssRes.status === 'fulfilled' ? cpiRssRes.value.text : undefined,
+    tradeRssXml: tradeRssRes.status === 'fulfilled' ? tradeRssRes.value.text : undefined,
+    vcbFxXml: vcbRes.status === 'fulfilled' ? vcbRes.value.text : undefined,
+    now,
+  });
 
   const vnParsed = parseTradingEconomicsVietnamHtml(indHtml, bondHtml);
   const sp500PeRatio = parseMultplSp500PeHtml(multplHtml);
 
   const combined: VietnamLiveMacroPulse = {
     ...vnParsed,
+    ...ytdContext,
     ...(sp500PeRatio !== undefined ? { sp500PeRatio } : {}),
     updatedAt: now,
   };

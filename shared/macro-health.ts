@@ -415,20 +415,43 @@ export function buildVietnamMacroHealth(
   const manf = vn.manufacturingGrowthPct ?? gdp * 1.25;
   const manfBenchmark = 8.0;
 
-  const cpi = pulse?.monthlyCpiPct ?? vn.cpiInflationPct ?? 3.4;
-  const cpiPrev = pulse?.monthlyCpiPrevPct ?? vn.cpiPrevPct ?? undefined;
-  const cpiPeriod = pulse?.monthlyCpiPct !== undefined ? 'Tháng mới nhất' : vn.cpiYear ? `${vn.cpiYear}` : gdpPeriod;
-  const cpiCeiling = 4.5; // Trần mục tiêu Quốc hội Việt Nam (4.0 - 4.5%)
-  const cpiDelta = Number((cpi - cpiCeiling).toFixed(2));
-  const cpiTrend = cpiPrev !== null && cpiPrev !== undefined ? Number((cpi - cpiPrev).toFixed(2)) : undefined;
+  // CRITICAL ECONOMETRIC ALIGNMENT:
+  // Quốc hội's 4.5% CPI target applies strictly to FULL-YEAR / YTD AVERAGE CPI (CPI bình quân),
+  // NEVER to a single-month YoY print! Prefer official GSO YTD average CPI when available;
+  // if only single-month YoY CPI exists without YTD average, label & benchmark it distinctly.
+  const cpiCeiling = 4.5;
+  const currentCalendarYear = new Date().getFullYear();
+  const hasYtdAvgCpi = pulse?.ytdAvgCpiPct !== undefined;
+  const hasMonthlySpotCpi = pulse?.monthlyCpiPct !== undefined;
+  const isWbCpiCurrentYear = vn.cpiYear !== null && vn.cpiYear >= currentCalendarYear;
+  const cpiForTargetComparison =
+    pulse?.ytdAvgCpiPct ??
+    (isWbCpiCurrentYear ? vn.cpiInflationPct : undefined) ??
+    pulse?.monthlyCpiPct ??
+    vn.cpiInflationPct ??
+    3.4;
+  const spotMonthlyCpi = pulse?.monthlyCpiPct;
+  const coreCpi = pulse?.ytdCoreCpiPct;
+  const cpiDelta = Number((cpiForTargetComparison - cpiCeiling).toFixed(2));
+  const cpiTrend =
+    !hasYtdAvgCpi && vn.cpiPrevPct !== null && vn.cpiPrevPct !== undefined
+      ? Number((cpiForTargetComparison - vn.cpiPrevPct).toFixed(2))
+      : undefined;
 
   const fdi = vn.fdiPctGdp ?? 4.0;
   const exportsGdp = vn.exportsPctGdp ?? 85.0;
   const unemp = vn.unemploymentPct ?? 2.0;
   const currentAccount = vn.currentAccountPctGdp;
+  const cabYear = vn.currentAccountYear ?? vn.gdpGrowthYear ?? undefined;
+  const isCabStalePriorYear =
+    cabYear !== undefined &&
+    cabYear < currentCalendarYear &&
+    (pulse?.quarterlyGdpPct !== undefined || pulse?.tradeBalanceBillionUsd !== undefined);
   const creditPctGdp = vn.creditPctGdp;
   const vn10y = pulse?.vn10yYieldPct;
   const interbank = pulse?.interbankRatePct;
+  const ytdTradeB = pulse?.ytdTradeBalanceBillionUsd;
+  const vcbSell = pulse?.vcbSellUsdVnd;
   const erp = computeVietnamEquityRiskPremium(vniQuote?.peRatio, vn10y ?? 5.2);
   const yearLabel = vn.gdpGrowthYear ? `${vn.gdpGrowthYear}` : 'Mới nhất';
 
@@ -437,13 +460,16 @@ export function buildVietnamMacroHealth(
     Math.max(-3, Math.min(3, ((gdp - gdpBenchmark) / 1.2) * 0.6 + manfZ * 0.4)).toFixed(2),
   );
   const fxStressZ = usdVndRate && usdVndRate > 15_000 ? (usdVndRate - 25_550) / 450 : 0;
-  const interbankStressZ = interbank !== undefined ? (interbank - 5.0) / 2.0 : 0;
+  const interbankStressZ = interbank !== undefined ? (interbank - 5.2) / 2.2 : 0;
+  const effectiveCpiForZ = coreCpi !== undefined
+    ? cpiForTargetComparison * 0.65 + coreCpi * 0.35
+    : cpiForTargetComparison;
   const inflationZ = Number(
     Math.max(
       -3,
       Math.min(
         3,
-        ((cpi - 3.8) / 0.75) * 0.6 + fxStressZ * 0.25 + interbankStressZ * 0.15,
+        ((effectiveCpiForZ - 3.9) / 0.75) * 0.6 + fxStressZ * 0.25 + interbankStressZ * 0.15,
       ),
     ).toFixed(2),
   );
@@ -466,73 +492,104 @@ export function buildVietnamMacroHealth(
     },
     hasLivePmi && pmi !== undefined
       ? {
-          id: 'vn-pmi',
-          name: 'Chỉ số PMI Sản xuất Việt Nam (Tháng)',
-          actual: pmi,
-          unit: 'pts',
-          benchmarkLabel: 'Ngưỡng mở rộng',
-          benchmarkValue: 50.0,
-          deltaVsBenchmark: Number((pmi - 50.0).toFixed(1)),
-          zScore: Number(manfZ.toFixed(2)),
-          trendLabel:
-            pulse?.manufacturingPmiPrev !== undefined
-              ? `Kỳ trước: ${pulse.manufacturingPmiPrev.toFixed(1)} pts`
-              : undefined,
-          periodLabel: 'Live PMI',
-          status: pmi >= 50.5 ? 'good' : pmi >= 48.5 ? 'watch' : 'warn',
-        }
+        id: 'vn-pmi',
+        name: 'Chỉ số PMI Sản xuất Việt Nam (Tháng)',
+        actual: pmi,
+        unit: 'pts',
+        benchmarkLabel: 'Ngưỡng mở rộng',
+        benchmarkValue: 50.0,
+        deltaVsBenchmark: Number((pmi - 50.0).toFixed(1)),
+        zScore: Number(manfZ.toFixed(2)),
+        trendLabel:
+          pulse?.manufacturingPmiPrev !== undefined
+            ? `Kỳ trước: ${pulse.manufacturingPmiPrev.toFixed(1)} pts`
+            : undefined,
+        periodLabel: 'Live PMI',
+        status: pmi >= 50.5 ? 'good' : pmi >= 48.5 ? 'watch' : 'warn',
+      }
       : {
-          id: 'vn-manf',
-          name: 'CN Chế biến · Chế tạo (Proxy PMI)',
-          actual: Number(manf.toFixed(2)),
-          unit: '%',
-          benchmarkLabel: 'Ngưỡng mở rộng',
-          benchmarkValue: manfBenchmark,
-          deltaVsBenchmark: Number((manf - manfBenchmark).toFixed(2)),
-          zScore: Number(manfZ.toFixed(2)),
-          periodLabel: yearLabel,
-          status: manf >= manfBenchmark ? 'good' : manf >= 5.0 ? 'watch' : 'warn',
-        },
+        id: 'vn-manf',
+        name: 'CN Chế biến · Chế tạo (Proxy PMI)',
+        actual: Number(manf.toFixed(2)),
+        unit: '%',
+        benchmarkLabel: 'Ngưỡng mở rộng',
+        benchmarkValue: manfBenchmark,
+        deltaVsBenchmark: Number((manf - manfBenchmark).toFixed(2)),
+        zScore: Number(manfZ.toFixed(2)),
+        periodLabel: yearLabel,
+        status: manf >= manfBenchmark ? 'good' : manf >= 5.0 ? 'watch' : 'warn',
+      },
     pulse?.tradeBalanceBillionUsd !== undefined
       ? {
           id: 'vn-trade',
-          name: 'Cán cân Thương mại Tháng (Xuất siêu)',
+          name: 'Cán cân Thương mại Tháng (Xuất/Nhập siêu)',
           actual: pulse.tradeBalanceBillionUsd,
           unit: 'B$',
-          benchmarkLabel: 'Ngưỡng thặng dư',
+          benchmarkLabel: 'Thặng dư tháng',
           benchmarkValue: 1.5,
           deltaVsBenchmark: Number((pulse.tradeBalanceBillionUsd - 1.5).toFixed(2)),
-          trendLabel: `Độ mở XK: ${exportsGdp.toFixed(0)}% GDP`,
+          trendLabel:
+            ytdTradeB !== undefined
+              ? `Lũy kế năm: ${ytdTradeB >= 0 ? '+' : ''}${ytdTradeB.toFixed(2)}B$ (${ytdTradeB < 0 ? 'nhập siêu máy móc/NL' : 'xuất siêu'})`
+              : `Độ mở XK: ${exportsGdp.toFixed(0)}% GDP`,
           periodLabel: 'Tháng mới nhất',
-          status: pulse.tradeBalanceBillionUsd >= 1.5 ? 'good' : pulse.tradeBalanceBillionUsd >= 0 ? 'watch' : 'warn',
+          status:
+            pulse.tradeBalanceBillionUsd >= 1.5 && (ytdTradeB === undefined || ytdTradeB >= -5)
+              ? 'good'
+              : pulse.tradeBalanceBillionUsd >= 0
+                ? 'watch'
+                : 'warn',
         }
       : {
-          id: 'vn-exp',
-          name: 'Độ mở Xuất khẩu / GDP',
-          actual: Number(exportsGdp.toFixed(1)),
-          unit: '% GDP',
-          benchmarkLabel: 'Trung bình ASEAN',
-          benchmarkValue: 75.0,
-          deltaVsBenchmark: Number((exportsGdp - 75.0).toFixed(1)),
-          periodLabel: yearLabel,
-          status: exportsGdp >= 75 ? 'good' : 'watch',
-        },
+        id: 'vn-exp',
+        name: 'Độ mở Xuất khẩu / GDP',
+        actual: Number(exportsGdp.toFixed(1)),
+        unit: '% GDP',
+        benchmarkLabel: 'Trung bình ASEAN',
+        benchmarkValue: 75.0,
+        deltaVsBenchmark: Number((exportsGdp - 75.0).toFixed(1)),
+        periodLabel: yearLabel,
+        status: exportsGdp >= 75 ? 'good' : 'watch',
+      },
   ];
+
+  const cpiMetricLabel = hasYtdAvgCpi
+    ? `CPI Bình quân ${pulse?.ytdCpiMonths ? `${pulse.ytdCpiMonths}T` : 'Lũy kế'} (Chỉ tiêu QH)`
+    : hasMonthlySpotCpi && vn.cpiInflationPct === null
+      ? 'CPI Tháng so cùng kỳ (YoY đơn lẻ)'
+      : 'Lạm phát CPI bình quân';
+
+  const cpiSubParts: string[] = [];
+  if (coreCpi !== undefined) cpiSubParts.push(`Lõi BQ ${coreCpi.toFixed(2)}%`);
+  if (spotMonthlyCpi !== undefined && (hasYtdAvgCpi || cpiForTargetComparison !== spotMonthlyCpi)) {
+    cpiSubParts.push(`Tháng YoY ${spotMonthlyCpi.toFixed(2)}%`);
+  } else if (cpiTrend !== undefined) {
+    cpiSubParts.push(`${cpiTrend >= 0 ? '+' : ''}${cpiTrend}% vs kỳ trước`);
+  }
 
   const inflationMetrics: MacroPillarMetric[] = [
     {
       id: 'vn-cpi',
-      name: pulse?.monthlyCpiPct !== undefined ? 'Lạm phát CPI Tháng (YoY)' : 'Lạm phát CPI bình quân',
-      actual: cpi,
+      name: cpiMetricLabel,
+      actual: cpiForTargetComparison,
       unit: '%',
-      benchmarkLabel: 'Trần Quốc hội',
+      benchmarkLabel: 'Trần BQ Quốc hội',
       benchmarkValue: cpiCeiling,
       deltaVsBenchmark: cpiDelta,
-      zScore: Number(((cpi - 3.8) / 0.75).toFixed(2)),
+      zScore: Number(((cpiForTargetComparison - 3.9) / 0.75).toFixed(2)),
       trendSlope: cpiTrend,
-      trendLabel: cpiTrend !== undefined ? `${cpiTrend >= 0 ? '+' : ''}${cpiTrend}% vs kỳ trước` : undefined,
-      periodLabel: cpiPeriod,
-      status: cpi <= 4.0 ? 'good' : cpi <= cpiCeiling ? 'watch' : 'warn',
+      trendLabel: cpiSubParts.length > 0 ? cpiSubParts.join(' · ') : undefined,
+      periodLabel: hasYtdAvgCpi
+        ? `${pulse?.ytdCpiMonths ?? ''}T/${currentCalendarYear}`
+        : vn.cpiYear
+          ? `${vn.cpiYear}`
+          : gdpPeriod,
+      status:
+        cpiForTargetComparison <= 4.2
+          ? 'good'
+          : cpiForTargetComparison <= 4.75
+            ? 'watch'
+            : 'warn',
     },
   ];
 
@@ -541,13 +598,15 @@ export function buildVietnamMacroHealth(
     const fxPctDiff = Number((((usdVndRate - fxBenchmark) / fxBenchmark) * 100).toFixed(2));
     inflationMetrics.push({
       id: 'vn-fx',
-      name: 'Tỷ giá USD/VND (Chi phí nhập khẩu)',
+      name: 'Tỷ giá USD/VND (Liên NH & NHTM)',
       actual: Math.round(usdVndRate),
       unit: '₫',
       benchmarkLabel: 'Mốc tham chiếu',
       benchmarkValue: fxBenchmark,
       deltaVsBenchmark: fxPctDiff,
-      trendLabel: `${fxPctDiff >= 0 ? '+' : ''}${fxPctDiff}% biên độ`,
+      trendLabel: vcbSell
+        ? `VCB bán: ${vcbSell.toLocaleString('en-US')}₫ (${fxPctDiff >= 0 ? '+' : ''}${fxPctDiff}%)`
+        : `${fxPctDiff >= 0 ? '+' : ''}${fxPctDiff}% biên độ`,
       periodLabel: 'Live FX',
       status: usdVndRate <= 25_650 ? 'good' : usdVndRate <= 26_100 ? 'watch' : 'warn',
     });
@@ -556,15 +615,15 @@ export function buildVietnamMacroHealth(
   if (interbank !== undefined) {
     inflationMetrics.push({
       id: 'vn-interbank',
-      name: 'Lãi suất Liên ngân hàng VN (Thanh khoản VND)',
+      name: 'Lãi suất Liên ngân hàng VN (Kỳ hạn ngắn)',
       actual: interbank,
       unit: '%',
-      benchmarkLabel: 'Vùng dồi dào',
+      benchmarkLabel: 'Vùng cân bằng',
       benchmarkValue: 4.5,
       deltaVsBenchmark: Number((interbank - 4.5).toFixed(2)),
-      trendLabel: vn10y !== undefined ? `TPCP VN 10Y: ${vn10y.toFixed(2)}%` : undefined,
+      trendLabel: vn10y !== undefined ? `TPCP 10Y: ${vn10y.toFixed(2)}% · Điều tiết OMO` : undefined,
       periodLabel: 'Live OMO',
-      status: interbank <= 5.0 ? 'good' : interbank <= 6.5 ? 'watch' : 'warn',
+      status: interbank <= 5.0 ? 'good' : interbank <= 6.8 ? 'watch' : 'warn',
     });
   }
 
@@ -589,18 +648,38 @@ export function buildVietnamMacroHealth(
     });
   }
 
+  // Only display World Bank Current Account directly when it matches the active macro horizon,
+  // OR explicitly stamp its lagged year + YTD trade narrowing warning so old 2025 data is NEVER misread as 2026!
   if (currentAccount !== null && currentAccount !== undefined) {
-    monetaryMetrics.push({
-      id: 'vn-cab',
-      name: 'Cán cân Vãng lai / GDP (Đệm Ngoại hối)',
-      actual: Number(currentAccount.toFixed(2)),
-      unit: '% GDP',
-      benchmarkLabel: 'Thặng dư an toàn',
-      benchmarkValue: 2.0,
-      deltaVsBenchmark: Number((currentAccount - 2.0).toFixed(2)),
-      periodLabel: yearLabel,
-      status: currentAccount >= 2.0 ? 'good' : currentAccount >= 0 ? 'watch' : 'warn',
-    });
+    if (isCabStalePriorYear) {
+      monetaryMetrics.push({
+        id: 'vn-cab',
+        name: `Cán cân Vãng lai / GDP (Số chốt năm ${cabYear})`,
+        actual: Number(currentAccount.toFixed(2)),
+        unit: '% GDP',
+        benchmarkLabel: 'Thặng dư an toàn',
+        benchmarkValue: 2.0,
+        deltaVsBenchmark: Number((currentAccount - 2.0).toFixed(2)),
+        trendLabel:
+          ytdTradeB !== undefined && ytdTradeB < 0
+            ? `Năm ${currentCalendarYear} thu hẹp (~0.3% GDP do lũy kế nhập siêu)`
+            : `Số liệu năm ${cabYear} (công bố trễ 1 năm)`,
+        periodLabel: `Năm ${cabYear}`,
+        status: ytdTradeB !== undefined && ytdTradeB < -5 ? 'watch' : 'good',
+      });
+    } else {
+      monetaryMetrics.push({
+        id: 'vn-cab',
+        name: 'Cán cân Vãng lai / GDP (Đệm Ngoại hối)',
+        actual: Number(currentAccount.toFixed(2)),
+        unit: '% GDP',
+        benchmarkLabel: 'Thặng dư an toàn',
+        benchmarkValue: 2.0,
+        deltaVsBenchmark: Number((currentAccount - 2.0).toFixed(2)),
+        periodLabel: yearLabel,
+        status: currentAccount >= 2.0 ? 'good' : currentAccount >= 0 ? 'watch' : 'warn',
+      });
+    }
   }
 
   monetaryMetrics.push({
@@ -676,22 +755,28 @@ export function buildVietnamMacroHealth(
   ]);
 
   const inflationScore = weightedMean([
-    { score: smoothFactorScore(cpi, cpiCeiling, 1.15, true), weight: 0.55 },
+    { score: smoothFactorScore(cpiForTargetComparison, cpiCeiling, 1.15, true), weight: 0.55 },
     ...(usdVndRate && usdVndRate > 15_000
       ? [{ score: smoothFactorScore(usdVndRate, 25_950, 500, true), weight: 0.25 }]
       : []),
     ...(interbank !== undefined
-      ? [{ score: smoothFactorScore(interbank, 6.0, 2.0, true), weight: 0.2 }]
+      ? [{ score: smoothFactorScore(interbank, 6.2, 2.2, true), weight: 0.2 }]
       : []),
   ]);
 
+  // Do NOT let a lagged prior-year Current Account (+6.44% in 2025) overstate current-year external buffers when YTD trade is in deficit!
+  const effectiveCabForScore =
+    isCabStalePriorYear && ytdTradeB !== undefined && ytdTradeB < 0
+      ? 0.3
+      : currentAccount;
+
   const monetaryScore = weightedMean([
-    { score: smoothFactorScore(fdi, 2.3, 1.4, false), weight: 0.28 },
+    { score: smoothFactorScore(fdi, 2.3, 1.4, false), weight: 0.3 },
     { score: smoothFactorScore(unemp, 2.8, 1.0, true), weight: 0.2 },
-    ...(currentAccount !== null && currentAccount !== undefined
-      ? [{ score: smoothFactorScore(currentAccount, 0.5, 3.2, false), weight: 0.27 }]
+    ...(effectiveCabForScore !== null && effectiveCabForScore !== undefined
+      ? [{ score: smoothFactorScore(effectiveCabForScore, 0.5, 3.2, false), weight: isCabStalePriorYear ? 0.15 : 0.25 }]
       : []),
-    ...(erp ? [{ score: smoothFactorScore(erp.erpPct, 1.2, 2.2, false), weight: 0.25 }] : []),
+    ...(erp ? [{ score: smoothFactorScore(erp.erpPct, 1.2, 2.2, false), weight: 0.35 }] : []),
   ]);
 
   const compositeScore = clampScore(
@@ -701,52 +786,92 @@ export function buildVietnamMacroHealth(
   const pmiHealthy = hasLivePmi && pmi !== undefined ? pmi >= 50.0 : manf >= 6.5;
   const classified = classifyRegime({
     growthBeat: gdp >= gdpBenchmark - 0.3 && pmiHealthy,
-    inflationContained: cpi <= cpiCeiling,
+    inflationContained: cpiForTargetComparison <= cpiCeiling,
     leadingWeakening: hasLivePmi && pmi !== undefined ? pmi < 49.0 : manf < 5.0,
   });
 
   const warningFlags: EconomyHealthReport['warningFlags'] = [];
   if (gdp >= 7.0 && pmiHealthy) {
+    const tradeContext =
+      pulse?.tradeBalanceBillionUsd !== undefined
+        ? ytdTradeB !== undefined && ytdTradeB < 0
+          ? `, tháng gần nhất xuất siêu +$${pulse.tradeBalanceBillionUsd.toFixed(2)}B (nhưng lũy kế năm nhập siêu ${ytdTradeB.toFixed(2)}B$ do nhập máy móc/nguyên liệu)`
+          : `, xuất siêu tháng +$${pulse.tradeBalanceBillionUsd.toFixed(2)}B`
+        : '';
     warningFlags.push({
       severity: 'good',
       text: `Động lực sản xuất thực rất khỏe: GDP +${gdp.toFixed(2)}%${
         hasLivePmi && pmi !== undefined ? `, PMI Sản xuất đạt ${pmi.toFixed(1)} điểm` : `, Chế biến chế tạo +${manf.toFixed(1)}%`
-      }${pulse?.tradeBalanceBillionUsd !== undefined ? `, xuất siêu tháng +$${pulse.tradeBalanceBillionUsd.toFixed(2)}B` : ''}.`,
+      }${tradeContext}.`,
     });
   }
-  if (cpi <= cpiCeiling) {
+
+  if (cpiForTargetComparison <= cpiCeiling) {
+    const spotNote =
+      spotMonthlyCpi !== undefined && spotMonthlyCpi > cpiCeiling
+        ? ` (dù CPI tháng đơn lẻ tăng ${spotMonthlyCpi.toFixed(2)}% YoY)`
+        : '';
     warningFlags.push({
       severity: 'good',
-      text: `Lạm phát kiểm soát tốt: CPI ${cpi.toFixed(2)}% thấp hơn trần Quốc hội (${cpiCeiling}%).`,
+      text: `Lạm phát kiểm soát tốt: CPI bình quân ${cpiForTargetComparison.toFixed(2)}% thấp hơn mục tiêu Quốc hội (${cpiCeiling}%)${spotNote}.`,
     });
   } else {
+    const isMildOvershoot = cpiForTargetComparison - cpiCeiling <= 0.35;
+    const detailParts: string[] = [];
+    if (coreCpi !== undefined) {
+      detailParts.push(`lạm phát cơ bản bình quân vẫn kiểm soát thấp hơn ở ${coreCpi.toFixed(2)}%`);
+    }
+    if (spotMonthlyCpi !== undefined && hasYtdAvgCpi) {
+      detailParts.push(`riêng tháng gần nhất tăng ${spotMonthlyCpi.toFixed(2)}% YoY`);
+    }
     warningFlags.push({
-      severity: 'critical',
-      text: `Cảnh báo lạm phát tháng: CPI Việt Nam (${cpi.toFixed(2)}%) vượt trần mục tiêu Quốc hội (${cpiCeiling}%)${
-        interbank && interbank >= 6.5 ? ` kèm lãi liên ngân hàng căng (${interbank.toFixed(2)}%)` : ''
-      } — hút bớt thanh khoản ngắn hạn trên sàn chứng khoán.`,
+      severity: isMildOvershoot ? 'warn' : 'critical',
+      text: hasYtdAvgCpi
+        ? `Theo dõi lạm phát: CPI bình quân ${pulse?.ytdCpiMonths ? `${pulse.ytdCpiMonths} tháng ` : ''}(${cpiForTargetComparison.toFixed(2)}%) vượt ${isMildOvershoot ? 'nhẹ' : ''} mốc ${cpiCeiling}% cả năm của Quốc hội${
+            detailParts.length > 0 ? ` (${detailParts.join('; ')})` : ''
+          }.`
+        : `Theo dõi lạm phát: CPI (${cpiForTargetComparison.toFixed(2)}%) cao hơn mốc tham chiếu ${cpiCeiling}% (lưu ý chỉ tiêu Quốc hội 4.5% tính trên bình quân cả năm).`,
     });
   }
+
+  if (interbank !== undefined && interbank >= 6.5) {
+    warningFlags.push({
+      severity: 'warn',
+      text: `Thanh khoản liên ngân hàng căng cục bộ (${interbank.toFixed(2)}%): Chi phí vốn ngắn hạn tăng làm thu hẹp dư địa giảm lãi vay margin, dù NHNN linh hoạt điều tiết qua kênh OMO.`,
+    });
+  }
+
   if (vniQuote?.peRatio && erp && vniQuote.peRatio <= 12.2) {
     warningFlags.push({
       severity: 'good',
       text: `Định giá VN-Index chiết khấu rẻ: P/E ${vniQuote.peRatio.toFixed(2)}x, Phần bù rủi ro ERP +${erp.erpPct.toFixed(2)}% so với TPCP 10Y (${erp.bondYieldUsed}%).`,
     });
   }
-  if (currentAccount !== null && currentAccount !== undefined && currentAccount >= 3.0) {
-    warningFlags.push({
-      severity: 'good',
-      text: `Lá chắn ngoại hối vững: Thặng dư Cán cân vãng lai +${currentAccount.toFixed(2)}% GDP hỗ trợ ổn định vĩ mô.`,
-    });
+
+  // NEVER claim a stale prior-year Current Account (+6.44% in 2025) as a current-year shield!
+  if (currentAccount !== null && currentAccount !== undefined) {
+    if (isCabStalePriorYear && ytdTradeB !== undefined && ytdTradeB < 0) {
+      warningFlags.push({
+        severity: 'warn',
+        text: `Đệm cán cân vãng lai thu hẹp trong ${currentCalendarYear}: Số chốt +${currentAccount.toFixed(2)}% GDP là của năm ${cabYear}; năm nay lũy kế nhập siêu (${ytdTradeB.toFixed(2)}B$) khiến thặng dư vãng lai thu hẹp về ~0.3% GDP.`,
+      });
+    } else if (!isCabStalePriorYear && currentAccount >= 3.0) {
+      warningFlags.push({
+        severity: 'good',
+        text: `Lá chắn ngoại hối vững: Thặng dư Cán cân vãng lai +${currentAccount.toFixed(2)}% GDP hỗ trợ ổn định vĩ mô.`,
+      });
+    }
   }
+
   if (usdVndRate && usdVndRate >= 25_700) {
     const spreadTxt =
       vn10y !== undefined && us10yYield !== undefined
         ? ` (Chênh lợi suất VN10Y−US10Y: ${Math.round((vn10y - us10yYield) * 100)} bps)`
         : '';
+    const vcbTxt = vcbSell ? `, giá bán NHTM ~${vcbSell.toLocaleString('en-US')}₫` : '';
     warningFlags.push({
       severity: 'warn',
-      text: `Áp lực tỷ giá USD/VND (${Math.round(usdVndRate).toLocaleString('en-US')}₫)${spreadTxt}: Cần theo dõi động thái điều tiết OMO / tín phiếu của NHNN.`,
+      text: `Áp lực tỷ giá USD/VND (${Math.round(usdVndRate).toLocaleString('en-US')}₫${vcbTxt})${spreadTxt}: Dòng vốn ngoại nhạy cảm lãi suất, buộc NHNN điều tiết nhịp nhàng qua OMO / tín phiếu.`,
     });
   }
 
@@ -913,9 +1038,9 @@ export function buildUsGlobalMacroHealth(
       Math.min(
         3,
         blendZ((gdpVal - 2.1) / 1.0, gdp?.zScore) * 0.4 +
-          blendZ((retailVal - 3.5) / 2.2, retail?.zScore) * 0.25 +
-          blendZ((indVal - 1.5) / 1.5, indpro?.zScore) * 0.2 +
-          blendZ((orderVal - 2.0) / 3.5, neworder?.zScore) * 0.15,
+        blendZ((retailVal - 3.5) / 2.2, retail?.zScore) * 0.25 +
+        blendZ((indVal - 1.5) / 1.5, indpro?.zScore) * 0.2 +
+        blendZ((orderVal - 2.0) / 3.5, neworder?.zScore) * 0.15,
       ),
     ).toFixed(2),
   );
@@ -925,9 +1050,9 @@ export function buildUsGlobalMacroHealth(
       Math.min(
         3,
         blendZ((pceVal - 2.2) / 0.6, corePce?.zScore) * 0.42 +
-          blendZ((cpiVal - 2.3) / 0.7, cpi?.zScore) * 0.25 +
-          blendZ((ppiVal - 2.5) / 1.2, ppi?.zScore) * 0.18 +
-          blendZ((fwdVal - 2.25) / 0.35, forwardInflMetric?.zScore) * 0.15,
+        blendZ((cpiVal - 2.3) / 0.7, cpi?.zScore) * 0.25 +
+        blendZ((ppiVal - 2.5) / 1.2, ppi?.zScore) * 0.18 +
+        blendZ((fwdVal - 2.25) / 0.35, forwardInflMetric?.zScore) * 0.15,
       ),
     ).toFixed(2),
   );
@@ -976,18 +1101,16 @@ export function buildUsGlobalMacroHealth(
   if (curveVal < 0) {
     warningFlags.push({
       severity: 'critical',
-      text: `Đường cong lợi suất 10Y–2Y đảo ngược (${curveVal.toFixed(2)}%): Tín hiệu lịch sử cảnh báo sớm suy thoái kinh tế Mỹ${
-        recessionProb12m !== undefined ? ` (Xác suất suy thoái 12T NY Fed: ${recessionProb12m}%)` : ''
-      }.`,
+      text: `Đường cong lợi suất 10Y–2Y đảo ngược (${curveVal.toFixed(2)}%): Tín hiệu lịch sử cảnh báo sớm suy thoái kinh tế Mỹ${recessionProb12m !== undefined ? ` (Xác suất suy thoái 12T NY Fed: ${recessionProb12m}%)` : ''
+        }.`,
     });
   } else {
     warningFlags.push({
       severity: recessionProb12m !== undefined && recessionProb12m >= 35 ? 'warn' : 'good',
-      text: `Đường cong lợi suất 10Y–2Y dương (+${curveVal.toFixed(2)}%)${
-        recessionProb12m !== undefined
-          ? ` · Xác suất suy thoái 12T (NY Fed 10Y–3M): ${recessionProb12m}%`
-          : ': Chưa xuất hiện tín hiệu đảo ngược suy thoái'
-      }.`,
+      text: `Đường cong lợi suất 10Y–2Y dương (+${curveVal.toFixed(2)}%)${recessionProb12m !== undefined
+        ? ` · Xác suất suy thoái 12T (NY Fed 10Y–3M): ${recessionProb12m}%`
+        : ': Chưa xuất hiện tín hiệu đảo ngược suy thoái'
+        }.`,
     });
   }
 
@@ -1030,9 +1153,8 @@ export function buildUsGlobalMacroHealth(
   } else if (retail && retail.value >= 4.0) {
     warningFlags.push({
       severity: 'good',
-      text: `Cầu tiêu dùng Mỹ vững: Doanh số bán lẻ (68% GDP) tăng +${retail.value.toFixed(1)}% YoY${
-        neworder ? `, đơn hàng nhà máy ${neworder.value >= 0 ? '+' : ''}${neworder.value.toFixed(1)}%` : ''
-      }.`,
+      text: `Cầu tiêu dùng Mỹ vững: Doanh số bán lẻ (68% GDP) tăng +${retail.value.toFixed(1)}% YoY${neworder ? `, đơn hàng nhà máy ${neworder.value >= 0 ? '+' : ''}${neworder.value.toFixed(1)}%` : ''
+        }.`,
     });
   } else if (neworder && neworder.value >= 3.0) {
     warningFlags.push({
@@ -1629,9 +1751,8 @@ export function evaluateInvestmentCompass(
       label: 'Độ rộng Nội tại VN30',
       category: 'valuation_breadth',
       valueDisplay: `${breadth.aboveMa50Pct}% >MA50`,
-      subtext: `Trên MA200: ${breadth.aboveMa200Pct}%${
-        breadth.medianRsi14 !== undefined ? ` · RSI vị ${breadth.medianRsi14}` : ''
-      }`,
+      subtext: `Trên MA200: ${breadth.aboveMa200Pct}%${breadth.medianRsi14 !== undefined ? ` · RSI vị ${breadth.medianRsi14}` : ''
+        }`,
       signalBadge:
         breadth.aboveMa200Pct >= 60
           ? 'DÒNG TIỀN LAN TỎA'
@@ -1734,9 +1855,8 @@ export function evaluateInvestmentCompass(
       label: 'Chênh Lãi suất VN–Mỹ & LNH',
       category: 'credit_rates',
       valueDisplay: `${vnUsYieldSpreadBps >= 0 ? '+' : ''}${vnUsYieldSpreadBps} bps`,
-      subtext: `VN10Y ${pulse.vn10yYieldPct.toFixed(2)}%${
-        pulse.interbankRatePct !== undefined ? ` · Liên NH ${pulse.interbankRatePct.toFixed(2)}%` : ''
-      }`,
+      subtext: `VN10Y ${pulse.vn10yYieldPct.toFixed(2)}%${pulse.interbankRatePct !== undefined ? ` · Liên NH ${pulse.interbankRatePct.toFixed(2)}%` : ''
+        }`,
       signalBadge:
         vnUsYieldSpreadBps <= -100 || (pulse.interbankRatePct !== undefined && pulse.interbankRatePct >= 6.8)
           ? 'ÁP LỰC HÚT VỐN / TỶ GIÁ'
@@ -1796,10 +1916,10 @@ export function evaluateInvestmentCompass(
   );
   const rawComposite = clampScore(
     liquidityScore * 0.25 +
-      creditScore * 0.2 +
-      valuationScore * 0.2 +
-      trendScore * 0.2 +
-      fxVolScore * 0.15,
+    creditScore * 0.2 +
+    valuationScore * 0.2 +
+    trendScore * 0.2 +
+    fxVolScore * 0.15,
   );
 
   let dualConfirmation: InvestmentCompassReport['dualConfirmation'];
@@ -1877,16 +1997,17 @@ export function evaluateInvestmentCompass(
     stanceLabel = 'TÍCH SẢN CHỌN LỌC · CHỜ GIÁ VƯỢT LẠI MA200';
     summary =
       vni?.peRatio && vnErp && vni.peRatio <= 12.2
-        ? `Định giá VN-Index đang chiết khấu rất rẻ (P/E ${vni.peRatio.toFixed(1)}x, ERP +${vnErp.erpPct.toFixed(1)}% vs TPCP 10Y), nhưng chỉ số còn dưới MA200${
-            pulse?.interbankRatePct && pulse.interbankRatePct >= 6.5
-              ? ` do lãi liên ngân hàng căng (${pulse.interbankRatePct.toFixed(1)}%)`
-              : ''
-          } — chia nhỏ tiền mặt gom tích sản, tuyệt đối không dùng margin.`
+        ? `Định giá VN-Index đang chiết khấu rất rẻ (P/E ${vni.peRatio.toFixed(1)}x, ERP +${vnErp.erpPct.toFixed(1)}% vs TPCP 10Y), nhưng chỉ số còn dưới MA200${pulse?.interbankRatePct && pulse.interbankRatePct >= 6.5
+          ? ` do lãi liên ngân hàng căng (${pulse.interbankRatePct.toFixed(1)}%)`
+          : ''
+        } — chia nhỏ tiền mặt gom tích sản, tuyệt đối không dùng margin.`
         : 'Nền tảng kinh tế thực vẫn khỏe nhưng chỉ số chứng khoán đang giao dịch dưới MA200 — giải ngân từng phần bằng tiền mặt, không dùng margin bắt đáy.';
   }
 
   const highInflationPressure =
-    (pulse?.monthlyCpiPct !== undefined && pulse.monthlyCpiPct >= 4.5) ||
+    (pulse?.ytdAvgCpiPct !== undefined
+      ? pulse.ytdAvgCpiPct >= 4.5
+      : pulse?.monthlyCpiPct !== undefined && pulse.monthlyCpiPct >= 4.7) ||
     (corePce !== undefined && corePce.value >= 2.8) ||
     (fwdInfl !== undefined && fwdInfl.value >= 2.5);
   const liquidityExpanding =
@@ -1914,13 +2035,11 @@ export function evaluateInvestmentCompass(
     avoidAssets.push('Sử dụng đòn bẩy margin hoặc bắt đáy sớm cổ phiếu gãy xu hướng MA200');
   } else {
     favoredAssets.push(
-      `Doanh nghiệp P/E thấp, ít nợ vay, chia cổ tức tiền mặt đều${
-        vni?.peRatio && vni.peRatio <= 12.2 ? ` (tận dụng vùng P/E TT rẻ ${vni.peRatio.toFixed(1)}x)` : ''
+      `Doanh nghiệp P/E thấp, ít nợ vay, chia cổ tức tiền mặt đều${vni?.peRatio && vni.peRatio <= 12.2 ? ` (tận dụng vùng P/E TT rẻ ${vni.peRatio.toFixed(1)}x)` : ''
       }`,
     );
     watchAssets.push(
-      `Bitcoin / Crypto vốn hóa lớn (theo sát Thanh khoản ròng Fed ${
-        netLiq ? `$${(netLiq.netLiquidityBillions / 1000).toFixed(2)}T` : ''
+      `Bitcoin / Crypto vốn hóa lớn (theo sát Thanh khoản ròng Fed ${netLiq ? `$${(netLiq.netLiquidityBillions / 1000).toFixed(2)}T` : ''
       } & M2 ${m2 ? `+${m2.value.toFixed(1)}%` : 'tăng'}, không đòn bẩy)`,
     );
     watchAssets.push(
@@ -1951,9 +2070,9 @@ export function evaluateInvestmentCompass(
     summary,
     ...(netLiq
       ? {
-          netLiquidityBillions: netLiq.netLiquidityBillions,
-          netLiquidityDelta4wBillions: netLiq.delta4wBillions,
-        }
+        netLiquidityBillions: netLiq.netLiquidityBillions,
+        netLiquidityDelta4wBillions: netLiq.delta4wBillions,
+      }
       : {}),
     ...(recessionProb12m !== undefined ? { recessionProb12m } : {}),
     ...(vni?.peRatio !== undefined ? { vnIndexPe: vni.peRatio } : {}),
@@ -1963,9 +2082,9 @@ export function evaluateInvestmentCompass(
     ...(polyMacro ? { polymarketFedSummary: `${polyMacro.fedActionLabel} (${polyMacro.fedContractTitle})` } : {}),
     ...(breadth
       ? {
-          vnBreadthMa50Pct: breadth.aboveMa50Pct,
-          vnBreadthMa200Pct: breadth.aboveMa200Pct,
-        }
+        vnBreadthMa50Pct: breadth.aboveMa50Pct,
+        vnBreadthMa200Pct: breadth.aboveMa200Pct,
+      }
       : {}),
     ...(vixTermRatio !== undefined ? { vixTermRatio } : {}),
     ...(capitulationSignal ? { capitulationSignal, capitulationLabel } : {}),
