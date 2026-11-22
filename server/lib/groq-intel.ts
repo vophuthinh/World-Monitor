@@ -256,9 +256,17 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now()):
         compass.netLiquidityBillions !== undefined
           ? ` | Fed Net Liquidity: $${(compass.netLiquidityBillions / 1000).toFixed(2)}T (${compass.netLiquidityDelta4wBillions && compass.netLiquidityDelta4wBillions >= 0 ? '+' : ''}${compass.netLiquidityDelta4wBillions ?? 0}B$ 4T)`
           : '';
+      const pePart =
+        compass.vnIndexPe !== undefined
+          ? ` | VN-Index P/E ${compass.vnIndexPe.toFixed(2)}x (ERP ${compass.vnErpPct && compass.vnErpPct >= 0 ? '+' : ''}${compass.vnErpPct ?? 0}%)`
+          : '';
+      const allocPart =
+        compass.allocations.length > 0
+          ? ` | Phân bổ: ${compass.allocations.map((a) => `${a.label} ${a.weightPct}%`).join(', ')}`
+          : '';
       const dualPart = compass.dualConfirmationLabel ? ` | ${compass.dualConfirmationLabel}` : '';
       lines.push(
-        `[LA BÀN ĐẦU TƯ & CHỈ BÁO] ${compass.stanceLabel} (${compass.riskAppetiteScore}/100)${netLiqPart}${dualPart}. Ưu tiên: ${compass.favoredAssets.join('; ')}`,
+        `[LA BÀN ĐẦU TƯ & CHỈ BÁO] ${compass.stanceLabel} (${compass.riskAppetiteScore}/100)${netLiqPart}${pePart}${dualPart}${allocPart}. Ưu tiên: ${compass.favoredAssets.join('; ')}`,
       );
     }
 

@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   classifyMacroQuadrant,
+  computeDynamicPortfolioAllocation,
   computeFedNetLiquidity,
   computeNyFedRecessionProb12m,
+  computeVietnamEquityRiskPremium,
+  computeVn30MarketBreadth,
   evaluateInvestmentCompass,
   evaluateMacroHealth,
 } from '../shared/macro-health';
@@ -14,6 +17,7 @@ import {
   normalizeMihongGoldPrices,
   normalizeVn30DchartQuote,
   normalizeYahooChartQuote,
+  parseSimplizeIndexValuationHtml,
 } from '../server/collectors/markets-crypto';
 import {
   normalizeNwsWeatherAlerts,
@@ -626,5 +630,79 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     // Dual confirmation blocks aggressive 'risk_on' when VN-Index is below MA200!
     expect(dualCompass?.stance).not.toBe('risk_on');
     expect(dualCompass?.avoidAssets.some((a) => a.includes('MA200'))).toBe(true);
+  });
+
+  it('computes VN-Index P/E & ERP, VN30 Breadth, VIX/VIX3M Capitulation Detector, Carry Trade & 100% Dynamic Allocation', () => {
+    const val = parseSimplizeIndexValuationHtml(
+      `<html><body><script id="__NEXT_DATA__" type="application/json">${JSON.stringify({
+        props: {
+          pageProps: {
+            summary: {
+              peRatio: 10.457,
+              pbRatio: 1.798,
+              close52wLow: 1586.44,
+              close52wHigh: 1933.11,
+              volume: 736_616_872,
+              volAvg90d: 542_334_243,
+            },
+          },
+        },
+      })}</script></body></html>`,
+    );
+    expect(val).not.toBeNull();
+    expect(val?.peRatio).toBe(10.46);
+    expect(val?.pbRatio).toBe(1.8);
+    expect(val?.volumeVs90dRatio).toBe(1.36);
+
+    const erp = computeVietnamEquityRiskPremium(val?.peRatio);
+    expect(erp?.erpPct).toBeCloseTo(4.36, 1);
+
+    const breadth = computeVn30MarketBreadth([
+      { symbol: 'FPT', name: 'FPT', sector: 'Tech', priceThousandVnd: 135, changePercent: 1, volume: 1000, sparkline: [], ma50: 130, ma200: 120, rsi14: 58, updatedAt: 1 },
+      { symbol: 'VCB', name: 'VCB', sector: 'Bank', priceThousandVnd: 92, changePercent: 0.2, volume: 1000, sparkline: [], ma50: 90, ma200: 88, rsi14: 52, updatedAt: 1 },
+      { symbol: 'HPG', name: 'HPG', sector: 'Steel', priceThousandVnd: 26, changePercent: -1, volume: 1000, sparkline: [], ma50: 28, ma200: 27, rsi14: 35, updatedAt: 1 },
+      { symbol: 'VHM', name: 'VHM', sector: 'RE', priceThousandVnd: 40, changePercent: -1.5, volume: 1000, sparkline: [], ma50: 43, ma200: 44, rsi14: 31, updatedAt: 1 },
+    ]);
+    expect(breadth?.aboveMa50Pct).toBe(50);
+    expect(breadth?.aboveMa200Pct).toBe(50);
+
+    const alloc = computeDynamicPortfolioAllocation({
+      stance: 'selective_growth',
+      riskAppetiteScore: 76,
+      vnErpPct: 4.36,
+      dualConfirmation: 'macro_bull_trend_weak',
+      capitulationSignal: true,
+      highInflationPressure: true,
+      liquidityExpanding: true,
+    });
+    const sumPct = alloc.reduce((s, a) => s + a.weightPct, 0);
+    expect(sumPct).toBe(100);
+    expect(alloc).toHaveLength(4);
+
+    const compass = evaluateInvestmentCompass({
+      quotes: [
+        { symbol: 'VN-Index', name: 'VN-Index', group: 'index', price: 1689, changePercent24h: -0.05, ma50: 1748, ma200: 1784, rsi14: 33, peRatio: 10.46, pbRatio: 1.8, updatedAt: 1, source: 'HOSE' },
+        { symbol: 'S&P 500', name: 'S&P 500', group: 'index', price: 6910, changePercent24h: -3.7, ma50: 7625, ma200: 7349, rsi14: 25, updatedAt: 1, source: 'Yahoo' },
+        { symbol: 'VIX 3M', name: 'VIX 3M', group: 'index', price: 21.5, changePercent24h: 4.0, updatedAt: 1, source: 'Yahoo' },
+        { symbol: 'AUD/JPY', name: 'AUD/JPY', group: 'fx', price: 98.4, changePercent24h: -1.65, updatedAt: 1, source: 'Yahoo' },
+      ],
+      crypto: [],
+      fearGreed: null,
+      macro: [],
+      fred: [
+        { id: 'M2SL', label: 'M2', subtitle: 'M2', value: 5.7, change: 0.2, unit: '%', date: '2026-10-01', pillar: 'leading', sparkline: [] },
+        { id: 'VIXCLS', label: 'VIX', subtitle: 'VIX', value: 24.2, change: 3.1, unit: 'pts', date: '2026-11-20', pillar: 'market', sparkline: [] },
+        { id: 'T10Y3M', label: '10Y3M', subtitle: '10Y3M', value: 0.6, change: 0.02, unit: '%', date: '2026-11-20', pillar: 'leading', sparkline: [] },
+        { id: 'T5YIFR', label: '5Y5Y', subtitle: '5Y5Y', value: 2.31, change: -0.01, unit: '%', date: '2026-11-21', pillar: 'inflation', sparkline: [] },
+      ],
+      updatedAt: 1,
+    });
+
+    expect(compass?.vnIndexPe).toBe(10.46);
+    expect(compass?.vnErpPct).toBeCloseTo(4.36, 1);
+    expect(compass?.vixTermRatio).toBeCloseTo(1.13, 1);
+    expect(compass?.capitulationSignal).toBe(true);
+    expect(compass?.allocations.reduce((s, a) => s + a.weightPct, 0)).toBe(100);
+    expect(compass?.signals.some((s) => s.id === 'aud-jpy' && s.tone === 'bearish')).toBe(true);
   });
 });

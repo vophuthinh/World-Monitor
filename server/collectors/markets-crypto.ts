@@ -433,6 +433,7 @@ export function normalizeVn30DchartQuote(
   const changePct = prev > 0 ? ((latest - prev) / prev) * 100 : 0;
   const volumes = payload?.v ?? [];
   const latestVol = Number(volumes[volumes.length - 1] ?? 0);
+  const tech = computeTechnicalIndicators(closes);
 
   return {
     symbol: target.symbol,
@@ -442,13 +443,14 @@ export function normalizeVn30DchartQuote(
     changePercent: Number(changePct.toFixed(2)),
     volume: Number.isFinite(latestVol) ? latestVol : 0,
     sparkline: closes.slice(-10).map((c) => Number(c.toFixed(2))),
+    ...tech,
     updatedAt: now,
   };
 }
 
 async function fetchVn30Leaders(now: number): Promise<Vn30StockQuote[]> {
   const toSec = Math.floor(now / 1000);
-  const fromSec = toSec - 15 * 86_400;
+  const fromSec = toSec - 350 * 86_400;
 
   const results = await Promise.allSettled(
     VN30_LEADERS.map(async (target) => {
@@ -470,6 +472,72 @@ async function fetchVn30Leaders(now: number): Promise<Vn30StockQuote[]> {
     }
   }
   return out;
+}
+
+export interface SimplizeIndexValuation {
+  peRatio?: number;
+  pbRatio?: number;
+  close52wLow?: number;
+  close52wHigh?: number;
+  volumeVs90dRatio?: number;
+}
+
+export function parseSimplizeIndexValuationHtml(html: string): SimplizeIndexValuation | null {
+  if (!html) return null;
+  const nextMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+  if (!nextMatch) return null;
+
+  try {
+    const parsed = JSON.parse(nextMatch[1]) as {
+      props?: {
+        pageProps?: {
+          summary?: {
+            peRatio?: number;
+            pbRatio?: number;
+            close52wLow?: number;
+            close52wHigh?: number;
+            volume?: number;
+            volAvg90d?: number;
+          };
+        };
+      };
+    };
+    const s = parsed?.props?.pageProps?.summary;
+    if (!s) return null;
+
+    const pe = Number(s.peRatio);
+    const pb = Number(s.pbRatio);
+    const low52 = Number(s.close52wLow);
+    const high52 = Number(s.close52wHigh);
+    const vol = Number(s.volume);
+    const vol90 = Number(s.volAvg90d);
+
+    const out: SimplizeIndexValuation = {};
+    if (Number.isFinite(pe) && pe > 2 && pe < 80) out.peRatio = Number(pe.toFixed(2));
+    if (Number.isFinite(pb) && pb > 0.2 && pb < 20) out.pbRatio = Number(pb.toFixed(2));
+    if (Number.isFinite(low52) && low52 > 100) out.close52wLow = Number(low52.toFixed(2));
+    if (Number.isFinite(high52) && high52 > 100) out.close52wHigh = Number(high52.toFixed(2));
+    if (Number.isFinite(vol) && Number.isFinite(vol90) && vol > 0 && vol90 > 0) {
+      out.volumeVs90dRatio = Number((vol / vol90).toFixed(2));
+    }
+
+    return Object.keys(out).length > 0 ? out : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchSimplizeVnIndexValuation(): Promise<SimplizeIndexValuation | null> {
+  try {
+    const { text } = await fetchTextWithTimeout('https://simplize.vn/chi-so/VNINDEX', {
+      timeoutMs: 6_500,
+      retries: 0,
+      userAgent: 'Mozilla/5.0',
+    });
+    return parseSimplizeIndexValuationHtml(text);
+  } catch {
+    return null;
+  }
 }
 
 export interface FredSeriesTarget {
@@ -577,6 +645,24 @@ const FRED_SERIES_TARGETS: readonly FredSeriesTarget[] = [
     pillar: 'inflation',
     benchmarkLabel: 'Ngưỡng ổn định',
     benchmarkValue: 2.5,
+  },
+  {
+    id: 'T5YIFR',
+    label: '5Y5Y Forward Infl',
+    subtitle: 'Kỳ vọng Lạm phát Dài hạn 5Y5Y (Ngày)',
+    unit: '%',
+    pillar: 'inflation',
+    benchmarkLabel: 'Neo kỳ vọng Fed',
+    benchmarkValue: 2.25,
+  },
+  {
+    id: 'T10YIE',
+    label: '10Y Breakeven',
+    subtitle: 'Kỳ vọng Lạm phát Hòa vốn 10Y (Ngày)',
+    unit: '%',
+    pillar: 'inflation',
+    benchmarkLabel: 'Neo trái phiếu',
+    benchmarkValue: 2.25,
   },
   {
     id: 'UNRATE',
@@ -692,6 +778,15 @@ const FRED_SERIES_TARGETS: readonly FredSeriesTarget[] = [
     pillar: 'leading',
     benchmarkLabel: 'Mở rộng BĐS',
     benchmarkValue: 0.0,
+  },
+  {
+    id: 'DRTSCILM',
+    label: 'Bank Loan Tightening',
+    subtitle: 'Ngân hàng Siết Chuẩn Tín dụng DN (SLOOS)',
+    unit: '%',
+    pillar: 'leading',
+    benchmarkLabel: 'Ngưỡng siết vốn',
+    benchmarkValue: 15.0,
   },
 ];
 
@@ -813,7 +908,7 @@ interface YahooTarget {
   yahooSymbol: string;
   displaySymbol: string;
   name: string;
-  group: 'index' | 'commodity';
+  group: 'index' | 'commodity' | 'fx';
   unit?: string;
 }
 
@@ -821,6 +916,7 @@ const YAHOO_TARGETS: readonly YahooTarget[] = [
   { yahooSymbol: '^GSPC', displaySymbol: 'S&P 500', name: 'S&P 500 Index (US)', group: 'index', unit: 'pts' },
   { yahooSymbol: '^IXIC', displaySymbol: 'NASDAQ', name: 'NASDAQ Composite (US)', group: 'index', unit: 'pts' },
   { yahooSymbol: '^SOX', displaySymbol: 'SOX Semi', name: 'PHLX Semiconductor (Bán dẫn AI)', group: 'index', unit: 'pts' },
+  { yahooSymbol: '^VIX3M', displaySymbol: 'VIX 3M', name: 'CBOE 3M Volatility (Kỳ hạn VIX)', group: 'index', unit: 'pts' },
   { yahooSymbol: '^N225', displaySymbol: 'Nikkei 225', name: 'Nikkei 225 (Nhật Bản)', group: 'index', unit: 'pts' },
   { yahooSymbol: '^HSI', displaySymbol: 'Hang Seng', name: 'Hang Seng Index (HK)', group: 'index', unit: 'pts' },
   { yahooSymbol: 'GC=F', displaySymbol: 'Gold', name: 'Vàng thế giới (COMEX)', group: 'commodity', unit: 'USD/oz' },
@@ -828,6 +924,7 @@ const YAHOO_TARGETS: readonly YahooTarget[] = [
   { yahooSymbol: 'CL=F', displaySymbol: 'WTI Crude', name: 'Dầu thô WTI', group: 'commodity', unit: 'USD/bbl' },
   { yahooSymbol: 'BZ=F', displaySymbol: 'Brent Crude', name: 'Dầu thô Brent', group: 'commodity', unit: 'USD/bbl' },
   { yahooSymbol: 'SI=F', displaySymbol: 'Silver', name: 'Bạc thế giới', group: 'commodity', unit: 'USD/oz' },
+  { yahooSymbol: 'AUDJPY=X', displaySymbol: 'AUD/JPY', name: 'Đô la Úc / Yên Nhật (Carry Trade)', group: 'fx' },
 ];
 
 async function fetchVietnamIndexQuote(now: number): Promise<MarketQuote | null> {
@@ -971,7 +1068,7 @@ async function fetchIndicesAndCommodities(now: number): Promise<MarketQuote[]> {
 export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): Promise<MarketSnapshot> {
   const now = Date.now();
 
-  const [cryptoRes, fgRes, fxRes, marketQuotesRes, vn30Res, fredRes] = await Promise.allSettled([
+  const [cryptoRes, fgRes, fxRes, marketQuotesRes, vnValRes, vn30Res, fredRes] = await Promise.allSettled([
     fetchCryptoQuotes(now),
     fetchJsonWithTimeout<FearGreedPayload>(FEAR_GREED_URL, {
       timeoutMs: 8_000,
@@ -984,6 +1081,7 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
       userAgent: NAMED_APP_UA,
     }).then((d) => normalizeErApiFx(d, now)),
     fetchIndicesAndCommodities(now),
+    fetchSimplizeVnIndexValuation(),
     fetchVn30Leaders(now),
     fetchFredMacroMetrics(),
   ]);
@@ -1001,22 +1099,46 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
   const prevFx = (previous?.quotes ?? []).filter((q) => q.group === 'fx');
   const prevNonFx = (previous?.quotes ?? []).filter((q) => q.group !== 'fx');
 
-  const fxQuotes =
-    fxRes.status === 'fulfilled' && fxRes.value.length > 0 ? fxRes.value : prevFx;
+  const baseFxQuotes =
+    fxRes.status === 'fulfilled' && fxRes.value.length > 0 ? fxRes.value : prevFx.filter((q) => q.symbol !== 'AUD/JPY');
 
   // Merge per-symbol so transient Yahoo throttling on one symbol never drops prior valid quotes
   const mergedNonFxMap = new Map<string, MarketQuote>();
   for (const oldQuote of prevNonFx) {
     mergedNonFxMap.set(oldQuote.symbol, oldQuote);
   }
+  let audJpyQuote = prevFx.find((q) => q.symbol === 'AUD/JPY');
   if (marketQuotesRes.status === 'fulfilled') {
     for (const freshQuote of marketQuotesRes.value) {
-      mergedNonFxMap.set(freshQuote.symbol, freshQuote);
+      if (freshQuote.group === 'fx') {
+        audJpyQuote = freshQuote;
+      } else {
+        mergedNonFxMap.set(freshQuote.symbol, freshQuote);
+      }
     }
   }
-  const orderedOrder = ['VN-Index', 'VNM ETF', ...YAHOO_TARGETS.map((t) => t.displaySymbol)];
+
+  // Enrich VN-Index with live Market P/E, P/B, 52W range & liquidity ratio from Simplize
+  const vniCurrent = mergedNonFxMap.get('VN-Index');
+  const freshValuation = vnValRes.status === 'fulfilled' ? vnValRes.value : null;
+  if (vniCurrent && freshValuation) {
+    mergedNonFxMap.set('VN-Index', {
+      ...vniCurrent,
+      ...freshValuation,
+    });
+  }
+
+  const fxQuotes = audJpyQuote
+    ? [...baseFxQuotes.filter((q) => q.symbol !== 'AUD/JPY'), audJpyQuote]
+    : baseFxQuotes;
+
+  const nonFxOrder = [
+    'VN-Index',
+    'VNM ETF',
+    ...YAHOO_TARGETS.filter((t) => t.group !== 'fx').map((t) => t.displaySymbol),
+  ];
   const indexCommodityQuotes = [
-    ...orderedOrder
+    ...nonFxOrder
       .map((sym) => mergedNonFxMap.get(sym))
       .filter((q): q is MarketQuote => Boolean(q)),
   ];

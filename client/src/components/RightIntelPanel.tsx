@@ -519,7 +519,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
 
   const fxQuotes = useMemo(() => markets.quotes.filter((q) => q.group === 'fx'), [markets.quotes]);
   const indexAndCommodityQuotes = useMemo(
-    () => markets.quotes.filter((q) => q.group !== 'fx'),
+    () => markets.quotes.filter((q) => q.group !== 'fx' && q.symbol !== 'VIX 3M'),
     [markets.quotes],
   );
   const usdVndPrice = useMemo(
@@ -534,12 +534,20 @@ export const RightIntelPanel = memo(function RightIntelPanel({
     () => markets.quotes.find((q) => q.symbol === 'SOX Semi')?.price,
     [markets.quotes],
   );
-  const vniPrice = useMemo(
-    () => markets.quotes.find((q) => q.symbol === 'VN-Index')?.price,
+  const vniQuoteRef = useMemo(
+    () => markets.quotes.find((q) => q.symbol === 'VN-Index'),
     [markets.quotes],
   );
   const spxPrice = useMemo(
     () => markets.quotes.find((q) => q.symbol === 'S&P 500')?.price,
+    [markets.quotes],
+  );
+  const vix3mPrice = useMemo(
+    () => markets.quotes.find((q) => q.symbol === 'VIX 3M')?.price,
+    [markets.quotes],
+  );
+  const audJpyPrice = useMemo(
+    () => markets.quotes.find((q) => q.symbol === 'AUD/JPY')?.price,
     [markets.quotes],
   );
 
@@ -548,12 +556,25 @@ export const RightIntelPanel = memo(function RightIntelPanel({
   const macroHealth = useMemo(
     () => (activeTab === 'markets' ? evaluateMacroHealth(markets) : { vn: null, us: null }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeTab, markets.macro, markets.fred, usdVndPrice],
+    [activeTab, markets.macro, markets.fred, usdVndPrice, vniQuoteRef?.peRatio],
   );
   const investmentCompass = useMemo(
     () => (activeTab === 'markets' ? evaluateInvestmentCompass(markets) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeTab, markets.fred, markets.vnGold, usdVndPrice, copperPrice, soxPrice, vniPrice, spxPrice],
+    [
+      activeTab,
+      markets.fred,
+      markets.vnGold,
+      markets.vn30,
+      usdVndPrice,
+      copperPrice,
+      soxPrice,
+      vniQuoteRef?.price,
+      vniQuoteRef?.peRatio,
+      spxPrice,
+      vix3mPrice,
+      audJpyPrice,
+    ],
   );
   const activeMacroReport =
     macroRegion === 'VN'
@@ -3201,9 +3222,65 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                     ⚡ {investmentCompass.dualConfirmationLabel}
                   </div>
                 )}
+                {investmentCompass.capitulationSignal && investmentCompass.capitulationLabel && (
+                  <div className="mt-1 rounded border border-cyan-500/45 bg-cyan-950/35 px-2 py-1 font-mono text-[9.5px] font-semibold text-cyan-200">
+                    🎯 {investmentCompass.capitulationLabel}
+                  </div>
+                )}
                 <p className="mt-1.5 text-[11px] leading-snug text-slate-300">
                   {investmentCompass.summary}
                 </p>
+
+                {/* Dynamic Multi-Asset Target Portfolio Allocation (100% Sum) */}
+                {investmentCompass.allocations.length > 0 && (
+                  <div className="mt-2 rounded border border-slate-800/90 bg-[#0b1322] p-2">
+                    <div className="mb-1.5 flex items-center justify-between font-mono text-[9.5px]">
+                      <span className="font-bold text-emerald-300">
+                        TỶ TRỌNG PHÂN BỔ DANH MỤC KHUYẾN NGHỊ
+                      </span>
+                      <span className="text-slate-400 tabular-nums">Tổng 100%</span>
+                    </div>
+                    <div className="flex h-2 w-full overflow-hidden rounded-full bg-slate-900">
+                      {investmentCompass.allocations.map((slice) => (
+                        <div
+                          key={slice.id}
+                          style={{
+                            width: `${slice.weightPct}%`,
+                            backgroundColor: slice.colorHex,
+                          }}
+                          title={`${slice.label}: ${slice.weightPct}% — ${slice.note}`}
+                          className="h-full transition-all duration-500"
+                        />
+                      ))}
+                    </div>
+                    <div className="mt-1.5 grid grid-cols-2 gap-1">
+                      {investmentCompass.allocations.map((slice) => (
+                        <div
+                          key={slice.id}
+                          className="flex items-center justify-between gap-1 rounded border border-slate-800/80 bg-[#070d17] px-1.5 py-1"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1">
+                              <span
+                                className="h-2 w-2 shrink-0 rounded-full"
+                                style={{ backgroundColor: slice.colorHex }}
+                              />
+                              <span className="truncate text-[10px] font-semibold text-slate-200">
+                                {slice.label}
+                              </span>
+                            </div>
+                            <div className="truncate pl-3 text-[9px] text-slate-400" title={slice.note}>
+                              {slice.note}
+                            </div>
+                          </div>
+                          <span className="shrink-0 font-mono text-[11px] font-bold text-slate-100 tabular-nums">
+                            {slice.weightPct}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-2 space-y-1.5 text-[10.5px] leading-snug">
                   <div className="rounded border border-emerald-500/35 bg-emerald-950/25 px-2 py-1.5">

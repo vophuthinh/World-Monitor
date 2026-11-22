@@ -144,6 +144,11 @@ export interface MarketQuote {
   ma50?: number;
   ma200?: number;
   rsi14?: number;
+  peRatio?: number;
+  pbRatio?: number;
+  close52wLow?: number;
+  close52wHigh?: number;
+  volumeVs90dRatio?: number;
   updatedAt: number;
   source: string;
 }
@@ -171,6 +176,9 @@ export interface Vn30StockQuote {
   changePercent: number;
   volume: number;
   sparkline: number[];
+  ma50?: number;
+  ma200?: number;
+  rsi14?: number;
   updatedAt: number;
 }
 
@@ -296,11 +304,25 @@ export type InvestmentStance =
 export interface LeadingCompassSignal {
   id: string;
   label: string;
-  category: 'liquidity' | 'credit_rates' | 'cycle_tech' | 'recession_watch' | 'market_trend';
+  category:
+    | 'liquidity'
+    | 'credit_rates'
+    | 'cycle_tech'
+    | 'recession_watch'
+    | 'market_trend'
+    | 'valuation_breadth';
   valueDisplay: string;
   subtext: string;
   signalBadge: string;
   tone: 'bullish' | 'neutral' | 'bearish';
+}
+
+export interface PortfolioAllocationSlice {
+  id: 'equities' | 'cash_bonds' | 'gold' | 'crypto';
+  label: string;
+  weightPct: number;
+  note: string;
+  colorHex: string;
 }
 
 export interface InvestmentCompassReport {
@@ -311,8 +333,16 @@ export interface InvestmentCompassReport {
   netLiquidityBillions?: number;
   netLiquidityDelta4wBillions?: number;
   recessionProb12m?: number;
+  vnIndexPe?: number;
+  vnErpPct?: number;
+  vnBreadthMa50Pct?: number;
+  vnBreadthMa200Pct?: number;
+  vixTermRatio?: number;
+  capitulationSignal?: boolean;
+  capitulationLabel?: string;
   dualConfirmation?: 'confirmed_bull' | 'macro_bull_trend_weak' | 'macro_weak_trend_bull' | 'confirmed_bear';
   dualConfirmationLabel?: string;
+  allocations: PortfolioAllocationSlice[];
   favoredAssets: string[];
   watchAssets: string[];
   avoidAssets: string[];
