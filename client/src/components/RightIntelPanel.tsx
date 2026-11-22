@@ -1,8 +1,10 @@
 import { type ReactNode, memo, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import {
+  Anchor,
   ArrowsClockwise,
   ArrowSquareOut,
   Broadcast,
+  CalendarBlank,
   ChartBar,
   ChartLineUp,
   CloudSun,
@@ -36,6 +38,10 @@ import {
   detectTrendingSpikes,
   selectTopHotPolymarket,
 } from '@shared/intelligence';
+import {
+  buildMarketCatalystCalendar,
+  evaluateChokepointMarketImpacts,
+} from '@shared/catalysts-and-chokepoints';
 import { evaluateInvestmentCompass, evaluateMacroHealth } from '@shared/macro-health';
 import type {
   AiAskResponse,
@@ -57,6 +63,7 @@ import type {
   PolicyLegalItem,
   PolicyLegalSnapshot,
   PredictionItem,
+  RegimeHistoryPoint,
   TechCyberItem,
   TechCyberSnapshot,
   TechSubCategory,
@@ -77,6 +84,7 @@ interface RightIntelPanelProps {
   vietnamEnv?: VietnamEnvSnapshot;
   hptIntel?: HptCompanyIntelSnapshot;
   aiSitrep?: AiSitrepSnapshot;
+  regimeHistory?: RegimeHistoryPoint[];
   military: GeoPointFeature[];
   vessels: GeoPointFeature[];
   earthquakes?: GeoPointFeature[];
@@ -245,6 +253,90 @@ function MiniSparkline({ values, positive }: { values?: number[]; positive: bool
   );
 }
 
+function RegimeHistoryTimelineChart({ history }: { history: readonly RegimeHistoryPoint[] }) {
+  if (history.length < 2) return null;
+  const w = 310;
+  const h = 54;
+  const padX = 4;
+  const padY = 6;
+  const compassVals = history.map((p) => p.compassScore);
+  const macroVals = history.map((p) => p.vnMacroScore);
+  const allVals = [...compassVals, ...macroVals];
+  const minVal = Math.max(10, Math.min(...allVals) - 5);
+  const maxVal = Math.min(98, Math.max(...allVals) + 5);
+  const span = Math.max(8, maxVal - minVal);
+
+  const toPoints = (vals: number[]) =>
+    vals
+      .map((v, i) => {
+        const x = padX + (i / (vals.length - 1)) * (w - padX * 2);
+        const y = h - padY - ((v - minVal) / span) * (h - padY * 2);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(' ');
+
+  const first = history[0];
+  const latest = history[history.length - 1];
+  const deltaCompass = latest.compassScore - first.compassScore;
+
+  return (
+    <div className="mt-2 rounded border border-slate-800/90 bg-[#08101d] p-2 font-mono">
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-1 text-[9px]">
+        <span className="font-bold text-emerald-300">
+          NHẬT KÝ LỊCH SỬ CHUYỂN PHA ({history.length} PHIÊN)
+        </span>
+        <span
+          className={`font-semibold tabular-nums ${
+            deltaCompass >= 0 ? 'text-emerald-300' : 'text-rose-300'
+          }`}
+        >
+          Khẩu vị {deltaCompass >= 0 ? '+' : ''}
+          {deltaCompass}đ ({first.date.slice(5)} → {latest.date.slice(5)})
+        </span>
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="h-[52px] w-full overflow-visible">
+        <line
+          x1={padX}
+          y1={h / 2}
+          x2={w - padX}
+          y2={h / 2}
+          stroke="#1e293b"
+          strokeDasharray="2 3"
+          strokeWidth="1"
+        />
+        <polyline
+          fill="none"
+          stroke="#38bdf8"
+          strokeOpacity="0.65"
+          strokeWidth="1.25"
+          strokeDasharray="3 2"
+          strokeLinecap="round"
+          points={toPoints(macroVals)}
+        />
+        <polyline
+          fill="none"
+          stroke="#10b981"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          points={toPoints(compassVals)}
+        />
+      </svg>
+      <div className="mt-0.5 flex items-center justify-between text-[8.5px] text-slate-400 tabular-nums">
+        <span className="flex items-center gap-2">
+          <span className="text-emerald-300">━ Điểm La bàn ({latest.compassScore})</span>
+          <span className="text-sky-300">┄ Vĩ mô VN ({latest.vnMacroScore})</span>
+        </span>
+        {latest.vnIndexPrice && (
+          <span className="text-slate-300">
+            VN-Index {Math.round(latest.vnIndexPrice).toLocaleString('en-US')} · CP {latest.equitiesWeightPct}%
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function renderInlineMarkdown(raw: string): ReactNode[] {
   const tokenRe = /(\*\*[^*]+\*\*|`[^`]+`|\*(?!\s)[^*\n]+(?<!\s)\*)/g;
   const parts = raw.split(tokenRe);
@@ -341,6 +433,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
   vietnamEnv,
   hptIntel,
   aiSitrep,
+  regimeHistory = [],
   military,
   vessels,
   earthquakes = [],
@@ -582,6 +675,29 @@ export const RightIntelPanel = memo(function RightIntelPanel({
     macroRegion === 'VN'
       ? macroHealth.vn ?? macroHealth.us
       : macroHealth.us ?? macroHealth.vn;
+
+  const catalystCalendar = useMemo(
+    () =>
+      activeTab === 'markets'
+        ? buildMarketCatalystCalendar(Date.now(), investmentCompass?.polymarketFedSummary)
+        : [],
+    [activeTab, investmentCompass?.polymarketFedSummary],
+  );
+
+  const chokepointImpacts = useMemo(
+    () =>
+      activeTab === 'markets'
+        ? evaluateChokepointMarketImpacts({
+            military,
+            vessels,
+            geopolitics,
+            predictions,
+            quotes: markets.quotes,
+          })
+        : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeTab, military, vessels, geopolitics, predictions, markets.updatedAt],
+  );
 
   const techItems = techCyber?.items ?? [];
 
@@ -2892,6 +3008,53 @@ export const RightIntelPanel = memo(function RightIntelPanel({
       {/* Tab 5: Markets, Macro Health Radar, Domestic Gold SJC/9999, VN30 Bluechips, FX, Crypto 1s WS, World Bank Macro & Top 5 Polymarket */}
       {activeTab === 'markets' && (
         <div className="flex-1 space-y-4 overflow-y-auto p-3">
+          {/* Upcoming Macro & VN30 Derivatives Catalyst Countdown Calendar */}
+          {catalystCalendar.length > 0 && (
+            <section className="rounded-md border border-amber-500/30 bg-[#0b1322] p-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="flex items-center gap-1.5 font-mono text-[10.5px] font-bold tracking-wider text-amber-300">
+                  <CalendarBlank size={13} weight="fill" className="text-amber-400" />
+                  <span>LỊCH SỰ KIỆN XÚC TÁC &amp; ĐÁO HẠN SẮP TỚI</span>
+                </h2>
+                <span className="font-mono text-[9px] text-slate-400">Giờ VN</span>
+              </div>
+              <div className="mt-1.5 space-y-1">
+                {catalystCalendar.slice(0, 5).map((ev) => {
+                  const badgeCls =
+                    ev.urgency === 'imminent'
+                      ? 'border-rose-500/50 bg-rose-500/20 text-rose-200'
+                      : ev.urgency === 'soon'
+                        ? 'border-amber-500/45 bg-amber-500/18 text-amber-200'
+                        : 'border-slate-700 bg-slate-800/90 text-slate-300';
+                  return (
+                    <div
+                      key={ev.id}
+                      className="flex items-center justify-between gap-2 rounded border border-slate-800/85 bg-[#070d18] px-2 py-1.5"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px]">{ev.region === 'VN' ? '🇻🇳' : '🇺🇸'}</span>
+                          <span className="truncate text-[10.5px] font-semibold text-slate-100">
+                            {ev.title}
+                          </span>
+                        </div>
+                        <div className="truncate text-[9.5px] text-slate-400" title={ev.impactNote}>
+                          {ev.impactNote}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right font-mono tabular-nums">
+                        <span className={`inline-block rounded border px-1.5 py-0.2 text-[9px] font-bold ${badgeCls}`}>
+                          {ev.daysUntil === 0 ? 'HÔM NAY' : `Còn ${ev.daysUntil} ngày`}
+                        </span>
+                        <div className="mt-0.5 text-[9px] text-slate-500">{ev.dateLabel}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           {/* Macroeconomic Health & Regime Diagnosis Radar (VN & US/Global — Actual vs Forecast + 3M/12M Slope) */}
           {activeMacroReport && (
             <section className="rounded-md border border-cyan-500/35 bg-[#0a1322] p-2.5">
@@ -3234,6 +3397,11 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                   {investmentCompass.summary}
                 </p>
 
+                {/* Historical 30–90d Regime & Compass Score Timeline */}
+                {regimeHistory.length >= 2 && (
+                  <RegimeHistoryTimelineChart history={regimeHistory} />
+                )}
+
                 {/* 5 Orthogonal Continuous Factor Pillars (0..100 each) */}
                 {investmentCompass.factorPillars && investmentCompass.factorPillars.length > 0 && (
                   <div className="mt-2 rounded border border-slate-800/90 bg-[#0a1220] p-2 font-mono">
@@ -3404,6 +3572,74 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                     </div>
                   </div>
                 ))}
+              </div>
+            </section>
+          )}
+
+          {/* Cross-Domain Maritime Chokepoints <-> Commodity & HOSE Sector Impact Matrix */}
+          {chokepointImpacts.length > 0 && (
+            <section className="rounded-md border border-sky-500/35 bg-[#091321] p-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="flex items-center gap-1.5 font-mono text-[10.5px] font-bold tracking-wider text-sky-300">
+                  <Anchor size={13} weight="fill" className="text-sky-400" />
+                  <span>ĐIỂM NGHẼN EO BIỂN ↔ HÀNG HÓA &amp; CỔ PHIẾU</span>
+                </h2>
+                <span className="font-mono text-[9px] text-slate-400">AIS · ADS-B · Polymarket</span>
+              </div>
+
+              <div className="mt-2 space-y-1.5">
+                {chokepointImpacts.slice(0, 4).map((cp) => {
+                  const statusCls =
+                    cp.status === 'critical'
+                      ? 'border-rose-500/50 bg-rose-500/20 text-rose-200'
+                      : cp.status === 'elevated'
+                        ? 'border-amber-500/45 bg-amber-500/18 text-amber-200'
+                        : 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300';
+                  return (
+                    <div
+                      key={cp.id}
+                      className="rounded border border-slate-800/95 bg-[#070d17] px-2.5 py-2"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span className="truncate text-[11px] font-bold text-slate-100">
+                            {cp.name}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => onFlyToLocation(cp.lat, cp.lon, cp.zoom)}
+                            title={`Bay tới ${cp.name} trên bản đồ`}
+                            className="inline-flex shrink-0 items-center gap-0.5 rounded border border-sky-500/35 bg-sky-500/10 px-1.5 py-0.1 font-mono text-[8.5px] text-sky-300 hover:bg-sky-500/25"
+                          >
+                            <Crosshair size={9} />
+                            Bản đồ
+                          </button>
+                        </div>
+                        <span
+                          className={`shrink-0 rounded border px-1.5 py-0.2 font-mono text-[8.5px] font-bold tabular-nums ${statusCls}`}
+                        >
+                          {cp.statusLabel} · {cp.disruptionScore}
+                        </span>
+                      </div>
+
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2 font-mono text-[9px] text-slate-400 tabular-nums">
+                        <span>✈️ Quân sự: {cp.airCount}</span>
+                        <span>🚢 Tàu AIS: {cp.seaCount}</span>
+                        <span>🔥 Xung đột: {cp.conflictCount}</span>
+                        {cp.polymarketNote && (
+                          <span className="font-semibold text-amber-300">{cp.polymarketNote}</span>
+                        )}
+                      </div>
+
+                      <div className="mt-1 text-[10px] leading-snug text-slate-300">
+                        • {cp.commodityImpact}
+                      </div>
+                      <div className="mt-0.5 font-mono text-[9.5px] font-medium text-emerald-300">
+                        → {cp.vnStockImpact}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </section>
           )}

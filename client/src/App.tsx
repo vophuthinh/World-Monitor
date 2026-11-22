@@ -163,6 +163,7 @@ export function App() {
         onToggleLiveTv={() => setLiveTvOpen((v) => !v)}
         desktopIntelOpen={desktopIntelOpen}
         onToggleDesktopIntel={() => setDesktopIntelOpen((v) => !v)}
+        telegramStatus={data?.telegramStatus}
       />
 
       {error && (
@@ -311,6 +312,7 @@ export function App() {
               vietnamEnv={data?.vietnamEnv}
               hptIntel={data?.hptIntel}
               aiSitrep={data?.aiSitrep}
+              regimeHistory={data?.regimeHistory}
               military={filteredData.military}
               vessels={filteredData.vessels}
               earthquakes={filteredData.earthquakes}
@@ -352,6 +354,7 @@ export function App() {
               vietnamEnv={data?.vietnamEnv}
               hptIntel={data?.hptIntel}
               aiSitrep={data?.aiSitrep}
+              regimeHistory={data?.regimeHistory}
               military={filteredData.military}
               vessels={filteredData.vessels}
               earthquakes={filteredData.earthquakes}

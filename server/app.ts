@@ -24,6 +24,8 @@ import type { CollectorScheduler } from './cache/scheduler';
 import { summarizeSinglePolicyItemWithAi } from './collectors/vietnam-policy-legal';
 import { answerMonitorQuestion, generateAiSitrep } from './lib/groq-intel';
 import { lookupLiveIocOrCve } from './lib/ioc-scanner';
+import type { RegimeHistoryLedger } from './lib/regime-ledger';
+import type { TelegramAlertEngine } from './lib/telegram-alerter';
 import { RealtimeHub } from './realtime/hub';
 
 const STATIC_GEO_BUNDLE = buildStaticGeoBundle();
@@ -37,6 +39,8 @@ export function createApp(
     getLiveVessels?: () => GeoPointFeature[];
     getUnifiedNews?: () => NewsItem[];
     getNewsStreamStats?: () => NewsStreamStats;
+    regimeLedger?: RegimeHistoryLedger;
+    telegramAlerter?: TelegramAlertEngine;
   } = {},
 ): Hono {
   const app = new Hono();
@@ -205,10 +209,79 @@ export function createApp(
     }
   });
 
+  app.get('/api/telegram/status', (c) => {
+    if (!options.telegramAlerter) {
+      return c.json({
+        configured: false,
+        enabled: false,
+        source: 'none',
+        preferences: { macroCompass: true, hptIntel: true, policyLegal: true, eastSeaWeather: true },
+        sentCount: 0,
+      });
+    }
+    return c.json(options.telegramAlerter.getSummary());
+  });
+
+  app.post('/api/telegram/config', async (c) => {
+    if (!options.telegramAlerter) {
+      return c.json({ error: 'Telegram engine chưa khởi tạo' }, 503);
+    }
+    try {
+      const body = (await c.req.json()) as {
+        botToken?: string;
+        chatId?: string;
+        enabled?: boolean;
+        preferences?: Record<string, boolean>;
+      };
+      const summary = options.telegramAlerter.updateConfig(body);
+      return c.json(summary);
+    } catch (err) {
+      return c.json(
+        { error: err instanceof Error ? err.message : 'Cấu hình Telegram không hợp lệ' },
+        400,
+      );
+    }
+  });
+
+  app.post('/api/telegram/detect-chat', async (c) => {
+    if (!options.telegramAlerter) {
+      return c.json({ error: 'Telegram engine chưa khởi tạo' }, 503);
+    }
+    try {
+      const body = (await c.req.json().catch(() => ({}))) as { botToken?: string };
+      const detected = await options.telegramAlerter.detectChatIdFromBot(body.botToken);
+      return c.json({
+        ...detected,
+        status: options.telegramAlerter.getSummary(),
+      });
+    } catch (err) {
+      return c.json(
+        { error: err instanceof Error ? err.message : 'Không thể dò Chat ID từ Bot' },
+        400,
+      );
+    }
+  });
+
+  app.post('/api/telegram/test', async (c) => {
+    if (!options.telegramAlerter) {
+      return c.json({ error: 'Telegram engine chưa khởi tạo' }, 503);
+    }
+    try {
+      const summary = await options.telegramAlerter.sendLiveTestBriefing(store);
+      return c.json({ ok: true, status: summary });
+    } catch (err) {
+      return c.json(
+        { error: err instanceof Error ? err.message : 'Gửi tin thử Telegram thất bại' },
+        400,
+      );
+    }
+  });
+
   app.get('/api/bootstrap', (c) => {
     const now = Date.now();
     const rawMarkets = store.get<MarketSnapshot>('markets-crypto', now);
     const macro = store.get<MacroCountryIndicator[]>('macro-worldbank', now) ?? rawMarkets?.macro ?? [];
+    const predictionsPayload = store.get<PredictionItem[]>('polymarket', now) ?? [];
 
     const liveWsVessels = options.getLiveVessels?.();
     const resolvedVessels = (
@@ -248,7 +321,7 @@ export function createApp(
         ...(rawMarkets?.vnMacroPulse ? { vnMacroPulse: rawMarkets.vnMacroPulse } : {}),
         updatedAt: rawMarkets?.updatedAt ?? now,
       },
-      predictions: store.get<PredictionItem[]>('polymarket', now) ?? [],
+      predictions: predictionsPayload,
       news: resolvedNews,
       theaters: [...THEATER_PRESETS],
       health: store.getAllHealth(now),
@@ -260,6 +333,10 @@ export function createApp(
       vietnamEnv: store.get<VietnamEnvSnapshot>('vietnam-env', now) ?? undefined,
       hptIntel: store.get<HptCompanyIntelSnapshot>('hpt-intel', now) ?? undefined,
       aiSitrep: store.get<AiSitrepSnapshot>('ai-sitrep', now) ?? undefined,
+      regimeHistory: options.regimeLedger
+        ? options.regimeLedger.recordSnapshot(rawMarkets, macro, predictionsPayload, now)
+        : undefined,
+      telegramStatus: options.telegramAlerter?.getSummary(),
     };
 
     return c.json(payload);

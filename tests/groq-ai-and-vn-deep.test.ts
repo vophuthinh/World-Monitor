@@ -1,4 +1,12 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import {
+  buildMarketCatalystCalendar,
+  evaluateChokepointMarketImpacts,
+  getNthWeekdayOfMonthUtc,
+} from '../shared/catalysts-and-chokepoints';
 import {
   buildSectorRotation,
   classifyMacroQuadrant,
@@ -41,6 +49,8 @@ import {
   buildMonitorLiveContext,
   parseSitrepResponseText,
 } from '../server/lib/groq-intel';
+import { RegimeHistoryLedger } from '../server/lib/regime-ledger';
+import { TelegramAlertEngine } from '../server/lib/telegram-alerter';
 
 describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / GPS-BGP', () => {
   it('defines active Groq 2026 frontier models and parses AI Sitrep structured bullets cleanly', () => {
@@ -831,5 +841,128 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     expect(compassFull?.factorPillars).toHaveLength(5);
     expect(compassFull?.factorPillars?.reduce((s, p) => s + p.weightPct, 0)).toBe(100);
     expect(compassFull?.sectorRotation?.quadrant).toBe('Q2_REFLATION');
+  });
+
+  it('verifies Catalyst Calendar, Chokepoint-to-Stock Impact Engine, Historical Regime Ledger & 24/7 Telegram Alert Engine', () => {
+    // 1. Statutory 3rd Thursday VN30F1M derivatives expiry + upcoming FOMC & GSO catalysts
+    const thirdThuDec2026 = getNthWeekdayOfMonthUtc(2026, 11, 4, 3);
+    expect(new Date(thirdThuDec2026).toISOString().slice(0, 10)).toBe('2026-12-17');
+
+    const catalysts = buildMarketCatalystCalendar(
+      Date.UTC(2026, 10, 22, 11, 0, 0),
+      '90% Tăng +25bps (Quyết định của Fed vào tháng 12?)',
+    );
+    expect(catalysts.length).toBe(5);
+    expect(catalysts[0].daysUntil).toBeLessThanOrEqual(catalysts[1].daysUntil);
+    expect(catalysts.some((e) => e.id === 'fomc-rate' && e.impactNote.includes('90%'))).toBe(true);
+
+    // 2. Chokepoint -> Commodity & VN Stock Impact (detects inverted "returns to normal: 3%" => 97% disrupted!)
+    const chokepoints = evaluateChokepointMarketImpacts({
+      military: [
+        {
+          id: 'mil-1',
+          layer: 'military',
+          category: 'recon',
+          title: 'USN P-8A Poseidon',
+          lat: 26.2,
+          lon: 56.4,
+          timestamp: 1,
+          severity: 'high',
+          source: 'ADSB',
+          meta: {},
+        },
+      ],
+      vessels: [],
+      geopolitics: [],
+      predictions: [
+        {
+          id: 'hormuz-normal',
+          title: 'Strait of Hormuz traffic returns to normal by December 31?',
+          category: 'geopolitics',
+          yesPercent: 3,
+          volumeUsd: 18_290_000,
+          liquidityUsd: 500_000,
+          endDate: '2026-12-31',
+          url: 'https://polymarket.com',
+          updatedAt: 1,
+        },
+      ],
+      quotes: [
+        {
+          symbol: 'Brent Crude',
+          name: 'Brent',
+          group: 'commodity',
+          price: 89.95,
+          changePercent24h: 1.2,
+          updatedAt: 1,
+          source: 'Yahoo',
+        },
+      ],
+    });
+    expect(chokepoints[0].id).toBe('hormuz');
+    expect(chokepoints[0].status).toBe('critical');
+    expect(chokepoints[0].polymarketNote).toContain('97%');
+    expect(chokepoints[0].vnStockImpact).toContain('GAS');
+
+    // 3. RegimeHistoryLedger backfills recent sessions & persists daily snapshot + TelegramAlertEngine masks token cleanly
+    const tempDir = mkdtempSync(join(tmpdir(), 'wm-ledger-tg-'));
+    try {
+      const ledger = new RegimeHistoryLedger(tempDir);
+      const history = ledger.recordSnapshot(
+        {
+          quotes: [
+            {
+              symbol: 'VN-Index',
+              name: 'VN-Index',
+              group: 'index',
+              price: 1689,
+              changePercent24h: -0.05,
+              ma50: 1748,
+              ma200: 1784,
+              rsi14: 37,
+              peRatio: 10.46,
+              sparkline: [1735, 1736, 1726, 1703, 1690, 1689],
+              updatedAt: 1,
+              source: 'HOSE',
+            },
+          ],
+          crypto: [],
+          fearGreed: null,
+          macro: [],
+          fred: [
+            {
+              id: 'M2SL',
+              label: 'M2',
+              subtitle: 'M2',
+              value: 5.7,
+              change: 0.1,
+              unit: '%',
+              date: '2026-10-01',
+              pillar: 'leading',
+              sparkline: [5.2, 5.4, 5.5, 5.6, 5.7],
+            },
+          ],
+          updatedAt: 1,
+        },
+        [],
+        [],
+        Date.UTC(2026, 10, 22, 11, 0, 0),
+      );
+      expect(history.length).toBeGreaterThanOrEqual(5);
+      expect(history[history.length - 1].date).toBe('2026-11-22');
+
+      const tg = new TelegramAlertEngine(tempDir);
+      const cfg = tg.updateConfig({
+        botToken: '123456789:AAHxyz9876543210abcd',
+        chatId: '581920411',
+        enabled: true,
+        preferences: { hptIntel: true },
+      });
+      expect(cfg.configured).toBe(true);
+      expect(cfg.maskedToken).toBe('123456••••abcd');
+      expect(cfg.chatId).toBe('581920411');
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });

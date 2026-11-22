@@ -8,6 +8,7 @@ import type {
   GeoPointFeature,
   GoogleTrendsSnapshot,
   HptCompanyIntelSnapshot,
+  MacroCountryIndicator,
   MarketSnapshot,
   NewsItem,
   PolicyLegalSnapshot,
@@ -34,6 +35,8 @@ import { fetchGpsAndBgpOutages, fetchVietnamEnvironment } from './collectors/vie
 import { fetchVietnamPolicyLegal } from './collectors/vietnam-policy-legal';
 import { fetchWeatherRadar } from './collectors/weather-radar';
 import { generateAiSitrep } from './lib/groq-intel';
+import { RegimeHistoryLedger } from './lib/regime-ledger';
+import { TelegramAlertEngine } from './lib/telegram-alerter';
 import { BinanceRealtimeStream } from './realtime/binance-stream';
 import { RealtimeHub } from './realtime/hub';
 import { UnifiedNewsStreamService } from './realtime/news-stream';
@@ -56,9 +59,17 @@ const CACHE_DIR = resolve(process.cwd(), '.cache');
 export function buildProductionRuntime(cacheDir = CACHE_DIR) {
   const store = new SnapshotStore(cacheDir);
   const hub = new RealtimeHub();
+  const regimeLedger = new RegimeHistoryLedger(cacheDir);
+  const telegramAlerter = new TelegramAlertEngine(cacheDir);
   const vesselManager = new MaritimeVesselStreamManager(hub, process.env.AISSTREAM_API_KEY);
   const newsStream = new UnifiedNewsStreamService(hub, store);
   const polymarketStream = new PolymarketRealtimeStream(hub, store);
+
+  hub.subscribe((ev) => {
+    if (ev.type === 'breaking_alert') {
+      void telegramAlerter.forwardBreakingTacticalAlert(ev.alert);
+    }
+  });
 
   const scheduler = new CollectorScheduler(store, (id, data) => {
     const now = Date.now();
@@ -87,6 +98,16 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
         ts: now,
       });
     }
+
+    if (id === 'markets-crypto' || id === 'macro-worldbank' || id === 'polymarket') {
+      const rawMarkets = store.get<MarketSnapshot>('markets-crypto', now);
+      const macro =
+        store.get<MacroCountryIndicator[]>('macro-worldbank', now) ?? rawMarkets?.macro ?? [];
+      const preds = store.get<PredictionItem[]>('polymarket', now) ?? [];
+      regimeLedger.recordSnapshot(rawMarkets, macro, preds, now);
+    }
+
+    void telegramAlerter.evaluateCollectorUpdate(id, store);
 
     hub.publish({
       type: 'collector_sync',
@@ -274,12 +295,23 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
     polymarketStream,
     vesselManager,
     newsStream,
+    regimeLedger,
+    telegramAlerter,
   };
 }
 
 async function main(): Promise<void> {
-  const { store, hub, scheduler, binanceStream, polymarketStream, vesselManager, newsStream } =
-    buildProductionRuntime();
+  const {
+    store,
+    hub,
+    scheduler,
+    binanceStream,
+    polymarketStream,
+    vesselManager,
+    newsStream,
+    regimeLedger,
+    telegramAlerter,
+  } = buildProductionRuntime();
   await store.hydrateFromDisk();
   scheduler.startAll({ runImmediately: true });
   // Refresh AI Sitrep once at +7.5s after initial upstream collectors populate RAM
@@ -297,6 +329,8 @@ async function main(): Promise<void> {
     getLiveVessels: () => vesselManager.getCombinedVessels(),
     getUnifiedNews: () => newsStream.getUnifiedNews(),
     getNewsStreamStats: () => newsStream.getStats(),
+    regimeLedger,
+    telegramAlerter,
   });
 
   const clientDistDir = resolve(process.cwd(), 'dist/client');

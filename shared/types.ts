@@ -757,6 +757,66 @@ export interface TheaterViewPreset {
   description: string;
 }
 
+export interface RegimeHistoryPoint {
+  date: string;
+  vnMacroScore: number;
+  usMacroScore: number;
+  compassScore: number;
+  vnIndexPrice?: number;
+  vnIndexPe?: number;
+  quadrant?: MacroQuadrant;
+  stance: InvestmentStance;
+  equitiesWeightPct: number;
+}
+
+export interface TelegramAlertPreferences {
+  macroCompass: boolean;
+  hptIntel: boolean;
+  policyLegal: boolean;
+  eastSeaWeather: boolean;
+}
+
+export interface TelegramAlertConfigSummary {
+  configured: boolean;
+  enabled: boolean;
+  source: 'env' | 'runtime' | 'none';
+  maskedToken?: string;
+  chatId?: string;
+  preferences: TelegramAlertPreferences;
+  sentCount: number;
+  lastSentAt?: number;
+  lastError?: string;
+}
+
+export interface MarketCatalystEvent {
+  id: string;
+  title: string;
+  region: 'VN' | 'US';
+  category: 'fomc' | 'derivatives_etf' | 'inflation_gdp';
+  dateIso: string;
+  dateLabel: string;
+  daysUntil: number;
+  impactNote: string;
+  urgency: 'imminent' | 'soon' | 'scheduled';
+}
+
+export interface ChokepointMarketImpact {
+  id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  zoom: number;
+  disruptionScore: number;
+  status: 'critical' | 'elevated' | 'normal';
+  statusLabel: string;
+  airCount: number;
+  seaCount: number;
+  conflictCount: number;
+  polymarketNote?: string;
+  commodityImpact: string;
+  vnStockImpact: string;
+}
+
 export interface LiveDynamicLayers {
   military: GeoPointFeature[];
   vessels: GeoPointFeature[];
@@ -785,6 +845,8 @@ export interface BootstrapResponse {
   vietnamEnv?: VietnamEnvSnapshot;
   hptIntel?: HptCompanyIntelSnapshot;
   aiSitrep?: AiSitrepSnapshot;
+  regimeHistory?: RegimeHistoryPoint[];
+  telegramStatus?: TelegramAlertConfigSummary;
 }
 
 export interface LiveFastResponse {
