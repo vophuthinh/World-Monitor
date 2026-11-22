@@ -501,6 +501,7 @@ export interface PolicyLegalItem {
   pdfUrl?: string;
   isMost?: boolean;
   pillarResolution?: '57' | '59' | '66' | '68';
+  aiSummarized?: boolean;
   highlights: string[];
 }
 

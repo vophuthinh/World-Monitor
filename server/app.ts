@@ -21,6 +21,7 @@ import type {
   WeatherRadarSnapshot,
 } from '@shared/types';
 import type { CollectorScheduler } from './cache/scheduler';
+import { summarizeSinglePolicyItemWithAi } from './collectors/vietnam-policy-legal';
 import { answerMonitorQuestion, generateAiSitrep } from './lib/groq-intel';
 import { lookupLiveIocOrCve } from './lib/ioc-scanner';
 import { RealtimeHub } from './realtime/hub';
@@ -157,6 +158,34 @@ export function createApp(
     } catch (err) {
       return c.json(
         { error: err instanceof Error ? err.message : 'Không thể xử lý câu hỏi AI' },
+        400,
+      );
+    }
+  });
+
+  app.post('/api/policy-summarize', async (c) => {
+    try {
+      const body = (await c.req.json()) as {
+        id?: string;
+        title?: string;
+        docCode?: string;
+        sector?: string;
+        source?: string;
+      };
+      if (!body?.id || !body?.title) {
+        return c.json({ error: 'Thiếu thông tin văn bản cần tóm tắt' }, 400);
+      }
+      const summary = await summarizeSinglePolicyItemWithAi({
+        id: body.id,
+        title: body.title,
+        docCode: body.docCode,
+        sector: body.sector,
+        source: body.source,
+      });
+      return c.json(summary);
+    } catch (err) {
+      return c.json(
+        { error: err instanceof Error ? err.message : 'Không thể tóm tắt văn bản bằng AI' },
         400,
       );
     }

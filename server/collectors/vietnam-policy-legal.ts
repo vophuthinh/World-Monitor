@@ -538,6 +538,65 @@ export function parseCongBaoOrLegalRss(
 
 const aiSummaryCache = new Map<string, string[]>();
 
+export async function summarizeSinglePolicyItemWithAi(input: {
+  id: string;
+  title: string;
+  docCode?: string;
+  sector?: string;
+  source?: string;
+}): Promise<{ id: string; highlights: string[]; model: string; latencyMs: number }> {
+  const existing = aiSummaryCache.get(input.id);
+  if (existing && existing.length >= 2) {
+    return { id: input.id, highlights: existing, model: 'groq-cache', latencyMs: 1 };
+  }
+
+  const prompt = [
+    'Tóm tắt ĐÚNG 3 gạch đầu dòng tiếng Việt ngắn gọn (mỗi dòng 14–24 từ, không có lời mở đầu) theo cấu trúc:',
+    '1. Nội dung cốt lõi / quy định mới',
+    '2. Đối tượng / lĩnh vực chịu tác động',
+    '3. Ý nghĩa thực thi hoặc mốc cần lưu ý',
+    input.docCode ? `Số hiệu văn bản: ${input.docCode}` : '',
+    input.sector ? `Lĩnh vực: ${input.sector}` : '',
+    input.source ? `Nguồn: ${input.source}` : '',
+    `Tiêu đề / Trích yếu: ${input.title}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const llm = await callGroqChatCompletion(
+    [
+      {
+        role: 'system',
+        content: 'Bạn là Chuyên gia Pháp chế & Chính sách Việt Nam. Chỉ xuất đúng 3 gạch đầu dòng súc tích, rõ ý.',
+      },
+      { role: 'user', content: prompt },
+    ],
+    { maxTokens: 320, temperature: 0.15, timeoutMs: 8_000 },
+  );
+
+  if (!llm) {
+    throw new Error('Chưa kết nối được dịch vụ AI tóm tắt văn bản.');
+  }
+
+  const bullets = llm.text
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^[-*•\d.)\s]+/, '').replace(/\*\*/g, '').trim())
+    .filter((l) => l.length >= 12)
+    .slice(0, 3);
+
+  if (bullets.length < 2) {
+    throw new Error('Phản hồi AI quá ngắn, vui lòng thử lại.');
+  }
+
+  aiSummaryCache.set(input.id, bullets);
+  return {
+    id: input.id,
+    highlights: bullets,
+    model: llm.model,
+    latencyMs: llm.latencyMs,
+  };
+}
+
 async function maybeEnrichTopDecreesWithFreeAi(items: PolicyLegalItem[]): Promise<{
   items: PolicyLegalItem[];
   aiEnabled: boolean;
@@ -548,41 +607,33 @@ async function maybeEnrichTopDecreesWithFreeAi(items: PolicyLegalItem[]): Promis
     return { items, aiEnabled: false };
   }
 
-  const targets = items.filter((i) => i.docCode && !aiSummaryCache.has(i.id)).slice(0, 4);
-  for (const doc of targets) {
-    try {
-      const prompt = `Tóm tắt đúng 3 gạch đầu dòng ngắn gọn (mỗi dòng dưới 22 từ, tiếng Việt, không lời mở đầu) về nội dung và đối tượng chịu tác động chính của văn bản pháp luật Việt Nam sau:\nSố hiệu: ${doc.docCode}\nTiêu đề: ${doc.title}`;
-      const llm = await callGroqChatCompletion(
-        [
-          {
-            role: 'system',
-            content: 'Chỉ trả lời đúng 3 gạch đầu dòng tiếng Việt ngắn gọn, chính xác.',
-          },
-          { role: 'user', content: prompt },
-        ],
-        { maxTokens: 260, temperature: 0.15, timeoutMs: 6_500 },
-      );
-      const rawReply = llm?.text ?? '';
-
-      const bullets = rawReply
-        .split('\n')
-        .map((l) => l.replace(/^[-*•\d.)\s]+/, '').replace(/\*\*/g, '').trim())
-        .filter((l) => l.length >= 12)
-        .slice(0, 3);
-
-      if (bullets.length >= 2) {
-        aiSummaryCache.set(doc.id, bullets);
-      }
-    } catch {
-      // Keep deterministic highlights on error
+  // Prioritize the top newest visible items first + top official docCode items so the top of the tab always shows AI 3-bullet summaries immediately!
+  const topVisible = items.slice(0, 5);
+  const topCoded = items.filter((i) => i.docCode).slice(0, 4);
+  const candidateMap = new Map<string, PolicyLegalItem>();
+  for (const doc of [...topVisible, ...topCoded]) {
+    if (!aiSummaryCache.has(doc.id) && candidateMap.size < 6) {
+      candidateMap.set(doc.id, doc);
     }
   }
+
+  await Promise.allSettled(
+    [...candidateMap.values()].map((doc) =>
+      summarizeSinglePolicyItemWithAi({
+        id: doc.id,
+        title: doc.title,
+        docCode: doc.docCode,
+        sector: doc.sector,
+        source: doc.source,
+      }),
+    ),
+  );
 
   return {
     aiEnabled: true,
     items: items.map((item) => {
       const cached = aiSummaryCache.get(item.id);
-      return cached ? { ...item, highlights: cached } : item;
+      return cached ? { ...item, highlights: cached, aiSummarized: true } : item;
     }),
   };
 }

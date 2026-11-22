@@ -352,9 +352,11 @@ export const RightIntelPanel = memo(function RightIntelPanel({
   const [techFilter, setTechFilter] = useState<'all' | TechSubCategory>('all');
   const [mitreFilter, setMitreFilter] = useState<string | null>(null);
   const [techQuery, setTechQuery] = useState('');
-  const [legalFilter, setLegalFilter] = useState<'all' | 'most' | LegalDocType>('all');
+  const [legalFilter, setLegalFilter] = useState<'all' | 'most' | 'ai_only' | LegalDocType>('all');
   const [legalPillar, setLegalPillar] = useState<'57' | '59' | '66' | '68' | null>(null);
   const [legalQuery, setLegalQuery] = useState('');
+  const [onDemandPolicyAi, setOnDemandPolicyAi] = useState<Record<string, string[]>>({});
+  const [policyAiLoadingIds, setPolicyAiLoadingIds] = useState<Set<string>>(new Set());
   const [hptFilter, setHptFilter] = useState<'all' | 'filings' | HptItemCategory>('all');
   const [translateVi, setTranslateVi] = useState<boolean>(true);
   const [visibleLimit, setVisibleLimit] = useState<number>(40);
@@ -391,6 +393,37 @@ export const RightIntelPanel = memo(function RightIntelPanel({
       // Keep current sitrep
     } finally {
       setSitrepRefreshing(false);
+    }
+  }, []);
+
+  const requestPolicyAiSummary = useCallback(async (doc: PolicyLegalItem) => {
+    setPolicyAiLoadingIds((prev) => new Set(prev).add(doc.id));
+    try {
+      const resp = await fetch('/api/policy-summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: doc.id,
+          title: doc.title,
+          docCode: doc.docCode,
+          sector: doc.sector,
+          source: doc.source,
+        }),
+      });
+      if (resp.ok) {
+        const j = (await resp.json()) as { highlights?: string[] };
+        if (j.highlights && j.highlights.length >= 2) {
+          setOnDemandPolicyAi((prev) => ({ ...prev, [doc.id]: j.highlights! }));
+        }
+      }
+    } catch {
+      // Ignore transient AI error
+    } finally {
+      setPolicyAiLoadingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(doc.id);
+        return next;
+      });
     }
   }, []);
 
@@ -678,12 +711,19 @@ export const RightIntelPanel = memo(function RightIntelPanel({
     return counts;
   }, [policyItems]);
 
+  const aiSummarizedPolicyCount = useMemo(
+    () => policyItems.filter((d) => d.aiSummarized || Boolean(onDemandPolicyAi[d.id])).length,
+    [policyItems, onDemandPolicyAi],
+  );
+
   const filteredPolicy = useMemo(() => {
     const q = legalQuery.trim().toLowerCase();
     return policyItems.filter((doc) => {
       if (legalPillar && doc.pillarResolution !== legalPillar) return false;
       if (legalFilter === 'most') {
         if (!doc.isMost) return false;
+      } else if (legalFilter === 'ai_only') {
+        if (!doc.aiSummarized && !onDemandPolicyAi[doc.id]) return false;
       } else if (legalFilter !== 'all' && doc.docType !== legalFilter) {
         return false;
       }
@@ -697,7 +737,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
       }
       return true;
     });
-  }, [policyItems, legalFilter, legalPillar, legalQuery]);
+  }, [policyItems, legalFilter, legalPillar, legalQuery, onDemandPolicyAi]);
 
   return (
     <aside className="flex h-full w-full flex-col border-l border-slate-800/95 bg-[#090e18] lg:w-[454px] xl:w-[494px] 2xl:w-[548px]">
@@ -2189,14 +2229,27 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span
-                  className={`rounded px-1.5 py-0.5 font-semibold ${policyLegal?.aiSummaryEnabled
-                    ? 'bg-emerald-500/15 text-emerald-300'
-                    : 'bg-amber-500/15 text-amber-200'
-                    }`}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setLegalFilter((prev) => (prev === 'ai_only' ? 'all' : 'ai_only'))
+                  }
+                  title="Bấm để lọc xem ngay các văn bản đã được AI tóm tắt 3 ý trọng tâm"
+                  className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-semibold transition ${
+                    legalFilter === 'ai_only'
+                      ? 'border-emerald-400 bg-emerald-500/30 text-emerald-100'
+                      : policyLegal?.aiSummaryEnabled
+                        ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
+                        : 'border-amber-500/35 bg-amber-500/15 text-amber-200'
+                  }`}
                 >
-                  {policyLegal?.aiSummaryEnabled ? 'AI TÓM TẮT 3 Ý' : 'REGEX + TRÍCH YẾU'}
-                </span>
+                  <Sparkle size={10} weight="fill" />
+                  <span>
+                    {policyLegal?.aiSummaryEnabled
+                      ? `AI TÓM TẮT 3 Ý (${aiSummarizedPolicyCount})`
+                      : 'REGEX + TRÍCH YẾU'}
+                  </span>
+                </button>
                 {onForceRefresh && (
                   <button
                     type="button"
@@ -2313,7 +2366,12 @@ export const RightIntelPanel = memo(function RightIntelPanel({
               </div>
             ) : (
               <>
-                {filteredPolicy.slice(0, visibleLimit).map((doc) => (
+                {filteredPolicy.slice(0, visibleLimit).map((doc) => {
+                  const aiBullets = onDemandPolicyAi[doc.id] ?? (doc.aiSummarized ? doc.highlights : null);
+                  const bulletsToRender = aiBullets ?? doc.highlights;
+                  const isSummarizing = policyAiLoadingIds.has(doc.id);
+
+                  return (
                   <article key={doc.id} className="px-3 py-2.5 transition hover:bg-slate-900/65">
                     <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
                       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -2346,22 +2404,51 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                       {doc.title}
                     </a>
 
-                  {doc.highlights.length > 0 && (
-                    <ul className="mt-1.5 space-y-0.5 rounded border border-slate-800/80 bg-[#0d1524]/90 px-2.5 py-1.5 text-[10.5px] leading-snug text-slate-300">
-                      {doc.highlights.map((bullet, idx) => (
-                        <li key={idx} className="flex items-start gap-1.5">
-                          <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-amber-400" />
-                          <span>{renderInlineMarkdown(bullet)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                    {bulletsToRender.length > 0 && (
+                      <div
+                        className={`mt-1.5 rounded border px-2.5 py-1.5 text-[10.5px] leading-snug ${
+                          aiBullets
+                            ? 'border-emerald-500/35 bg-[#091622] text-slate-200'
+                            : 'border-slate-800/80 bg-[#0d1524]/90 text-slate-300'
+                        }`}
+                      >
+                        {aiBullets && (
+                          <div className="mb-1 flex items-center gap-1 font-mono text-[9px] font-bold tracking-wider text-emerald-300">
+                            <Sparkle size={10} weight="fill" />
+                            <span>AI TÓM TẮT 3 Ý TRỌNG TÂM</span>
+                          </div>
+                        )}
+                        <ul className="space-y-0.5">
+                          {bulletsToRender.map((bullet, idx) => (
+                            <li key={idx} className="flex items-start gap-1.5">
+                              <span
+                                className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
+                                  aiBullets ? 'bg-emerald-400' : 'bg-amber-400'
+                                }`}
+                              />
+                              <span>{renderInlineMarkdown(bullet)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
 
                     <div className="mt-2 flex items-center justify-between gap-2">
                       <span className="truncate rounded bg-slate-800/80 px-1.5 py-0.5 font-mono text-[9.5px] text-slate-300">
                         {doc.sector}
                       </span>
-                      <div className="flex shrink-0 items-center gap-2">
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {!aiBullets && (
+                          <button
+                            type="button"
+                            disabled={isSummarizing}
+                            onClick={() => void requestPolicyAiSummary(doc)}
+                            className="inline-flex items-center gap-1 rounded border border-emerald-500/45 bg-emerald-500/15 px-2 py-0.5 font-mono text-[9.5px] font-semibold text-emerald-200 transition hover:bg-emerald-500/25 disabled:opacity-50"
+                          >
+                            <Sparkle size={10} weight="fill" />
+                            <span>{isSummarizing ? 'Đang tóm tắt...' : 'AI Tóm tắt 3 ý'}</span>
+                          </button>
+                        )}
                         {doc.pdfUrl && (
                           <a
                             href={doc.pdfUrl}
@@ -2384,7 +2471,8 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                       </div>
                     </div>
                   </article>
-                ))}
+                  );
+                })}
                 {filteredPolicy.length > visibleLimit && (
                   <div className="p-3 text-center">
                     <button
