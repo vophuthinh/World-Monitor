@@ -8,6 +8,7 @@ import type {
   GeoPointFeature,
   GoogleTrendsSnapshot,
   HptCompanyIntelSnapshot,
+  HptWatchConfig,
   LiveFastResponse,
   MacroCountryIndicator,
   MarketSnapshot,
@@ -21,6 +22,7 @@ import type {
   WeatherRadarSnapshot,
 } from '@shared/types';
 import type { CollectorScheduler } from './cache/scheduler';
+import type { HptWatchConfigStore } from './collectors/hpt-company-intel';
 import { summarizeSinglePolicyItemWithAi } from './collectors/vietnam-policy-legal';
 import { answerMonitorQuestion, generateAiSitrep } from './lib/groq-intel';
 import { lookupLiveIocOrCve } from './lib/ioc-scanner';
@@ -41,6 +43,7 @@ export function createApp(
     getNewsStreamStats?: () => NewsStreamStats;
     regimeLedger?: RegimeHistoryLedger;
     telegramAlerter?: TelegramAlertEngine;
+    hptWatchStore?: HptWatchConfigStore;
   } = {},
 ): Hono {
   const app = new Hono();
@@ -215,11 +218,38 @@ export function createApp(
         configured: false,
         enabled: false,
         source: 'none',
-        preferences: { macroCompass: true, hptIntel: true, policyLegal: true, eastSeaWeather: true },
+        preferences: { macroCompass: false, hptIntel: true, policyLegal: false, eastSeaWeather: false },
         sentCount: 0,
       });
     }
     return c.json(options.telegramAlerter.getSummary());
+  });
+
+  app.get('/api/hpt-watch/config', (c) => {
+    return c.json(
+      options.hptWatchStore?.get() ?? {
+        rssUrls: [],
+        telegramChannels: [],
+        customKeywords: [],
+      },
+    );
+  });
+
+  app.post('/api/hpt-watch/config', async (c) => {
+    if (!options.hptWatchStore) {
+      return c.json({ error: 'HPT Watch store chưa khởi tạo' }, 503);
+    }
+    try {
+      const body = (await c.req.json()) as Partial<HptWatchConfig>;
+      const updated = options.hptWatchStore.update(body);
+      void scheduler.refreshCollector('hpt-intel');
+      return c.json(updated);
+    } catch (err) {
+      return c.json(
+        { error: err instanceof Error ? err.message : 'Cấu hình nguồn quét HPT không hợp lệ' },
+        400,
+      );
+    }
   });
 
   app.post('/api/telegram/config', async (c) => {

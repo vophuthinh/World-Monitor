@@ -463,7 +463,52 @@ export const RightIntelPanel = memo(function RightIntelPanel({
   const [legalQuery, setLegalQuery] = useState('');
   const [onDemandPolicyAi, setOnDemandPolicyAi] = useState<Record<string, string[]>>({});
   const [policyAiLoadingIds, setPolicyAiLoadingIds] = useState<Set<string>>(new Set());
-  const [hptFilter, setHptFilter] = useState<'all' | 'filings' | HptItemCategory>('all');
+  const [hptFilter, setHptFilter] = useState<'all' | 'filings' | 'negative' | HptItemCategory>('all');
+  const [hptWatchOpen, setHptWatchOpen] = useState(false);
+  const [hptRssInput, setHptRssInput] = useState('');
+  const [hptTgInput, setHptTgInput] = useState('');
+  const [hptKwInput, setHptKwInput] = useState('');
+  const [hptWatchSaving, setHptWatchSaving] = useState(false);
+  const [hptWatchMsg, setHptWatchMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (hptIntel?.watchConfig) {
+      setHptRssInput(hptIntel.watchConfig.rssUrls.join('\n'));
+      setHptTgInput(hptIntel.watchConfig.telegramChannels.join(', '));
+      setHptKwInput(hptIntel.watchConfig.customKeywords.join(', '));
+    }
+  }, [hptIntel?.watchConfig]);
+
+  const saveHptWatchConfig = useCallback(async () => {
+    setHptWatchSaving(true);
+    setHptWatchMsg(null);
+    try {
+      const rssUrls = hptRssInput
+        .split(/[\r\n,]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const telegramChannels = hptTgInput
+        .split(/[\r\n,]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const customKeywords = hptKwInput
+        .split(/[\r\n,]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const resp = await fetch('/api/hpt-watch/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rssUrls, telegramChannels, customKeywords }),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      setHptWatchMsg('Đã lưu & kích hoạt quét mới (tự động loại trừ tin tuyển dụng)!');
+      onForceRefresh?.('hpt-intel');
+    } catch {
+      setHptWatchMsg('Không thể lưu cấu hình nguồn quét.');
+    } finally {
+      setHptWatchSaving(false);
+    }
+  }, [hptRssInput, hptTgInput, hptKwInput, onForceRefresh]);
   const [macroRegion, setMacroRegion] = useState<'VN' | 'US'>('VN');
   const [translateVi, setTranslateVi] = useState<boolean>(true);
   const [visibleLimit, setVisibleLimit] = useState<number>(25);
@@ -803,6 +848,9 @@ export const RightIntelPanel = memo(function RightIntelPanel({
     if (hptFilter === 'all') return list;
     if (hptFilter === 'filings') {
       return list.filter((i) => i.category === 'exchange_filing');
+    }
+    if (hptFilter === 'negative') {
+      return list.filter((i) => i.sentiment === 'negative');
     }
     return list.filter((i) => i.category === hptFilter);
   }, [hptIntel?.items, hptFilter]);
@@ -3775,6 +3823,18 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                 </div>
 
                 <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setHptWatchOpen((v) => !v)}
+                    title="Mở rộng nguồn quét: RSSHub, Kênh Telegram công khai (t.me/s/...) & Từ khóa phụ"
+                    className={`inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 font-mono text-[9px] transition ${
+                      hptWatchOpen
+                        ? 'border-emerald-400/60 bg-emerald-500/20 text-emerald-200'
+                        : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-cyan-400/50 hover:text-cyan-200'
+                    }`}
+                  >
+                    ⚙️ Nguồn quét
+                  </button>
                   {hptIntel.stock && (
                     <button
                       type="button"
@@ -3909,6 +3969,66 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                 </div>
               </div>
 
+              {hptWatchOpen && (
+                <div className="mt-2 space-y-1.5 rounded border border-emerald-500/35 bg-[#091322] p-2 font-mono text-[10px]">
+                  <div className="flex items-center justify-between text-[9.5px] text-emerald-300">
+                    <span className="font-bold">CẤU HÌNH NGUỒN MỞ (RSSHUB · TELEGRAM · TỪ KHÓA)</span>
+                    <span className="text-slate-400">Chặn 100% tin tuyển dụng</span>
+                  </div>
+                  <div>
+                    <label className="block text-[9px] text-slate-400">
+                      Link RSS / RSSHub tùy chỉnh (mỗi dòng 1 link, VD: YouTube/Web qua RSSHub):
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={hptRssInput}
+                      onChange={(e) => setHptRssInput(e.target.value)}
+                      placeholder="https://rsshub.app/youtube/channel/..."
+                      className="mt-0.5 w-full rounded border border-slate-700/90 bg-[#070d18] px-2 py-1 text-[10px] text-slate-100 placeholder:text-slate-600 focus:border-emerald-400 focus:outline-none"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-[9px] text-slate-400">
+                        Kênh Telegram công khai (@handle):
+                      </label>
+                      <input
+                        type="text"
+                        value={hptTgInput}
+                        onChange={(e) => setHptTgInput(e.target.value)}
+                        placeholder="@chungkhoanf319, @tinhtevn"
+                        className="mt-0.5 w-full rounded border border-slate-700/90 bg-[#070d18] px-2 py-1 text-[10px] text-slate-100 placeholder:text-slate-600 focus:border-emerald-400 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] text-slate-400">
+                        Từ khóa phụ (ngoài HPT, HSOC, MST):
+                      </label>
+                      <input
+                        type="text"
+                        value={hptKwInput}
+                        onChange={(e) => setHptKwInput(e.target.value)}
+                        placeholder="HPT SmartNOC, HPT Cloud"
+                        className="mt-0.5 w-full rounded border border-slate-700/90 bg-[#070d18] px-2 py-1 text-[10px] text-slate-100 placeholder:text-slate-600 focus:border-emerald-400 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 pt-0.5">
+                    <span className="truncate font-sans text-[10px] text-emerald-300">
+                      {hptWatchMsg ?? 'Mọi bài mới về HPT sẽ đẩy thẳng vào @ThinhVP_bot'}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={hptWatchSaving}
+                      onClick={() => void saveHptWatchConfig()}
+                      className="shrink-0 rounded border border-emerald-500/50 bg-emerald-500/20 px-2.5 py-1 text-[9.5px] font-semibold text-emerald-100 transition hover:bg-emerald-500/30 disabled:opacity-50"
+                    >
+                      {hptWatchSaving ? 'Đang lưu...' : 'Lưu & Quét'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* FireAnt-Style Independent Category Filter Pills */}
               <div className="mt-2 flex flex-wrap gap-1">
                 {(
@@ -3916,8 +4036,11 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                     { id: 'all', label: `Tất cả (${hptIntel.items.length})` },
                     { id: 'filings', label: '📜 CBTT & Cổ đông' },
                     { id: 'bidding_project', label: '🏗️ Đấu thầu & Dự án' },
-                    { id: 'it_press_partner', label: '🤝 Báo CNTT · VINASA · Đối tác' },
-                    { id: 'press_social', label: '🌐 Bing · Báo Mới · F319' },
+                    { id: 'it_press_partner', label: '🤝 Báo CNTT · Đối tác' },
+                    { id: 'press_social', label: '🌐 Báo Mới · Reddit · YT · Diễn đàn' },
+                    ...(hptSentimentStats.neg > 0
+                      ? [{ id: 'negative' as const, label: `🚨 Tiêu cực (${hptSentimentStats.neg})` }]
+                      : []),
                   ] as const
                 ).map((tab) => (
                   <button

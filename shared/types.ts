@@ -528,11 +528,18 @@ export interface HptStockSnapshot {
   updatedAt: number;
 }
 
+export interface HptWatchConfig {
+  rssUrls: string[];
+  telegramChannels: string[];
+  customKeywords: string[];
+}
+
 export interface HptCompanyIntelSnapshot {
   stock: HptStockSnapshot | null;
   items: HptCompanyItem[];
   sourceCount: number;
   aiSentimentEnabled: boolean;
+  watchConfig?: HptWatchConfig;
   updatedAt: number;
 }
 

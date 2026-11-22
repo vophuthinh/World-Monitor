@@ -28,11 +28,12 @@ interface PersistedTelegramRuntime {
   seenIds: string[];
 }
 
+// Per user instruction: exclusively alert on HPT articles/mentions by default (zero non-HPT noise)
 const DEFAULT_PREFS: TelegramAlertPreferences = {
-  macroCompass: true,
+  macroCompass: false,
   hptIntel: true,
-  policyLegal: true,
-  eastSeaWeather: true,
+  policyLegal: false,
+  eastSeaWeather: false,
 };
 
 function maskToken(token?: string): string | undefined {
@@ -260,6 +261,32 @@ export class TelegramAlertEngine {
     const macro = store.get<MacroCountryIndicator[]>('macro-worldbank', now) ?? markets?.macro ?? [];
     const predictions = store.get<PredictionItem[]>('polymarket', now) ?? [];
     const hpt = store.get<HptCompanyIntelSnapshot>('hpt-intel', now);
+    const prefs = this.state.preferences;
+    const isHptExclusive =
+      prefs.hptIntel && !prefs.macroCompass && !prefs.policyLegal && !prefs.eastSeaWeather;
+
+    if (isHptExclusive) {
+      const lines: string[] = [
+        '🏢 <b>HPT MEDIA &amp; INTEL MONITOR · TRỰC CHIẾN 24/7</b>',
+        '• <b>Chế độ lọc:</b> Chỉ báo khi có bài viết / thảo luận mới về HPT (đã loại bỏ hoàn toàn tin tuyển dụng &amp; tin ngoài lề)',
+      ];
+      if (hpt?.stock) {
+        lines.push(
+          `• <b>Cổ phiếu HPT (UPCoM):</b> ${(hpt.stock.priceThousandVnd * 1000).toLocaleString('en-US')}₫ (${
+            hpt.stock.changePercent >= 0 ? '+' : ''
+          }${hpt.stock.changePercent.toFixed(2)}%)`,
+        );
+      }
+      if (hpt?.items && hpt.items.length > 0) {
+        const latest = hpt.items[0];
+        lines.push(
+          `• <b>Bài gần nhất (${escapeHtml(latest.badge)}):</b> ${escapeHtml(latest.title)} (<a href="${escapeHtml(latest.url)}">${escapeHtml(latest.source)}</a>)`,
+        );
+      }
+      lines.push('✅ <i>Bot @ThinhVP_bot đang canh 24/7 cho riêng từ khóa HPT!</i>');
+      await this.sendMessageHtml(lines.join('\n'), true);
+      return this.getSummary();
+    }
 
     const lines: string[] = [
       '🛰️ <b>WORLD MONITOR · BẢN TIN KIỂM TRA 24/7</b>',
@@ -388,22 +415,42 @@ export class TelegramAlertEngine {
       }
     }
 
-    // 2. HPT New Bidding Win or Exchange Filing
+    // 2. HPT Brand, Media, Forum, Social, Bidding & Disclosure Monitor (All fresh non-recruitment HPT articles + RED negative flag)
     if (collectorId === 'hpt-intel' && this.state.preferences.hptIntel && hpt) {
-      for (const item of hpt.items.slice(0, 6)) {
-        const isHighSignal = item.category === 'bidding_project' || item.category === 'exchange_filing';
-        if (this.markSeen(`hpt:${item.id}`) && isHighSignal) {
+      const refNow = hpt.updatedAt || now;
+      const maxAlertAgeMs = 72 * 3_600_000;
+      const unseen: typeof hpt.items = [];
+      for (const it of hpt.items) {
+        if (this.state.seenIds.includes(`hpt:${it.id}`)) continue;
+        // Silently mark archival (>72h old) articles as seen so newly added feeds never backfill old posts
+        if (refNow - it.publishedAt > maxAlertAgeMs) {
+          this.markSeen(`hpt:${it.id}`);
+          continue;
+        }
+        unseen.push(it);
+      }
+      if (unseen.length === 0) {
+        this.saveToDisk();
+      }
+      for (const item of unseen.slice(0, 4)) {
+        const isNegative = item.sentiment === 'negative';
+        const header = isNegative
+          ? `🚨 <b>[CẢNH BÁO ĐỎ] TÍN HIỆU TIÊU CỰC VỀ HPT (${escapeHtml(item.badge)})</b>`
+          : `🏢 <b>BÀI MỚI VỀ HPT (${escapeHtml(item.badge)})</b>`;
+        const lines = [
+          header,
+          escapeHtml(item.title),
+          item.aiSummary ? `🤖 <i>${escapeHtml(item.aiSummary)}</i>` : '',
+          `Nguồn: <b>${escapeHtml(item.source)}</b> · <a href="${escapeHtml(item.url)}">Xem bài gốc</a>`,
+        ].filter(Boolean);
+
+        const delivered = await this.sendMessageHtml(lines.join('\n'), true);
+        if (delivered) {
+          this.markSeen(`hpt:${item.id}`);
           this.saveToDisk();
-          await this.sendMessageHtml(
-            [
-              `🏢 <b>TIN MỚI VỀ HPT (${escapeHtml(item.badge)})</b>`,
-              escapeHtml(item.title),
-              `Nguồn: ${escapeHtml(item.source)} · <a href="${escapeHtml(item.url)}">Xem chi tiết</a>`,
-            ].join('\n'),
-          );
-          return;
         }
       }
+      if (unseen.length > 0) return;
     }
 
     // 3. Vietnam Policy Radar (Bộ tứ NQ / Bộ KH&CN)

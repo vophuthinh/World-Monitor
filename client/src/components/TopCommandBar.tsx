@@ -145,10 +145,10 @@ export const TopCommandBar = memo(function TopCommandBar({
   const [tgChatInput, setTgChatInput] = useState('');
   const [tgPrefs, setTgPrefs] = useState<TelegramAlertPreferences>(
     telegramStatus?.preferences ?? {
-      macroCompass: true,
+      macroCompass: false,
       hptIntel: true,
-      policyLegal: true,
-      eastSeaWeather: true,
+      policyLegal: false,
+      eastSeaWeather: false,
     },
   );
   const [tgBusy, setTgBusy] = useState(false);
@@ -630,7 +630,7 @@ export const TopCommandBar = memo(function TopCommandBar({
                       {(
                         [
                           ['macroCompass', 'Đổi pha La bàn Đầu tư'],
-                          ['hptIntel', 'Đấu thầu & CBTT HPT'],
+                          ['hptIntel', 'Mọi bài viết & thảo luận HPT'],
                           ['policyLegal', 'Chính sách & Bộ tứ NQ'],
                           ['eastSeaWeather', 'Bão Biển Đông & Tác chiến'],
                         ] as const

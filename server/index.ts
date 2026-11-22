@@ -23,7 +23,7 @@ import { fetchCyberThreats } from './collectors/cyber-threats';
 import { fetchEarthquakes } from './collectors/earthquakes';
 import { fetchGeopoliticsGdelt } from './collectors/geopolitics-gdelt';
 import { fetchGoogleTrendsRealtime } from './collectors/google-trends';
-import { fetchHptCompanyIntelligence } from './collectors/hpt-company-intel';
+import { HptWatchConfigStore, fetchHptCompanyIntelligence } from './collectors/hpt-company-intel';
 import { fetchWorldBankMacro } from './collectors/macro-worldbank';
 import { MaritimeVesselStreamManager } from './collectors/maritime-vessels';
 import { fetchMarketsAndCrypto } from './collectors/markets-crypto';
@@ -61,6 +61,7 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
   const hub = new RealtimeHub();
   const regimeLedger = new RegimeHistoryLedger(cacheDir);
   const telegramAlerter = new TelegramAlertEngine(cacheDir);
+  const hptWatchStore = new HptWatchConfigStore(cacheDir);
   const vesselManager = new MaritimeVesselStreamManager(hub, process.env.AISSTREAM_API_KEY);
   const newsStream = new UnifiedNewsStreamService(hub, store);
   const polymarketStream = new PolymarketRealtimeStream(hub, store);
@@ -269,11 +270,11 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector<HptCompanyIntelSnapshot>({
     id: 'hpt-intel',
-    label: 'Tin về HPT (HNX/UBCK + Đấu thầu + Simplize · 5p)',
+    label: 'Tin về HPT (HNX/UBCK + Đấu thầu + Reddit/YT/Diễn đàn · 5p)',
     intervalMs: 300_000,
     retainMs: 12 * 3_600_000,
     countItems: (snap) => snap.items.length + (snap.stock ? 1 : 0),
-    fetcher: (prev) => fetchHptCompanyIntelligence(prev),
+    fetcher: (prev) => fetchHptCompanyIntelligence(prev, hptWatchStore),
   });
 
   scheduler.registerCollector<AiSitrepSnapshot>({
@@ -297,6 +298,7 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
     newsStream,
     regimeLedger,
     telegramAlerter,
+    hptWatchStore,
   };
 }
 
@@ -311,6 +313,7 @@ async function main(): Promise<void> {
     newsStream,
     regimeLedger,
     telegramAlerter,
+    hptWatchStore,
   } = buildProductionRuntime();
   await store.hydrateFromDisk();
   scheduler.startAll({ runImmediately: true });
@@ -331,6 +334,7 @@ async function main(): Promise<void> {
     getNewsStreamStats: () => newsStream.getStats(),
     regimeLedger,
     telegramAlerter,
+    hptWatchStore,
   });
 
   const clientDistDir = resolve(process.cwd(), 'dist/client');

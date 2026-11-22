@@ -1,3 +1,5 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { XMLParser } from 'fast-xml-parser';
 import type {
   HptCompanyIntelSnapshot,
@@ -6,6 +8,7 @@ import type {
   HptItemCategory,
   HptSentiment,
   HptStockSnapshot,
+  HptWatchConfig,
 } from '@shared/types';
 import { callGroqChatCompletion } from '../lib/groq-intel';
 import { DEFAULT_BROWSER_UA, fetchJsonWithTimeout, fetchTextWithTimeout } from '../lib/http';
@@ -23,6 +26,8 @@ const CAFEF_HPT_EVENTS_URL =
   'https://cafef.vn/du-lieu/Ajax/Events_RelatedNews_New.aspx?symbol=HPT&floorID=0&configID=0&PageIndex=1&PageSize=12&Type=2';
 const BAOMOI_HPT_SEARCH_URL =
   'https://baomoi.com/tim-kiem/C%C3%B4ng-ngh%E1%BB%87-Tin-h%E1%BB%8Dc-HPT.epi';
+const REDDIT_HPT_SEARCH_URL =
+  'https://www.reddit.com/search.json?q=(%22C%C3%B4ng+ngh%E1%BB%87+Tin+h%E1%BB%8Dc+HPT%22+OR+%22c%E1%BB%95+phi%E1%BA%BFu+HPT%22+OR+%22HSOC%22+OR+%220301447436%22)&sort=new&limit=20';
 
 interface ExternalRssFeedDef {
   name: string;
@@ -30,7 +35,7 @@ interface ExternalRssFeedDef {
   url: string;
 }
 
-// 100% Independent Third-Party Feeds (hpt.vn is strictly excluded per user requirement)
+// 100% Independent Third-Party Feeds (hpt.vn AND all recruitment/job sites are strictly excluded per user requirement)
 const HPT_EXTERNAL_FEEDS: readonly ExternalRssFeedDef[] = [
   {
     name: 'Đấu thầu & Dự án (Báo Đấu thầu / MST 0301447436)',
@@ -40,12 +45,12 @@ const HPT_EXTERNAL_FEEDS: readonly ExternalRssFeedDef[] = [
   {
     name: 'Báo CNTT · Chuyển đổi số · Hiệp hội VINASA/VNISA',
     defaultCategory: 'it_press_partner',
-    url: 'https://news.google.com/rss/search?q=(site:ictvietnam.vn+OR+site:vietnamnet.vn+OR+site:vneconomy.vn+OR+site:nhipsongthitruong.vn+OR+site:antoanthongtin.vn+OR+site:vinasa.org.vn+OR+site:vnisa.org.vn)+%22HPT%22&hl=vi&gl=VN&ceid=VN:vi',
+    url: 'https://news.google.com/rss/search?q=(site:ictvietnam.vn+OR+site:vietnamnet.vn+OR+site:vneconomy.vn+OR+site:nhipsongthitruong.vn+OR+site:antoanthongtin.vn+OR+site:vinasa.org.vn+OR+site:vnisa.org.vn)+(%22HPT%22+OR+%22HSOC%22)&hl=vi&gl=VN&ceid=VN:vi',
   },
   {
     name: 'Hệ sinh thái Hãng Quốc tế (Microsoft / IBM / Cisco / NetApp)',
     defaultCategory: 'it_press_partner',
-    url: 'https://news.google.com/rss/search?q=%22HPT%22+(%22Vi%E1%BB%87t+Nam%22+OR+%22Vietnam%22)+(Microsoft+OR+IBM+OR+Cisco+OR+Oracle+OR+NetApp+OR+Fortinet+OR+%22Sao+Khu%C3%AA%22+OR+VINASA+OR+VNISA)&hl=vi&gl=VN&ceid=VN:vi',
+    url: 'https://news.google.com/rss/search?q=(%22HPT%22+OR+%22HSOC%22)+(%22Vi%E1%BB%87t+Nam%22+OR+%22Vietnam%22)+(Microsoft+OR+IBM+OR+Cisco+OR+Oracle+OR+NetApp+OR+Fortinet+OR+%22Sao+Khu%C3%AA%22+OR+VINASA+OR+VNISA)&hl=vi&gl=VN&ceid=VN:vi',
   },
   {
     name: 'Cổ đông nội bộ & Phân tích Tài chính (CafeF / Vietstock)',
@@ -58,9 +63,9 @@ const HPT_EXTERNAL_FEEDS: readonly ExternalRssFeedDef[] = [
     url: 'https://www.bing.com/news/search?q=%22C%C3%B4ng+ngh%E1%BB%87+Tin+h%E1%BB%8Dc+HPT%22&format=rss&mkt=vi-VN',
   },
   {
-    name: 'Bing News Search · Cổ phiếu HPT',
+    name: 'Bing News Search · Cổ phiếu HPT & HSOC',
     defaultCategory: 'press_social',
-    url: 'https://www.bing.com/news/search?q=%22c%E1%BB%95+phi%E1%BA%BFu+HPT%22&format=rss&mkt=vi-VN',
+    url: 'https://www.bing.com/news/search?q=(%22c%E1%BB%95+phi%E1%BA%BFu+HPT%22+OR+%22HPT+Cyber+Security%22+OR+%22HSOC%22)&format=rss&mkt=vi-VN',
   },
   {
     name: 'Pháp lý · Thuế · Sở hữu trí tuệ (MST 0301447436)',
@@ -68,37 +73,62 @@ const HPT_EXTERNAL_FEEDS: readonly ExternalRssFeedDef[] = [
     url: 'https://news.google.com/rss/search?q=(%220301447436%22+OR+%22C%C3%B4ng+ngh%E1%BB%87+Tin+h%E1%BB%8Dc+HPT%22)+(%22thu%E1%BA%BF%22+OR+%22s%E1%BB%9F+h%E1%BB%AFu+tr%C3%AD+tu%E1%BB%87%22+OR+%22ch%E1%BB%A9ng+nh%E1%BA%ADn%22+OR+%22t%C3%B2a+%C3%A1n%22+OR+%22%C4%91%C4%83ng+k%C3%BD+kinh+doanh%22+OR+%22k%C3%BD+k%E1%BA%BFt%22)&hl=vi&gl=VN&ceid=VN:vi',
   },
   {
-    name: 'Diễn đàn & MXH Công khai (F319 / Voz / FB / LinkedIn)',
+    name: 'Diễn đàn & Cộng đồng Mở (VOZ / Tinh tế / F319 / F247 / Spiderum)',
     defaultCategory: 'press_social',
-    url: 'https://news.google.com/rss/search?q=(site:f319.com+OR+site:f247.com+OR+site:voz.vn+OR+site:tinhte.vn+OR+site:facebook.com+OR+site:linkedin.com+OR+site:youtube.com)+(%22C%C3%B4ng+ngh%E1%BB%87+Tin+h%E1%BB%8Dc+HPT%22+OR+%22c%E1%BB%95+phi%E1%BA%BFu+HPT%22+OR+%22m%C3%A3+HPT%22)&hl=vi&gl=VN&ceid=VN:vi',
+    url: 'https://news.google.com/rss/search?q=(site:f319.com+OR+site:f247.com+OR+site:voz.vn+OR+site:tinhte.vn+OR+site:spiderum.com+OR+site:reddit.com)+(%22C%C3%B4ng+ngh%E1%BB%87+Tin+h%E1%BB%8Dc+HPT%22+OR+%22c%E1%BB%95+phi%E1%BA%BFu+HPT%22+OR+%22m%C3%A3+HPT%22+OR+%22HSOC%22)&hl=vi&gl=VN&ceid=VN:vi',
+  },
+  {
+    name: 'YouTube Video & Podcast Công nghệ / Tài chính',
+    defaultCategory: 'press_social',
+    url: 'https://news.google.com/rss/search?q=site:youtube.com+(%22C%C3%B4ng+ngh%E1%BB%87+Tin+h%E1%BB%8Dc+HPT%22+OR+%22c%E1%BB%95+phi%E1%BA%BFu+HPT%22+OR+%22HPT+Cyber+Security%22+OR+%22HSOC%22)&hl=vi&gl=VN&ceid=VN:vi',
   },
 ];
 
 // ============================================================================
-// 1. Strict HPT Context Filter + Self-Website Exclusion (NO hpt.vn!)
+// 1. Strict HPT Context Filter + Self-Website & Recruitment Exclusion
 // ============================================================================
 
-const HPT_WORD_OR_TAX_RE = /\b(HPT|0301447436)\b/i;
+const HPT_WORD_OR_TAX_RE = /\b(HPT|HSOC|0301447436)\b/i;
+
+const HPT_RECRUITMENT_DOMAIN_RE =
+  /(topcv\.vn|itviec\.com|vietnamworks\.com|careerviet\.vn|careerbuilder\.vn|careerlink\.vn|vieclam24h\.vn|timviecnhanh\.com|jobsgo\.vn|glints\.com|1900\.com\.vn|ybox\.vn|devwork\.vn|topdev\.vn|linkedin\.com\/jobs|indeed\.com|glassdoor\.com)/i;
+
+const HPT_RECRUITMENT_NOISE_RE =
+  /\b(tuyển\s+dụng|cần\s+tuyển|tin\s+tuyển|thông\s+báo\s+tuyển|tuyển\s+gấp|ứng\s+tuyển|việc\s+làm\s+tại\s+hpt|cơ\s+hội\s+nghề\s+nghiệp|mô\s+tả\s+công\s+việc|hiring\b|job\s+opening|we\s+are\s+hiring|reviews\s*&\s*jobs)\b/i;
 
 const HPT_FALSE_POSITIVE_NOISE_RE =
   /\b(hải phòng tourist|hai phong tourist|hypertension|pulmonary|hyperparathyroidism|high[- ]pressure turbine|blade inspection|bệnh nhân|huyết áp|phẫu thuật|y khoa|clinical study)\b/i;
 
 const HPT_VALID_CONTEXT_RE =
-  /(0301447436|công nghệ|tin học|hạ tầng|chuyển đổi số|tích hợp hệ thống|an toàn thông tin|an ninh mạng|bảo mật|soc\b|erp\b|cyber|ai\b|trí tuệ nhân tạo|điện toán|cloud|lượng tử|microsoft|ibm|netapp|cisco|oracle|fortinet|vnpt|vinasa|vnisa|sao khuê|cổ phiếu|mã hpt|hpt\s*:|upcom|hnx|hose|ubck|chứng khoán|cổ tức|chốt quyền|đkcc|phát hành|cổ đông|hđqt|hội đồng quản trị|đhđcđ|nghị quyết|báo cáo tài chính|quản trị công ty|lợi nhuận|doanh thu|đấu thầu|trúng thầu|gói thầu|nhà thầu|ngô vi đồng|đinh hà duy linh)/i;
+  /(0301447436|hsoc\b|hpt\s+cyber|công nghệ|tin học|hạ tầng|chuyển đổi số|tích hợp hệ thống|an toàn thông tin|an ninh mạng|bảo mật|soc\b|erp\b|cyber|ai\b|trí tuệ nhân tạo|điện toán|cloud|lượng tử|microsoft|ibm|netapp|cisco|oracle|fortinet|vnpt|vinasa|vnisa|sao khuê|cổ phiếu|mã hpt|hpt\s*:|upcom|hnx|hose|ubck|chứng khoán|cổ tức|chốt quyền|đkcc|phát hành|cổ đông|hđqt|hội đồng quản trị|đhđcđ|nghị quyết|báo cáo tài chính|quản trị công ty|lợi nhuận|doanh thu|đấu thầu|trúng thầu|gói thầu|nhà thầu|ngô vi đồng|đinh hà duy linh)/i;
 
-export function isAuthenticHptMention(title: string, snippet = '', url = ''): boolean {
+export function isAuthenticHptMention(
+  title: string,
+  snippet = '',
+  url = '',
+  customKeywords: readonly string[] = [],
+): boolean {
   const lowerUrl = url.toLowerCase();
-  // Explicitly block company self-PR from hpt.vn per user instruction
-  if (lowerUrl.includes('hpt.vn')) {
+  // Explicitly block company self-PR from hpt.vn AND all recruitment/job-board domains per user instruction
+  if (lowerUrl.includes('hpt.vn') || HPT_RECRUITMENT_DOMAIN_RE.test(lowerUrl)) {
     return false;
   }
 
   const combined = `${title} ${snippet}`.trim();
   if (!combined) return false;
 
-  if (!HPT_WORD_OR_TAX_RE.test(combined)) return false;
+  // Strictly reject hiring / recruitment ads across all feeds
+  if (HPT_RECRUITMENT_NOISE_RE.test(combined)) return false;
   if (HPT_FALSE_POSITIVE_NOISE_RE.test(combined)) return false;
 
+  const lowerCombined = combined.toLowerCase();
+  const matchedCustom = customKeywords.some((kw) => {
+    const clean = kw.trim().toLowerCase();
+    return clean.length >= 3 && lowerCombined.includes(clean);
+  });
+  if (matchedCustom) return true;
+
+  if (!HPT_WORD_OR_TAX_RE.test(combined)) return false;
   return HPT_VALID_CONTEXT_RE.test(combined);
 }
 
@@ -107,8 +137,9 @@ export function classifyHptExternalItem(
   source = '',
   url = '',
   fallbackCategory: HptItemCategory = 'press_social',
+  snippet = '',
 ): { category: HptItemCategory; badge: string; sentiment: HptSentiment } {
-  const lower = title.toLowerCase();
+  const lower = `${title} ${snippet}`.toLowerCase();
   const hay = `${lower} ${source.toLowerCase()} ${url.toLowerCase()}`;
 
   // 1. Public Procurement & Bidding (muasamcong / Báo Đấu thầu / Bank & Ministry contracts)
@@ -147,13 +178,20 @@ export function classifyHptExternalItem(
     };
   }
 
-  // 3. IT Trade Press, Associations (VINASA / VNISA / Sao Khuê) & Global Tech Vendors
+  const isSocialForum =
+    /reddit\.com|t\.me\/|youtube\.com|youtu\.be|voz\.vn|tinhte\.vn|f319\.com|f247\.com|spiderum\.com/.test(
+      hay,
+    );
+
+  // 3. IT Trade Press, Associations (VINASA / VNISA / Sao Khuê) & Global Tech Vendors (when not a forum/social post)
   if (
-    /microsoft|ibm|cisco|oracle|netapp|fortinet|vinasa|vnisa|sao khuê|chìa khóa vàng|ictvietnam|vietnamnet|antoanthongtin|vneconomy|nhipsongthitruong|liên doanh|hợp tác/.test(
+    !isSocialForum &&
+    (/microsoft|ibm|cisco|oracle|netapp|fortinet|vinasa|vnisa|sao khuê|chìa khóa vàng|ictvietnam|vietnamnet|antoanthongtin|vneconomy|nhipsongthitruong|liên doanh|hợp tác/.test(
       hay,
     ) ||
-    fallbackCategory === 'it_press_partner'
+      fallbackCategory === 'it_press_partner')
   ) {
+    const isNeg = /sự cố|gián đoạn|bị hack|rò rỉ|khiếu nại|bị phạt|cảnh báo/.test(lower);
     const isAwardOrPartner =
       /đạt danh hiệu|partner|sao khuê|giải thưởng|ký kết|liên doanh|top\s*10|tiên phong|vượt kế hoạch/.test(
         lower,
@@ -163,11 +201,11 @@ export function classifyHptExternalItem(
       badge: /microsoft|ibm|cisco|oracle|netapp|vinasa|vnisa|sao khuê|liên doanh/.test(hay)
         ? 'ĐỐI TÁC · HIỆP HỘI'
         : 'BÁO CHUYÊN NGÀNH CNTT',
-      sentiment: isAwardOrPartner ? 'positive' : 'neutral',
+      sentiment: isNeg ? 'negative' : isAwardOrPartner ? 'positive' : 'neutral',
     };
   }
 
-  // 4. Legal / Tax / IP / Press & Community Forums
+  // 4. Legal / Tax / IP / Press, YouTube, Reddit, Public Telegram & Community Forums
   if (/bản án|tranh chấp|kiện tụng|xử phạt|truy thu thuế/.test(lower)) {
     return { category: 'press_social', badge: 'PHÁP LÝ · THUẾ', sentiment: 'negative' };
   }
@@ -175,13 +213,220 @@ export function classifyHptExternalItem(
     return { category: 'press_social', badge: 'SỞ HỮU TRÍ TUỆ', sentiment: 'positive' };
   }
 
-  const isNeg = /giảm sàn|thua lỗ|bị phạt|cảnh báo|rủi ro/.test(lower);
-  const isPos = /tăng trần|tăng trưởng|hoàn thành vượt|khởi sắc|đột phá|hợp tác/.test(lower);
+  const isNeg =
+    /giảm sàn|thua lỗ|bị phạt|cảnh báo|rủi ro|sự cố|gián đoạn|bị hack|rò rỉ|bóc phốt|khiếu nại|lừa đảo|chậm|lỗi hệ thống|drama/.test(
+      lower,
+    );
+  const isPos =
+    /tăng trần|tăng trưởng|hoàn thành vượt|khởi sắc|đột phá|hợp tác|ký hợp đồng|giải thưởng|trúng/.test(
+      lower,
+    );
+
+  let socialBadge = 'BÁO MỚI · BING · DIỄN ĐÀN';
+  if (/reddit\.com/.test(hay)) socialBadge = 'REDDIT · DIỄN ĐÀN';
+  else if (/t\.me\//.test(hay)) socialBadge = 'TELEGRAM · KÊNH CÔNG KHAI';
+  else if (/youtube\.com|youtu\.be/.test(hay)) socialBadge = 'YOUTUBE · VIDEO';
+  else if (/voz\.vn|tinhte\.vn|f319\.com|f247\.com|spiderum\.com/.test(hay)) socialBadge = 'DIỄN ĐÀN · CỘNG ĐỒNG';
+
   return {
     category: fallbackCategory,
-    badge: 'BÁO MỚI · BING · DIỄN ĐÀN',
+    badge: socialBadge,
     sentiment: isNeg ? 'negative' : isPos ? 'positive' : 'neutral',
   };
+}
+
+// ============================================================================
+// 1b. Custom RSS / RSSHub & Public Telegram Channel Watchlist Store
+// ============================================================================
+
+function normalizeTelegramHandle(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const fromUrl = trimmed.match(/t\.me\/(?:s\/)?([a-zA-Z0-9_]{4,64})/i);
+  if (fromUrl) return fromUrl[1];
+  const clean = trimmed.replace(/^@+/, '');
+  return /^[a-zA-Z0-9_]{4,64}$/.test(clean) ? clean : null;
+}
+
+export class HptWatchConfigStore {
+  private readonly filePath: string;
+  private config: HptWatchConfig = {
+    rssUrls: [],
+    telegramChannels: [],
+    customKeywords: [],
+  };
+
+  constructor(cacheDir: string) {
+    this.filePath = resolve(cacheDir, 'hpt-watch-config.json');
+    this.load();
+  }
+
+  private load(): void {
+    try {
+      if (!existsSync(this.filePath)) return;
+      const parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as Partial<HptWatchConfig>;
+      this.config = this.sanitize(parsed);
+    } catch {
+      // Ignore malformed cache
+    }
+  }
+
+  private sanitize(input: Partial<HptWatchConfig>): HptWatchConfig {
+    const rssUrls = [...new Set((input.rssUrls ?? []).map((u) => u.trim()))].filter(
+      (u) =>
+        /^https?:\/\//i.test(u) &&
+        !u.toLowerCase().includes('hpt.vn') &&
+        !HPT_RECRUITMENT_DOMAIN_RE.test(u),
+    );
+    const telegramChannels = [
+      ...new Set(
+        (input.telegramChannels ?? [])
+          .map(normalizeTelegramHandle)
+          .filter((c): c is string => Boolean(c)),
+      ),
+    ];
+    const customKeywords = [
+      ...new Set(
+        (input.customKeywords ?? [])
+          .map((k) => k.trim())
+          .filter((k) => k.length >= 3 && k.length <= 80 && !HPT_RECRUITMENT_NOISE_RE.test(k)),
+      ),
+    ];
+    return {
+      rssUrls: rssUrls.slice(0, 20),
+      telegramChannels: telegramChannels.slice(0, 20),
+      customKeywords: customKeywords.slice(0, 25),
+    };
+  }
+
+  get(): HptWatchConfig {
+    return {
+      rssUrls: [...this.config.rssUrls],
+      telegramChannels: [...this.config.telegramChannels],
+      customKeywords: [...this.config.customKeywords],
+    };
+  }
+
+  update(next: Partial<HptWatchConfig>): HptWatchConfig {
+    this.config = this.sanitize({
+      rssUrls: next.rssUrls ?? this.config.rssUrls,
+      telegramChannels: next.telegramChannels ?? this.config.telegramChannels,
+      customKeywords: next.customKeywords ?? this.config.customKeywords,
+    });
+    try {
+      mkdirSync(dirname(this.filePath), { recursive: true });
+      writeFileSync(this.filePath, JSON.stringify(this.config, null, 2), 'utf8');
+    } catch {
+      // Non-fatal
+    }
+    return this.get();
+  }
+}
+
+export interface RedditSearchPayload {
+  data?: {
+    children?: Array<{
+      data?: {
+        id?: string;
+        subreddit?: string;
+        title?: string;
+        selftext?: string;
+        permalink?: string;
+        url?: string;
+        created_utc?: number;
+      };
+    }>;
+  };
+}
+
+export function parseRedditHptSearchJson(
+  payload: RedditSearchPayload,
+  fallbackNow = Date.now(),
+  customKeywords: readonly string[] = [],
+): HptCompanyItem[] {
+  const children = payload?.data?.children ?? [];
+  const out: HptCompanyItem[] = [];
+
+  for (const child of children) {
+    const post = child?.data;
+    if (!post?.title) continue;
+    const title = decodeHtmlEntities(post.title.trim());
+    const selftext = decodeHtmlEntities((post.selftext ?? '').slice(0, 320));
+    const url = post.permalink
+      ? `https://www.reddit.com${post.permalink}`
+      : String(post.url ?? '');
+    if (!url.startsWith('http')) continue;
+
+    if (!isAuthenticHptMention(title, selftext, url, customKeywords)) continue;
+
+    const source = post.subreddit ? `Reddit · r/${post.subreddit}` : 'Reddit';
+    const classified = classifyHptExternalItem(title, source, url, 'press_social', selftext);
+    const publishedAt =
+      post.created_utc && Number.isFinite(post.created_utc)
+        ? Math.round(post.created_utc * 1000)
+        : fallbackNow;
+
+    out.push({
+      id: `hpt-rd:${post.id ?? url}`,
+      title,
+      category: classified.category,
+      badge: classified.badge,
+      source,
+      publishedAt,
+      url,
+      sentiment: classified.sentiment,
+    });
+  }
+
+  return out;
+}
+
+export function parseTelegramPublicChannelHtml(
+  html: string,
+  channelHandle: string,
+  fallbackNow = Date.now(),
+  customKeywords: readonly string[] = [],
+): HptCompanyItem[] {
+  if (!html) return [];
+  const handle = normalizeTelegramHandle(channelHandle) ?? channelHandle;
+  const out: HptCompanyItem[] = [];
+  const blocks = [...html.matchAll(/<div[^>]+class=["'][^"']*tgme_widget_message\b[^"']*["'][^>]*data-post=["']([^"']+)["'][^>]*>([\s\S]*?)(?=<div[^>]+class=["'][^"']*tgme_widget_message_wrap|$)/gi)];
+
+  for (const b of blocks) {
+    const postSlug = b[1].trim();
+    const inner = b[2];
+    const textMatch = inner.match(/<div[^>]+class=["'][^"']*tgme_widget_message_text[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+    if (!textMatch) continue;
+
+    const plain = decodeHtmlEntities(
+      textMatch[1].replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+    );
+    if (!plain || plain.length < 12) continue;
+
+    const url = `https://t.me/${postSlug}`;
+    if (!isAuthenticHptMention(plain, '', url, customKeywords)) continue;
+
+    const timeMatch = inner.match(/<time[^>]+datetime=["']([^"']+)["']/i);
+    const parsedTs = timeMatch ? Date.parse(timeMatch[1]) : Number.NaN;
+    const publishedAt = Number.isFinite(parsedTs) ? parsedTs : fallbackNow;
+
+    const title = plain.length > 150 ? `${plain.slice(0, 147).trim()}...` : plain;
+    const source = `Telegram · @${handle}`;
+    const classified = classifyHptExternalItem(title, source, url, 'press_social', plain);
+
+    out.push({
+      id: `hpt-tg:${postSlug}`,
+      title,
+      category: classified.category,
+      badge: classified.badge,
+      source,
+      publishedAt,
+      url,
+      sentiment: classified.sentiment,
+    });
+  }
+
+  return out;
 }
 
 // ============================================================================
@@ -378,20 +623,24 @@ function parseHptExternalRss(
   xml: string,
   feed: ExternalRssFeedDef,
   fallbackNow: number,
+  customKeywords: readonly string[] = [],
 ): HptCompanyItem[] {
   const parsed = xmlParser.parse(xml) as Record<string, any>;
-  const rawItems = parsed?.rss?.channel?.item ?? [];
+  const rawItems = parsed?.rss?.channel?.item ?? parsed?.feed?.entry ?? [];
   const entries = Array.isArray(rawItems) ? rawItems : rawItems ? [rawItems] : [];
   const out: HptCompanyItem[] = [];
 
-  for (const entry of entries.slice(0, 16)) {
-    const fullTitle = decodeHtmlEntities(String(entry?.title ?? ''));
-    const rawDesc = decodeHtmlEntities(String(entry?.description ?? ''));
-    const rawLink = String(entry?.link ?? '').trim();
+  for (const entry of entries.slice(0, 18)) {
+    const fullTitle = decodeHtmlEntities(String(entry?.title?.['#text'] ?? entry?.title ?? ''));
+    const rawDesc = decodeHtmlEntities(
+      String(entry?.description ?? entry?.summary ?? entry?.content ?? ''),
+    );
+    const atomHref = entry?.link?.['@_href'];
+    const rawLink = String(atomHref ?? entry?.link ?? '').trim();
     if (!fullTitle || !rawLink.startsWith('http')) continue;
 
     const link = rawLink.includes('bing.com/news/apiclick') ? extractBingRealUrl(rawLink) : rawLink;
-    if (link.toLowerCase().includes('hpt.vn')) continue;
+    if (link.toLowerCase().includes('hpt.vn') || HPT_RECRUITMENT_DOMAIN_RE.test(link)) continue;
 
     const parts = fullTitle.split(/\s+-\s+/);
     const publisher =
@@ -405,15 +654,21 @@ function parseHptExternalRss(
         ? parts.slice(0, -1).join(' - ').trim()
         : fullTitle;
 
-    if (!isAuthenticHptMention(cleanTitle, rawDesc, link)) {
+    if (!isAuthenticHptMention(cleanTitle, rawDesc, link, customKeywords)) {
       continue;
     }
 
-    const rawDate = String(entry?.pubDate ?? '');
+    const rawDate = String(entry?.pubDate ?? entry?.published ?? entry?.updated ?? '');
     const parsedTs = rawDate ? Date.parse(rawDate) : Number.NaN;
     const publishedAt = Number.isFinite(parsedTs) ? parsedTs : fallbackNow;
 
-    const classified = classifyHptExternalItem(cleanTitle, publisher, link, feed.defaultCategory);
+    const classified = classifyHptExternalItem(
+      cleanTitle,
+      publisher,
+      link,
+      feed.defaultCategory,
+      rawDesc,
+    );
 
     out.push({
       id: `hpt-ext:${link}`,
@@ -597,37 +852,67 @@ async function fetchHptUpcomStockAndFundamentals(now: number): Promise<HptStockS
 
 export async function fetchHptCompanyIntelligence(
   previous?: HptCompanyIntelSnapshot | null,
+  watchStore?: HptWatchConfigStore,
 ): Promise<HptCompanyIntelSnapshot> {
   const now = Date.now();
+  const watchConfig = watchStore?.get() ?? {
+    rssUrls: [],
+    telegramChannels: [],
+    customKeywords: [],
+  };
+  const customKeywords = watchConfig.customKeywords;
 
-  const [stockRes, cfNewsRes, cfEventsRes, baoMoiRes, ...extResults] = await Promise.allSettled([
-    fetchHptUpcomStockAndFundamentals(now),
-    fetchTextWithTimeout(CAFEF_HPT_NEWS_URL, {
-      timeoutMs: 8_000,
-      retries: 0,
-      userAgent: DEFAULT_BROWSER_UA,
-      headers: { Referer: 'https://cafef.vn/' },
-    }),
-    fetchTextWithTimeout(CAFEF_HPT_EVENTS_URL, {
-      timeoutMs: 8_000,
-      retries: 0,
-      userAgent: DEFAULT_BROWSER_UA,
-      headers: { Referer: 'https://cafef.vn/' },
-    }),
-    fetchTextWithTimeout(BAOMOI_HPT_SEARCH_URL, {
-      timeoutMs: 7_500,
-      retries: 0,
-      userAgent: DEFAULT_BROWSER_UA,
-    }),
-    ...HPT_EXTERNAL_FEEDS.map(async (feed) => {
-      const { text } = await fetchTextWithTimeout(feed.url, {
+  const dynamicFeeds: ExternalRssFeedDef[] = [
+    ...HPT_EXTERNAL_FEEDS,
+    ...watchConfig.rssUrls.map((url, idx) => ({
+      name: `RSS/RSSHub Tùy chỉnh #${idx + 1}`,
+      defaultCategory: 'press_social' as const,
+      url,
+    })),
+  ];
+
+  const [stockRes, cfNewsRes, cfEventsRes, baoMoiRes, redditRes, ...restResults] =
+    await Promise.allSettled([
+      fetchHptUpcomStockAndFundamentals(now),
+      fetchTextWithTimeout(CAFEF_HPT_NEWS_URL, {
+        timeoutMs: 8_000,
+        retries: 0,
+        userAgent: DEFAULT_BROWSER_UA,
+        headers: { Referer: 'https://cafef.vn/' },
+      }),
+      fetchTextWithTimeout(CAFEF_HPT_EVENTS_URL, {
+        timeoutMs: 8_000,
+        retries: 0,
+        userAgent: DEFAULT_BROWSER_UA,
+        headers: { Referer: 'https://cafef.vn/' },
+      }),
+      fetchTextWithTimeout(BAOMOI_HPT_SEARCH_URL, {
         timeoutMs: 7_500,
         retries: 0,
         userAgent: DEFAULT_BROWSER_UA,
-      });
-      return parseHptExternalRss(text, feed, now);
-    }),
-  ]);
+      }),
+      fetchJsonWithTimeout<RedditSearchPayload>(REDDIT_HPT_SEARCH_URL, {
+        timeoutMs: 6_500,
+        retries: 0,
+        userAgent: 'WorldMonitor-HPT-Intel/1.0',
+      }),
+      ...dynamicFeeds.map(async (feed) => {
+        const { text } = await fetchTextWithTimeout(feed.url, {
+          timeoutMs: 7_500,
+          retries: 0,
+          userAgent: DEFAULT_BROWSER_UA,
+        });
+        return parseHptExternalRss(text, feed, now, customKeywords);
+      }),
+      ...watchConfig.telegramChannels.map(async (handle) => {
+        const { text } = await fetchTextWithTimeout(`https://t.me/s/${encodeURIComponent(handle)}`, {
+          timeoutMs: 7_000,
+          retries: 0,
+          userAgent: DEFAULT_BROWSER_UA,
+        });
+        return parseTelegramPublicChannelHtml(text, handle, now, customKeywords);
+      }),
+    ]);
 
   let sourceCount = 0;
   const rawCollected: HptCompanyItem[] = [];
@@ -653,15 +938,27 @@ export async function fetchHptCompanyIntelligence(
       rawCollected.push(...items);
     }
   }
-  for (const r of extResults) {
+  if (redditRes.status === 'fulfilled') {
+    const items = parseRedditHptSearchJson(redditRes.value, now, customKeywords);
+    if (items.length > 0) {
+      sourceCount += 1;
+      rawCollected.push(...items);
+    }
+  }
+  for (const r of restResults) {
     if (r.status === 'fulfilled' && r.value.length > 0) {
       sourceCount += 1;
       rawCollected.push(...r.value);
     }
   }
 
-  // Final safety guard: never allow any hpt.vn link into the stream
-  const cleanExternalOnly = rawCollected.filter((it) => !it.url.toLowerCase().includes('hpt.vn'));
+  // Final safety guard: never allow any hpt.vn or recruitment/job-board link into the stream
+  const cleanExternalOnly = rawCollected.filter(
+    (it) =>
+      !it.url.toLowerCase().includes('hpt.vn') &&
+      !HPT_RECRUITMENT_DOMAIN_RE.test(it.url) &&
+      !HPT_RECRUITMENT_NOISE_RE.test(it.title),
+  );
 
   const byKey = new Map<string, HptCompanyItem>();
   for (const item of cleanExternalOnly) {
@@ -677,10 +974,15 @@ export async function fetchHptCompanyIntelligence(
 
   let deduped = [...byKey.values()]
     .sort((a, b) => b.publishedAt - a.publishedAt)
-    .slice(0, 56);
+    .slice(0, 60);
 
   if (deduped.length === 0 && previous?.items.length) {
-    deduped = previous.items.filter((it) => !it.url.toLowerCase().includes('hpt.vn'));
+    deduped = previous.items.filter(
+      (it) =>
+        !it.url.toLowerCase().includes('hpt.vn') &&
+        !HPT_RECRUITMENT_DOMAIN_RE.test(it.url) &&
+        !HPT_RECRUITMENT_NOISE_RE.test(it.title),
+    );
   }
 
   await enrichTopDisclosuresWithPdfLinks(deduped);
@@ -700,6 +1002,7 @@ export async function fetchHptCompanyIntelligence(
     items: enriched.items,
     sourceCount: Math.max(sourceCount, 1),
     aiSentimentEnabled: enriched.aiEnabled,
+    watchConfig,
     updatedAt: now,
   };
 }
