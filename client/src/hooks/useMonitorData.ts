@@ -332,7 +332,12 @@ export function useMonitorData() {
               void loadBootstrap(true);
             }
           } else if (ev.type === 'breaking_alert' && !alertsMutedRef.current) {
-            setBreakingAlerts((prev) => [ev.alert, ...prev.filter((a) => a.id !== ev.alert.id)].slice(0, 4));
+            const alertId = ev.alert.id;
+            setBreakingAlerts((prev) => [ev.alert, ...prev.filter((a) => a.id !== alertId)].slice(0, 2));
+            setTimeout(() => {
+              if (!mountedRef.current) return;
+              setBreakingAlerts((prev) => prev.filter((a) => a.id !== alertId));
+            }, 12_000);
           } else if (ev.type === 'news_prepend') {
             const addedIds = ev.items.map((i) => i.id);
             setFreshNewsIds((prev) => {
