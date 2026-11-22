@@ -3138,7 +3138,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                             <div className="mt-0.5 flex flex-wrap items-center gap-1.5 font-mono text-[9.5px] text-slate-400">
                               <span>
                                 {m.benchmarkLabel}: {m.benchmarkValue.toLocaleString('en-US')}
-                                {m.unit === '%' ? '%' : m.unit === '₫' ? '₫' : ` ${m.unit}`}
+                                {m.unit.startsWith('%') ? m.unit : m.unit === '₫' ? '₫' : ` ${m.unit}`}
                               </span>
                               {m.trendLabel && (
                                 <span className="rounded bg-slate-800/90 px-1 py-0.1 text-slate-300">
@@ -3152,7 +3152,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                             <div className="text-xs font-bold text-cyan-200">
                               {m.unit === '₫'
                                 ? `${m.actual.toLocaleString('en-US')}₫`
-                                : `${m.actual.toFixed(2)}${m.unit === '%' ? '%' : ` ${m.unit}`}`}
+                                : `${m.actual.toFixed(2)}${m.unit.startsWith('%') ? m.unit : ` ${m.unit}`}`}
                             </div>
                             <div
                               className={`text-[9.5px] font-semibold ${

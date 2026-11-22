@@ -575,6 +575,7 @@ export function buildUsGlobalMacroHealth(
   const cpiVal = cpi?.value ?? pceVal;
   const ppiVal = ppi?.value ?? 2.5;
   const fwdVal = forwardInflMetric?.value ?? 2.3;
+  const fedVal = fedfunds?.value ?? 3.25;
   const unrateVal = unrate?.value ?? 4.1;
   const curveVal = spread10y2y?.value ?? 0.25;
   const recessionProb12m =
@@ -625,7 +626,10 @@ export function buildUsGlobalMacroHealth(
       Math.max(0, fwdVal - 2.35) * 6.0,
   );
   const monetaryScore = clampScore(
-    75 - Math.max(0, unrateVal - 4.2) * 14 + (curveVal < 0 ? -18 : Math.min(8, curveVal * 10)),
+    77 -
+      Math.max(0, fedVal - 3.25) * 6 -
+      Math.max(0, unrateVal - 4.2) * 14 +
+      (curveVal < 0 ? -18 : Math.min(8, curveVal * 10)),
   );
 
   const compositeScore = clampScore(
@@ -1086,11 +1090,16 @@ export function evaluateInvestmentCompass(markets: MarketSnapshot): InvestmentCo
     });
   }
 
-  // 5. Dr. Copper / Gold Ratio
+  // 5. Dr. Copper / Gold Ratio (requires positive Copper momentum to claim strong industrial demand)
   if (copper && gold && gold.price > 0) {
     const ratio = Number(((copper.price * 1000) / gold.price).toFixed(2));
-    const copperUp = copper.changePercent24h >= gold.changePercent24h;
-    if (copperUp) score += 3;
+    const copperExpanding =
+      copper.changePercent24h >= 0 && copper.changePercent24h >= gold.changePercent24h;
+    const broadCommoditySelloff =
+      copper.changePercent24h <= -1.0 && gold.changePercent24h <= -1.0;
+
+    if (copperExpanding) score += 3;
+    else if (broadCommoditySelloff) score -= 2;
 
     signals.push({
       id: 'copper-gold',
@@ -1098,28 +1107,37 @@ export function evaluateInvestmentCompass(markets: MarketSnapshot): InvestmentCo
       category: 'cycle_tech',
       valueDisplay: `${ratio.toFixed(2)}x`,
       subtext: `Đồng $${copper.price.toFixed(2)}/lb (${copper.changePercent24h >= 0 ? '+' : ''}${copper.changePercent24h.toFixed(1)}%)`,
-      signalBadge: copperUp ? 'CẦU SẢN XUẤT TỐT' : 'THIÊN VỀ TRÚ ẨN',
-      tone: copperUp ? 'bullish' : 'neutral',
+      signalBadge: copperExpanding
+        ? 'CẦU SẢN XUẤT TỐT'
+        : broadCommoditySelloff
+          ? 'ÁP LỰC BÁN HÀNG HÓA'
+          : 'THIÊN VỀ TRÚ ẨN',
+      tone: copperExpanding ? 'bullish' : broadCommoditySelloff ? 'bearish' : 'neutral',
     });
   }
 
   // 6. PHLX Semiconductor Index (^SOX)
   if (sox) {
     const up = sox.changePercent24h >= 0;
-    const aboveSoxMa200 = sox.ma200 !== undefined ? sox.price >= sox.ma200 : up;
+    const hasMa200 = sox.ma200 !== undefined && sox.ma200 > 0;
+    const aboveSoxMa200 = hasMa200 ? sox.price >= sox.ma200! : up;
     if (aboveSoxMa200) score += 3;
+    else if (hasMa200) score -= 4;
 
     signals.push({
       id: 'sox',
       label: 'Chu kỳ Bán dẫn AI (SOX)',
       category: 'cycle_tech',
       valueDisplay: `${Math.round(sox.price).toLocaleString('en-US')}`,
-      subtext:
-        sox.ma200 !== undefined
-          ? `MA200: ${Math.round(sox.ma200).toLocaleString('en-US')} · 24h ${up ? '+' : ''}${sox.changePercent24h.toFixed(1)}%`
-          : `24h: ${up ? '+' : ''}${sox.changePercent24h.toFixed(2)}% · Dẫn dắt CNTT & ĐTử`,
-      signalBadge: aboveSoxMa200 ? 'CHU KỲ AI MẠNH' : 'NHỊP ĐIỀU CHỈNH',
-      tone: aboveSoxMa200 ? 'bullish' : 'neutral',
+      subtext: hasMa200
+        ? `MA200: ${Math.round(sox.ma200!).toLocaleString('en-US')} · 24h ${up ? '+' : ''}${sox.changePercent24h.toFixed(1)}%`
+        : `24h: ${up ? '+' : ''}${sox.changePercent24h.toFixed(2)}% · Dẫn dắt CNTT & ĐTử`,
+      signalBadge: aboveSoxMa200
+        ? 'CHU KỲ AI MẠNH'
+        : hasMa200
+          ? 'DƯỚI MA200 · ĐIỀU CHỈNH'
+          : 'NHỊP ĐIỀU CHỈNH',
+      tone: aboveSoxMa200 ? 'bullish' : hasMa200 ? 'bearish' : 'neutral',
     });
   }
 
@@ -1216,7 +1234,7 @@ export function evaluateInvestmentCompass(markets: MarketSnapshot): InvestmentCo
   const breadth = computeVn30MarketBreadth(markets.vn30);
   if (breadth) {
     if (breadth.aboveMa200Pct >= 60) score += 3;
-    else if (breadth.aboveMa200Pct <= 20) score -= 3;
+    else if (breadth.aboveMa200Pct <= 25) score -= 5;
 
     signals.push({
       id: 'vn30-breadth',
@@ -1236,9 +1254,16 @@ export function evaluateInvestmentCompass(markets: MarketSnapshot): InvestmentCo
         breadth.aboveMa200Pct >= 60
           ? 'bullish'
           : breadth.aboveMa50Pct <= 25
-            ? 'neutral'
+            ? 'bearish'
             : 'neutral',
     });
+  }
+
+  // Spot VIX Volatility Targeting Penalty (Bridgewater / Risk-Parity standard)
+  if (vixSpot) {
+    if (vixSpot.value >= 32) score -= 11;
+    else if (vixSpot.value >= 25) score -= 6;
+    else if (vixSpot.value <= 16) score += 2;
   }
 
   // 12. Volatility Term Structure (VIX / VIX3M) & Capitulation Bottom Detector
@@ -1350,7 +1375,15 @@ export function evaluateInvestmentCompass(markets: MarketSnapshot): InvestmentCo
     }
   }
 
-  const riskAppetiteScore = clampScore(score);
+  // Prevent Risk Appetite score inflation when major stock indices are broken below MA200
+  const bothIndicesBroken =
+    Boolean(vniTrend && !vniTrend.aboveMa200) && Boolean(spxTrend && !spxTrend.aboveMa200);
+  const rawClampedScore = clampScore(score);
+  const riskAppetiteScore = bothIndicesBroken
+    ? Math.min(62, rawClampedScore)
+    : hasTrendFilter && !trendBullish
+      ? Math.min(68, rawClampedScore)
+      : rawClampedScore;
 
   let stance: InvestmentStance = 'selective_growth';
   let stanceLabel = 'RISK-ON CHỌN LỌC · ƯU TIÊN CHẤT LƯỢNG';
