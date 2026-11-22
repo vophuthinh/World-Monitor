@@ -473,9 +473,32 @@ export interface TechInfraStatus {
   url: string;
 }
 
+export type GitHubTrendingPeriod = 'daily' | 'weekly';
+
+export interface GitHubTrendingRepo {
+  id: string;
+  rank: number;
+  fullName: string;
+  owner: string;
+  repoName: string;
+  description: string;
+  descriptionVi?: string;
+  language?: string;
+  languageColor?: string;
+  totalStars: number;
+  forks: number;
+  periodStars: number;
+  period: GitHubTrendingPeriod;
+  url: string;
+}
+
 export interface TechCyberSnapshot {
   items: TechCyberItem[];
   infraStatus: TechInfraStatus[];
+  githubTrending?: {
+    daily: GitHubTrendingRepo[];
+    weekly: GitHubTrendingRepo[];
+  };
   activeSourceCount: number;
   updatedAt: number;
 }

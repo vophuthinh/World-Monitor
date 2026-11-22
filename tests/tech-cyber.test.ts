@@ -5,6 +5,7 @@ import {
   mergeBalancedTechItems,
   normalizeCisaKevCatalog,
   normalizeStatuspageSummary,
+  parseGitHubTrendingHtml,
 } from '../server/collectors/tech-cyber-intel';
 
 describe('Dedicated AI, Tech, Semiconductor & Cybersecurity Intelligence Collector (Koala73 + VN)', () => {
@@ -106,5 +107,70 @@ describe('Dedicated AI, Tech, Semiconductor & Cybersecurity Intelligence Collect
     const awsCount = merged.filter((x) => x.source === 'AWS What is New').length;
     expect(awsCount).toBeLessThanOrEqual(4);
     expect(merged.some((x) => x.id === 'openai:1')).toBe(true);
+  });
+
+  it('parses GitHub Trending HTML (daily & weekly) accurately without matching SVG <path> tags', () => {
+    const sampleHtml = `
+      <div>
+        <article class="Box-row">
+          <div class="float-right"><svg><path d="M8 14.25"></path></svg></div>
+          <h2 class="h3 lh-condensed">
+            <a href="/elementalsouls/Claude-BugHunter" class="Link">
+              <span class="text-normal">elementalsouls /</span> Claude-BugHunter
+            </a>
+          </h2>
+          <p class="col-9 color-fg-muted my-1">
+            A Claude Code skill bundle for bug hunting &amp; red-team work.
+          </p>
+          <div class="f6 color-fg-muted mt-2">
+            <span>
+              <span class="repo-language-color" style="background-color: #3572A5"></span>
+              <span itemprop="programmingLanguage">Python</span>
+            </span>
+            <a href="/elementalsouls/Claude-BugHunter/stargazers">16,602</a>
+            <a href="/elementalsouls/Claude-BugHunter/forks">1,878</a>
+            <span class="float-sm-right">1,803 stars today</span>
+          </div>
+        </article>
+        <article class="Box-row">
+          <h2 class="h3 lh-condensed">
+            <a href="/cursor/plugins">cursor / plugins</a>
+          </h2>
+          <p class="col-9 color-fg-muted my-1">Cursor plugin specification and official plugins.</p>
+          <div class="f6 color-fg-muted mt-2">
+            <span class="repo-language-color" style="background-color: #3178c6"></span>
+            <span itemprop="programmingLanguage">TypeScript</span>
+            <a href="/cursor/plugins/stargazers">18,202</a>
+            <a href="/cursor/plugins/forks">1,989</a>
+            <span class="float-sm-right">260 stars today</span>
+          </div>
+        </article>
+      </div>
+    `;
+
+    const parsed = parseGitHubTrendingHtml(sampleHtml, 'daily');
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0]).toMatchObject({
+      rank: 1,
+      fullName: 'elementalsouls/Claude-BugHunter',
+      owner: 'elementalsouls',
+      repoName: 'Claude-BugHunter',
+      description: 'A Claude Code skill bundle for bug hunting & red-team work.',
+      language: 'Python',
+      languageColor: '#3572A5',
+      totalStars: 16602,
+      forks: 1878,
+      periodStars: 1803,
+      period: 'daily',
+      url: 'https://github.com/elementalsouls/Claude-BugHunter',
+    });
+    expect(parsed[1]).toMatchObject({
+      rank: 2,
+      fullName: 'cursor/plugins',
+      language: 'TypeScript',
+      languageColor: '#3178c6',
+      totalStars: 18202,
+      periodStars: 260,
+    });
   });
 });

@@ -1,6 +1,8 @@
 import { XMLParser } from 'fast-xml-parser';
 import { detectMitreTechniques } from '@shared/intelligence';
 import type {
+  GitHubTrendingPeriod,
+  GitHubTrendingRepo,
   InfraStatusLevel,
   SeverityLevel,
   TechCyberItem,
@@ -413,10 +415,99 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
+const GITHUB_TRENDING_DAILY_URL = 'https://github.com/trending?since=daily';
+const GITHUB_TRENDING_WEEKLY_URL = 'https://github.com/trending?since=weekly';
+
+export function parseGitHubTrendingHtml(
+  html: string,
+  period: GitHubTrendingPeriod = 'daily',
+  maxRepos = 20,
+): GitHubTrendingRepo[] {
+  if (!html) return [];
+  const articles = [...html.matchAll(/<article[^>]*class="[^"]*Box-row[^"]*"[^>]*>([\s\S]*?)<\/article>/gi)];
+  const out: GitHubTrendingRepo[] = [];
+
+  for (const match of articles) {
+    const block = match[1];
+    const fullNameRaw = block.match(/<h2\b[^>]*>[\s\S]*?<a\b[^>]*href="\/([^"/?#]+\/[^"/?#]+)"/i)?.[1];
+    if (!fullNameRaw) continue;
+
+    const fullName = fullNameRaw.trim();
+    const slashIdx = fullName.indexOf('/');
+    if (slashIdx <= 0) continue;
+    const owner = fullName.slice(0, slashIdx).trim();
+    const repoName = fullName.slice(slashIdx + 1).trim();
+    if (!owner || !repoName) continue;
+
+    // Must use <p\b so SVG <path> tags inside Octicons are never matched
+    const rawDesc = block.match(/<p\b[^>]*>([\s\S]*?)<\/p>/i)?.[1] ?? '';
+    const description = decodeHtmlEntities(rawDesc.replace(/<[^>]+>/g, ' '))
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const language = block
+      .match(/itemprop="programmingLanguage"[^>]*>([^<]+)</i)?.[1]
+      ?.trim();
+    const languageColor = block
+      .match(/repo-language-color"[^>]*style="background-color:\s*([^";]+)"/i)?.[1]
+      ?.trim();
+
+    const rawStars = block.match(/href="\/[^"]+\/stargazers"[^>]*>[\s\S]*?([\d,]+)\s*<\/a>/i)?.[1] ?? '0';
+    const rawForks = block.match(/href="\/[^"]+\/forks"[^>]*>[\s\S]*?([\d,]+)\s*<\/a>/i)?.[1] ?? '0';
+    const rawPeriodStars =
+      block.match(/([\d,]+)\s+stars\s+(?:today|this week|this month)/i)?.[1] ?? '0';
+
+    const totalStars = Number(rawStars.replace(/,/g, '')) || 0;
+    const forks = Number(rawForks.replace(/,/g, '')) || 0;
+    const periodStars = Number(rawPeriodStars.replace(/,/g, '')) || 0;
+
+    out.push({
+      id: `gh-trending:${period}:${fullName}`,
+      rank: out.length + 1,
+      fullName,
+      owner,
+      repoName,
+      description,
+      ...(language ? { language: decodeHtmlEntities(language) } : {}),
+      ...(languageColor ? { languageColor } : {}),
+      totalStars,
+      forks,
+      periodStars,
+      period,
+      url: `https://github.com/${fullName}`,
+    });
+
+    if (out.length >= maxRepos) break;
+  }
+
+  return out;
+}
+
+async function fetchGitHubTrendingPeriod(
+  url: string,
+  period: GitHubTrendingPeriod,
+): Promise<GitHubTrendingRepo[]> {
+  const { text } = await fetchTextWithTimeout(url, {
+    timeoutMs: 7_500,
+    retries: 0,
+    userAgent: DEFAULT_BROWSER_UA,
+    headers: { Accept: 'text/html,application/xhtml+xml' },
+  });
+  return parseGitHubTrendingHtml(text, period, 20);
+}
+
 export async function fetchTechCyberIntelligence(): Promise<TechCyberSnapshot> {
   const now = Date.now();
 
-  const [feedResults, kevResult, nvdItems, hnResult, statusResults] = await Promise.all([
+  const [
+    feedResults,
+    kevResult,
+    nvdItems,
+    hnResult,
+    ghDailyRepos,
+    ghWeeklyRepos,
+    statusResults,
+  ] = await Promise.all([
     mapWithConcurrency(TECH_CYBER_FEEDS, 10, async (feed) => {
       const { text } = await fetchTextWithTimeout(feed.url, {
         timeoutMs: 6_500,
@@ -435,6 +526,8 @@ export async function fetchTechCyberIntelligence(): Promise<TechCyberSnapshot> {
     }).catch(() => null),
     fetchNvdRecentHighCves(now).catch(() => []),
     fetchHackerNewsTop().catch(() => []),
+    fetchGitHubTrendingPeriod(GITHUB_TRENDING_DAILY_URL, 'daily').catch(() => []),
+    fetchGitHubTrendingPeriod(GITHUB_TRENDING_WEEKLY_URL, 'weekly').catch(() => []),
     Promise.allSettled(
       INFRA_STATUS_TARGETS.map(async (target) => {
         const summary = await fetchJsonWithTimeout<StatuspageSummaryPayload>(target.apiUrl, {
@@ -470,6 +563,9 @@ export async function fetchTechCyberIntelligence(): Promise<TechCyberSnapshot> {
     rawItems.push(...nvdItems);
   }
 
+  if (ghDailyRepos.length > 0) activeSourceCount += 1;
+  if (ghWeeklyRepos.length > 0) activeSourceCount += 1;
+
   if (hnResult.length > 0) {
     activeSourceCount += 1;
     for (const hn of hnResult.slice(0, 10)) {
@@ -488,17 +584,35 @@ export async function fetchTechCyberIntelligence(): Promise<TechCyberSnapshot> {
     }
   }
 
-  if (rawItems.length === 0) {
+  if (rawItems.length === 0 && ghDailyRepos.length === 0) {
     throw new Error('All Tech/AI/Cyber intelligence feeds timed out');
   }
 
   const balanced = mergeBalancedTechItems(rawItems, 4);
 
-  // Batch-translate all non-Vietnamese headlines using the shared cached translator
-  const translatedTitles = await globalViTranslator.translateBatch(balanced.map((i) => i.title));
+  // Batch-translate all non-Vietnamese headlines and GitHub Trending descriptions using the shared cached translator
+  const allTextsToTranslate = [
+    ...balanced.map((i) => i.title),
+    ...ghDailyRepos.map((r) => r.description),
+    ...ghWeeklyRepos.map((r) => r.description),
+  ];
+  const translatedAll = await globalViTranslator.translateBatch(allTextsToTranslate);
+
   const enrichedItems: TechCyberItem[] = balanced.map((item, idx) => ({
     ...item,
-    titleVi: translatedTitles[idx] || item.titleVi || item.title,
+    titleVi: translatedAll[idx] || item.titleVi || item.title,
+  }));
+
+  const dailyOffset = balanced.length;
+  const enrichedDaily: GitHubTrendingRepo[] = ghDailyRepos.map((repo, idx) => ({
+    ...repo,
+    descriptionVi: translatedAll[dailyOffset + idx] || repo.description,
+  }));
+
+  const weeklyOffset = dailyOffset + ghDailyRepos.length;
+  const enrichedWeekly: GitHubTrendingRepo[] = ghWeeklyRepos.map((repo, idx) => ({
+    ...repo,
+    descriptionVi: translatedAll[weeklyOffset + idx] || repo.description,
   }));
 
   const infraStatus: TechInfraStatus[] = [];
@@ -511,6 +625,10 @@ export async function fetchTechCyberIntelligence(): Promise<TechCyberSnapshot> {
   return {
     items: enrichedItems,
     infraStatus,
+    githubTrending: {
+      daily: enrichedDaily,
+      weekly: enrichedWeekly,
+    },
     activeSourceCount,
     updatedAt: now,
   };

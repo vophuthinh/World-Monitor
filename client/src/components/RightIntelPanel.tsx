@@ -358,6 +358,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
   const [newsFilter, setNewsFilter] = useState<NewsFilterId>('all');
   const [newsQuery, setNewsQuery] = useState('');
   const [techFilter, setTechFilter] = useState<'all' | TechSubCategory>('all');
+  const [ghTrendingPeriod, setGhTrendingPeriod] = useState<'daily' | 'weekly'>('daily');
   const [mitreFilter, setMitreFilter] = useState<string | null>(null);
   const [techQuery, setTechQuery] = useState('');
   const [legalFilter, setLegalFilter] = useState<'all' | 'most' | 'ai_only' | LegalDocType>('all');
@@ -676,6 +677,20 @@ export const RightIntelPanel = memo(function RightIntelPanel({
     }
     return { ai, github_release, cyber, tech_infra, vn_tech };
   }, [techItems]);
+
+  const ghTrendingDaily = techCyber?.githubTrending?.daily ?? [];
+  const ghTrendingWeekly = techCyber?.githubTrending?.weekly ?? [];
+  const activeGhTrending = ghTrendingPeriod === 'daily' ? ghTrendingDaily : ghTrendingWeekly;
+
+  const filteredGhTrending = useMemo(() => {
+    const q = techQuery.trim().toLowerCase();
+    if (!q) return activeGhTrending;
+    return activeGhTrending.filter((repo) =>
+      `${repo.fullName} ${repo.description} ${repo.descriptionVi ?? ''} ${repo.language ?? ''}`
+        .toLowerCase()
+        .includes(q),
+    );
+  }, [activeGhTrending, techQuery]);
 
   const filteredTech = useMemo(() => {
     const q = techQuery.trim().toLowerCase();
@@ -1858,7 +1873,10 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                 [
                   { id: 'all', label: `Tất cả (${techItems.length})` },
                   { id: 'ai', label: `🤖 AI & ML (${techCounts.ai})` },
-                  { id: 'github_release', label: `🚀 GitHub Releases (${techCounts.github_release})` },
+                  {
+                    id: 'github_release',
+                    label: `🔥 GitHub (${(ghTrendingDaily.length || ghTrendingWeekly.length) + techCounts.github_release})`,
+                  },
                   { id: 'cyber', label: `🛡️ Cyber · NVD (${techCounts.cyber})` },
                   { id: 'tech_infra', label: `💻 Chip · Cloud (${techCounts.tech_infra})` },
                   { id: 'vn_tech', label: `🇻🇳 Công nghệ VN (${techCounts.vn_tech})` },
@@ -1903,7 +1921,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                 type="text"
                 value={techQuery}
                 onChange={(e) => setTechQuery(e.target.value)}
-                placeholder="Tìm OpenAI, DeepMind, ArXiv, lỗ hổng CVE, chip NVIDIA..."
+                placeholder="Tìm GitHub Trending, OpenAI, DeepMind, lỗ hổng CVE, chip NVIDIA..."
                 aria-label="Tìm tin AI Machine Learning An ninh mạng"
                 className="w-full rounded border border-slate-800 bg-[#0d1524] py-1 pl-7 pr-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-violet-400 focus:outline-none"
               />
@@ -1911,7 +1929,220 @@ export const RightIntelPanel = memo(function RightIntelPanel({
           </div>
 
           <div className="flex-1 divide-y divide-slate-800/80 overflow-y-auto">
-            {filteredTech.length === 0 ? (
+            {/* Compact Top 3 GitHub Trending spotlight when viewing "Tất cả" */}
+            {techFilter === 'all' && !mitreFilter && !techQuery.trim() && ghTrendingDaily.length > 0 && (
+              <div className="bg-[#0b1322]/90 px-3 py-2.5">
+                <div className="mb-1.5 flex items-center justify-between font-mono text-[10px]">
+                  <span className="inline-flex items-center gap-1 font-bold text-amber-300">
+                    <Fire size={12} weight="fill" className="text-orange-400" />
+                    GITHUB TRENDING HÔM NAY
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setTechFilter('github_release')}
+                    className="rounded border border-emerald-500/40 bg-emerald-500/12 px-2 py-0.5 text-[9.5px] font-semibold text-emerald-300 transition hover:bg-emerald-500/25"
+                  >
+                    Xem tất cả {ghTrendingDaily.length} repo →
+                  </button>
+                </div>
+                <div className="space-y-1.5">
+                  {ghTrendingDaily.slice(0, 3).map((repo) => (
+                    <a
+                      key={repo.id}
+                      href={repo.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-between gap-2 rounded border border-slate-800/90 bg-[#090f1b] px-2 py-1.5 transition hover:border-emerald-500/45"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 font-mono text-[10.5px]">
+                          <span className="shrink-0 rounded bg-amber-500/20 px-1 py-0.2 text-[9px] font-bold text-amber-300">
+                            #{repo.rank}
+                          </span>
+                          <span className="truncate font-semibold text-cyan-200">{repo.fullName}</span>
+                          {repo.language && (
+                            <span className="inline-flex shrink-0 items-center gap-1 text-[9.5px] text-slate-400">
+                              <span
+                                className="h-2 w-2 rounded-full"
+                                style={{ backgroundColor: repo.languageColor || '#38bdf8' }}
+                              />
+                              {repo.language}
+                            </span>
+                          )}
+                        </div>
+                        {repo.description && (
+                          <p className="mt-0.5 line-clamp-1 text-[10.5px] text-slate-400">
+                            {translateVi ? repo.descriptionVi || repo.description : repo.description}
+                          </p>
+                        )}
+                      </div>
+                      <span className="shrink-0 rounded border border-emerald-500/40 bg-emerald-500/15 px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-emerald-300 tabular-nums">
+                        +{repo.periodStars.toLocaleString('en-US')} ★
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Full GitHub Trending Board inside the GitHub sub-tab */}
+            {techFilter === 'github_release' && (
+              <div className="bg-[#080e19]">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/85 bg-[#0d1524] px-3 py-2 font-mono text-[10px]">
+                  <div className="flex items-center gap-1.5">
+                    <Fire size={13} weight="fill" className="text-orange-400" />
+                    <span className="font-bold text-emerald-300">GITHUB TRENDING</span>
+                    <span className="rounded bg-slate-800 px-1.5 py-0.2 text-[9.5px] text-slate-300">
+                      {filteredGhTrending.length} repo
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setGhTrendingPeriod('daily')}
+                      className={`rounded border px-2 py-0.5 text-[9.5px] font-semibold transition ${
+                        ghTrendingPeriod === 'daily'
+                          ? 'border-emerald-400/60 bg-emerald-500/20 text-emerald-200'
+                          : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Hôm nay
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGhTrendingPeriod('weekly')}
+                      className={`rounded border px-2 py-0.5 text-[9.5px] font-semibold transition ${
+                        ghTrendingPeriod === 'weekly'
+                          ? 'border-emerald-400/60 bg-emerald-500/20 text-emerald-200'
+                          : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Tuần này
+                    </button>
+                    {onForceRefresh && (
+                      <button
+                        type="button"
+                        onClick={() => onForceRefresh('tech-cyber')}
+                        title="Làm mới GitHub Trending & Releases"
+                        className="inline-flex items-center rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-slate-300 hover:border-emerald-400/50 hover:text-emerald-200"
+                      >
+                        <ArrowsClockwise
+                          size={10}
+                          className={refreshingIds?.has('tech-cyber') ? 'animate-spin text-emerald-300' : ''}
+                        />
+                      </button>
+                    )}
+                    <a
+                      href={`https://github.com/trending?since=${ghTrendingPeriod}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-0.5 rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[9.5px] text-slate-300 hover:border-cyan-400/50 hover:text-cyan-200"
+                    >
+                      github.com/trending <ArrowSquareOut size={10} />
+                    </a>
+                  </div>
+                </div>
+
+                {filteredGhTrending.length === 0 ? (
+                  <div className="px-3 py-4 text-center text-xs text-slate-400">
+                    {activeGhTrending.length === 0
+                      ? 'Đang tải danh sách repo nổi bật từ github.com/trending...'
+                      : 'Không có repo GitHub Trending nào khớp từ khóa.'}
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-800/70">
+                    {filteredGhTrending.map((repo) => {
+                      const descText = translateVi
+                        ? repo.descriptionVi || repo.description
+                        : repo.description;
+
+                      return (
+                        <article
+                          key={repo.id}
+                          className="px-3 py-2.5 transition hover:bg-slate-900/65"
+                        >
+                          <div className="flex items-center justify-between gap-2 font-mono text-[10.5px]">
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <span
+                                className={`shrink-0 rounded px-1.5 py-0.2 text-[9.5px] font-bold ${
+                                  repo.rank <= 3
+                                    ? 'border border-amber-500/45 bg-amber-500/20 text-amber-200'
+                                    : 'border border-slate-700 bg-slate-800 text-slate-300'
+                                }`}
+                              >
+                                #{repo.rank}
+                              </span>
+                              <a
+                                href={repo.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="truncate font-semibold text-cyan-200 hover:text-emerald-300 hover:underline"
+                              >
+                                <span className="font-normal text-slate-400">{repo.owner} / </span>
+                                {repo.repoName}
+                              </a>
+                            </div>
+                            {repo.periodStars > 0 && (
+                              <span className="inline-flex shrink-0 items-center gap-0.5 rounded border border-emerald-500/45 bg-emerald-500/15 px-1.5 py-0.5 text-[9.5px] font-bold text-emerald-300 tabular-nums">
+                                <Fire size={10} weight="fill" className="text-orange-400" />
+                                +{repo.periodStars.toLocaleString('en-US')} ★{' '}
+                                {ghTrendingPeriod === 'daily' ? 'hôm nay' : 'tuần này'}
+                              </span>
+                            )}
+                          </div>
+
+                          {descText && (
+                            <p
+                              className="mt-1 line-clamp-2 text-[11.5px] leading-relaxed text-slate-200"
+                              title={repo.description}
+                            >
+                              {descText}
+                            </p>
+                          )}
+
+                          <div className="mt-1.5 flex items-center justify-between font-mono text-[10px] text-slate-400">
+                            <div className="flex flex-wrap items-center gap-2.5">
+                              {repo.language && (
+                                <span className="inline-flex items-center gap-1 text-slate-300">
+                                  <span
+                                    className="h-2.5 w-2.5 rounded-full"
+                                    style={{ backgroundColor: repo.languageColor || '#38bdf8' }}
+                                  />
+                                  {repo.language}
+                                </span>
+                              )}
+                              <span className="tabular-nums text-amber-200/90">
+                                ★ {repo.totalStars.toLocaleString('en-US')}
+                              </span>
+                              <span className="tabular-nums text-slate-400">
+                                ⑂ {repo.forks.toLocaleString('en-US')}
+                              </span>
+                            </div>
+                            <a
+                              href={repo.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-0.5 text-slate-400 hover:text-slate-200"
+                            >
+                              Mở repo <ArrowSquareOut size={11} />
+                            </a>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {filteredTech.length > 0 && (
+                  <div className="border-t border-slate-800 bg-[#0d1524] px-3 py-1.5 font-mono text-[10px] font-bold text-violet-300">
+                    🚀 PHIÊN BẢN PHÁT HÀNH MỚI · AI &amp; AGENT CLI ({filteredTech.length})
+                  </div>
+                )}
+              </div>
+            )}
+
+            {filteredTech.length === 0 &&
+            (techFilter !== 'github_release' || filteredGhTrending.length === 0) ? (
               <div className="py-10 text-center text-xs text-slate-400">
                 {techItems.length === 0
                   ? 'Đang đồng bộ 55+ nguồn AI & Machine Learning, Công nghệ & An ninh mạng...'

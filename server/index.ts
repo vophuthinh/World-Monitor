@@ -229,10 +229,11 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector<TechCyberSnapshot>({
     id: 'tech-cyber',
-    label: 'AI · GitHub Releases · Cyber NVD/KEV (67 nguồn)',
+    label: 'AI · GitHub Trending & Releases · Cyber NVD/KEV',
     intervalMs: 240_000,
     retainMs: 8 * 3_600_000,
-    countItems: (snap) => snap.items.length,
+    countItems: (snap) =>
+      snap.items.length + (snap.githubTrending?.daily.length ?? 0),
     fetcher: () => fetchTechCyberIntelligence(),
   });
 
