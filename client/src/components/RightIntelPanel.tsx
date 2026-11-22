@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, memo, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowsClockwise,
   ArrowSquareOut,
@@ -231,6 +231,92 @@ function MiniSparkline({ values, positive }: { values?: number[]; positive: bool
         points={pts}
       />
     </svg>
+  );
+}
+
+function renderInlineMarkdown(raw: string): ReactNode[] {
+  const tokenRe = /(\*\*[^*]+\*\*|`[^`]+`|\*(?!\s)[^*\n]+(?<!\s)\*)/g;
+  const parts = raw.split(tokenRe);
+  return parts.map((part, idx) => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      return (
+        <strong key={idx} className="font-semibold text-white">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
+      return (
+        <code
+          key={idx}
+          className="rounded border border-slate-700/80 bg-slate-800/90 px-1 py-0.2 font-mono text-[10px] text-cyan-200"
+        >
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+      return (
+        <em key={idx} className="italic text-slate-300">
+          {part.slice(1, -1)}
+        </em>
+      );
+    }
+    return part.replace(/\*\*/g, '');
+  });
+}
+
+function FormattedAiMarkdown({ text }: { text: string }) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  return (
+    <div className="mt-1.5 space-y-1.5 text-[11px] leading-relaxed text-slate-200">
+      {lines.map((line, idx) => {
+        const headingMatch = line.match(/^#{1,4}\s+(.+)$/);
+        if (headingMatch) {
+          return (
+            <div
+              key={idx}
+              className="pt-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-emerald-300"
+            >
+              {renderInlineMarkdown(headingMatch[1])}
+            </div>
+          );
+        }
+
+        const bulletMatch = line.match(/^(?:[-*•+]|\d+[.)])\s+(.+)$/);
+        if (bulletMatch) {
+          const content = bulletMatch[1].trim();
+          const tagMatch = content.match(/^\[([^\]]{2,34})\]\s*:?\s*(.+)$/);
+          if (tagMatch) {
+            return (
+              <div key={idx} className="flex items-start gap-1.5">
+                <span className="mt-0.5 shrink-0 rounded border border-emerald-500/35 bg-emerald-500/12 px-1 py-0.1 font-mono text-[8.5px] font-bold text-emerald-300">
+                  {tagMatch[1]}
+                </span>
+                <span className="min-w-0 flex-1">{renderInlineMarkdown(tagMatch[2])}</span>
+              </div>
+            );
+          }
+
+          return (
+            <div key={idx} className="flex items-start gap-2">
+              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+              <span className="min-w-0 flex-1">{renderInlineMarkdown(content)}</span>
+            </div>
+          );
+        }
+
+        return (
+          <p key={idx} className="leading-relaxed text-slate-200">
+            {renderInlineMarkdown(line)}
+          </p>
+        );
+      })}
+    </div>
   );
 }
 
@@ -620,11 +706,10 @@ export const RightIntelPanel = memo(function RightIntelPanel({
         <button
           type="button"
           onClick={() => setActiveTab('intel')}
-          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
-            activeTab === 'intel'
-              ? 'border-fuchsia-400 bg-fuchsia-500/12 text-fuchsia-200'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
+          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${activeTab === 'intel'
+            ? 'border-fuchsia-400 bg-fuchsia-500/12 text-fuchsia-200'
+            : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
         >
           <Target size={13} />
           <span>Live Intel</span>
@@ -632,11 +717,10 @@ export const RightIntelPanel = memo(function RightIntelPanel({
         <button
           type="button"
           onClick={() => setActiveTab('techCyber')}
-          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
-            activeTab === 'techCyber'
-              ? 'border-violet-400 bg-violet-500/12 text-violet-200'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
+          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${activeTab === 'techCyber'
+            ? 'border-violet-400 bg-violet-500/12 text-violet-200'
+            : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
         >
           <Cpu size={13} />
           <span>AI &amp; ML</span>
@@ -644,11 +728,10 @@ export const RightIntelPanel = memo(function RightIntelPanel({
         <button
           type="button"
           onClick={() => setActiveTab('news')}
-          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
-            activeTab === 'news'
-              ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
+          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${activeTab === 'news'
+            ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200'
+            : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
         >
           <Newspaper size={13} />
           <span>Tin nóng</span>
@@ -656,11 +739,10 @@ export const RightIntelPanel = memo(function RightIntelPanel({
         <button
           type="button"
           onClick={() => setActiveTab('policy')}
-          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
-            activeTab === 'policy'
-              ? 'border-amber-400 bg-amber-500/12 text-amber-200'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
+          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${activeTab === 'policy'
+            ? 'border-amber-400 bg-amber-500/12 text-amber-200'
+            : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
         >
           <Scales size={13} />
           <span>Chính sách</span>
@@ -668,11 +750,10 @@ export const RightIntelPanel = memo(function RightIntelPanel({
         <button
           type="button"
           onClick={() => setActiveTab('markets')}
-          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${
-            activeTab === 'markets'
-              ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
+          className={`flex items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-semibold transition ${activeTab === 'markets'
+            ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200'
+            : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
         >
           <ChartLineUp size={13} />
           <span>Thị trường</span>
@@ -687,13 +768,12 @@ export const RightIntelPanel = memo(function RightIntelPanel({
             <div className="flex flex-wrap items-center gap-1.5 font-mono text-[10px]">
               <span
                 title={globalThreat.summary}
-                className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9.5px] font-bold ${
-                  globalThreat.defcon <= 2
-                    ? 'border-rose-500/55 bg-rose-500/20 text-rose-200'
-                    : globalThreat.defcon === 3
-                      ? 'border-amber-500/50 bg-amber-500/20 text-amber-200'
-                      : 'border-emerald-500/45 bg-emerald-500/15 text-emerald-200'
-                }`}
+                className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9.5px] font-bold ${globalThreat.defcon <= 2
+                  ? 'border-rose-500/55 bg-rose-500/20 text-rose-200'
+                  : globalThreat.defcon === 3
+                    ? 'border-amber-500/50 bg-amber-500/20 text-amber-200'
+                    : 'border-emerald-500/45 bg-emerald-500/15 text-emerald-200'
+                  }`}
               >
                 <Gauge size={11} weight="fill" />
                 DEFCON {globalThreat.defcon} · {globalThreat.score}/100
@@ -707,11 +787,10 @@ export const RightIntelPanel = memo(function RightIntelPanel({
             <button
               type="button"
               onClick={() => setTranslateVi((v) => !v)}
-              className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[9.5px] font-semibold transition ${
-                translateVi
-                  ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300'
-                  : 'border-slate-700 bg-slate-900 text-slate-400'
-              }`}
+              className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[9.5px] font-semibold transition ${translateVi
+                ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300'
+                : 'border-slate-700 bg-slate-900 text-slate-400'
+                }`}
             >
               <Translate size={11} weight="bold" />
               <span>{translateVi ? 'VI: BẬT' : 'VI: TẮT'}</span>
@@ -751,7 +830,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
             {effectiveSitrep ? (
               <div className="mt-1.5 space-y-1.5">
                 <div className="text-xs font-semibold leading-snug text-slate-100">
-                  {effectiveSitrep.headline}
+                  {renderInlineMarkdown(effectiveSitrep.headline)}
                 </div>
                 <ul className="space-y-1 rounded border border-slate-800/85 bg-[#080e19]/90 p-2 text-[11px] leading-snug text-slate-200">
                   {effectiveSitrep.bullets.map((b, idx) => (
@@ -759,7 +838,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                       <span className="mt-0.5 shrink-0 rounded border border-emerald-500/35 bg-emerald-500/12 px-1 py-0.1 font-mono text-[8.5px] font-bold text-emerald-300">
                         {b.tag}
                       </span>
-                      <span className="text-slate-200">{b.text}</span>
+                      <span className="text-slate-200">{renderInlineMarkdown(b.text)}</span>
                     </li>
                   ))}
                 </ul>
@@ -820,7 +899,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
             )}
 
             {askReply && (
-              <div className="mt-2 rounded border border-emerald-500/40 bg-[#070d17] p-2 text-[11px] leading-relaxed text-slate-100">
+              <div className="mt-2 rounded border border-emerald-500/40 bg-[#070d17] p-2.5 text-[11px] leading-relaxed text-slate-100">
                 <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-1 font-mono text-[9px] text-emerald-300">
                   <span>
                     TRẢ LỜI TRỰC TIẾP ({askReply.model} · {askReply.latencyMs}ms)
@@ -833,7 +912,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                     ×
                   </button>
                 </div>
-                <div className="mt-1.5 whitespace-pre-line text-slate-200">{askReply.answer}</div>
+                <FormattedAiMarkdown text={askReply.answer} />
               </div>
             )}
           </section>
@@ -905,13 +984,12 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                       key={loc.id}
                       type="button"
                       onClick={() => onFlyToLocation(loc.lat, loc.lon, isSea ? 6.2 : 7.5)}
-                      className={`rounded border p-2 text-left transition hover:border-sky-400/55 ${
-                        loc.stormWarning
-                          ? 'border-rose-500/50 bg-rose-950/30'
-                          : isSea
-                            ? 'border-sky-500/35 bg-[#0c1729]'
-                            : 'border-slate-800/95 bg-[#0d1524]'
-                      }`}
+                      className={`rounded border p-2 text-left transition hover:border-sky-400/55 ${loc.stormWarning
+                        ? 'border-rose-500/50 bg-rose-950/30'
+                        : isSea
+                          ? 'border-sky-500/35 bg-[#0c1729]'
+                          : 'border-slate-800/95 bg-[#0d1524]'
+                        }`}
                     >
                       <div className="flex items-center justify-between gap-1">
                         <span className="truncate text-[11px] font-semibold text-slate-100">
@@ -931,9 +1009,8 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                             <span>Giật {loc.windGustKmh}km/h</span>
                           </div>
                           <div
-                            className={`text-[9px] font-semibold ${
-                              loc.stormWarning ? 'text-rose-300' : 'text-slate-400'
-                            }`}
+                            className={`text-[9px] font-semibold ${loc.stormWarning ? 'text-rose-300' : 'text-slate-400'
+                              }`}
                           >
                             {loc.stormWarning ? '⚠️ BIỂN ĐỘNG MẠNH' : loc.weatherLabel}
                           </div>
@@ -1007,25 +1084,23 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                       href={item.url}
                       target="_blank"
                       rel="noreferrer"
-                      className={`block px-2.5 py-2 transition hover:bg-[#121e33] ${
-                        flash === 'up'
-                          ? 'bg-emerald-500/15'
-                          : flash === 'down'
-                            ? 'bg-rose-500/15'
-                            : ''
-                      }`}
+                      className={`block px-2.5 py-2 transition hover:bg-[#121e33] ${flash === 'up'
+                        ? 'bg-emerald-500/15'
+                        : flash === 'down'
+                          ? 'bg-rose-500/15'
+                          : ''
+                        }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span
-                              className={`inline-flex shrink-0 items-center rounded px-1.5 py-0.2 font-mono text-[9px] font-bold ${
-                                idx === 0
-                                  ? 'border border-amber-400/50 bg-amber-500/20 text-amber-200'
-                                  : idx < 3
-                                    ? 'border border-cyan-500/40 bg-cyan-500/15 text-cyan-200'
-                                    : 'border border-slate-700 bg-slate-800 text-slate-300'
-                              }`}
+                              className={`inline-flex shrink-0 items-center rounded px-1.5 py-0.2 font-mono text-[9px] font-bold ${idx === 0
+                                ? 'border border-amber-400/50 bg-amber-500/20 text-amber-200'
+                                : idx < 3
+                                  ? 'border border-cyan-500/40 bg-cyan-500/15 text-cyan-200'
+                                  : 'border border-slate-700 bg-slate-800 text-slate-300'
+                                }`}
                             >
                               #{idx + 1} HOT
                             </span>
@@ -1042,21 +1117,19 @@ export const RightIntelPanel = memo(function RightIntelPanel({
 
                         <div className="shrink-0 text-right font-mono tabular-nums">
                           <div
-                            className={`text-sm font-bold transition-colors ${
-                              flash === 'up'
-                                ? 'text-emerald-300'
-                                : flash === 'down'
-                                  ? 'text-rose-300'
-                                  : 'text-cyan-300'
-                            }`}
+                            className={`text-sm font-bold transition-colors ${flash === 'up'
+                              ? 'text-emerald-300'
+                              : flash === 'down'
+                                ? 'text-rose-300'
+                                : 'text-cyan-300'
+                              }`}
                           >
                             {item.yesPercent}%
                           </div>
                           {item.change24hPct !== undefined && (
                             <div
-                              className={`text-[9px] font-semibold ${
-                                item.change24hPct >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                              }`}
+                              className={`text-[9px] font-semibold ${item.change24hPct >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                                }`}
                             >
                               {item.change24hPct >= 0 ? '+' : ''}
                               {item.change24hPct.toFixed(1)}% 24h
@@ -1102,22 +1175,20 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                 <button
                   type="button"
                   onClick={() => setTrendGeo('VN')}
-                  className={`rounded px-2 py-0.5 font-mono text-[9.5px] font-semibold transition ${
-                    trendGeo === 'VN'
-                      ? 'border border-emerald-500/50 bg-emerald-500/20 text-emerald-200'
-                      : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
-                  }`}
+                  className={`rounded px-2 py-0.5 font-mono text-[9.5px] font-semibold transition ${trendGeo === 'VN'
+                    ? 'border border-emerald-500/50 bg-emerald-500/20 text-emerald-200'
+                    : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                    }`}
                 >
                   🇻🇳 Việt Nam ({googleTrends?.vn.length ?? 0})
                 </button>
                 <button
                   type="button"
                   onClick={() => setTrendGeo('GLOBAL')}
-                  className={`rounded px-2 py-0.5 font-mono text-[9.5px] font-semibold transition ${
-                    trendGeo === 'GLOBAL'
-                      ? 'border border-cyan-500/50 bg-cyan-500/20 text-cyan-200'
-                      : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
-                  }`}
+                  className={`rounded px-2 py-0.5 font-mono text-[9.5px] font-semibold transition ${trendGeo === 'GLOBAL'
+                    ? 'border border-cyan-500/50 bg-cyan-500/20 text-cyan-200'
+                    : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                    }`}
                 >
                   🌍 Thế giới ({googleTrends?.global.length ?? 0})
                 </button>
@@ -1159,13 +1230,12 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex min-w-0 items-center gap-1.5">
                           <span
-                            className={`inline-flex h-4 min-w-[20px] shrink-0 items-center justify-center rounded px-1 font-mono text-[9.5px] font-bold ${
-                              idx === 0
-                                ? 'bg-amber-500/25 text-amber-200 border border-amber-400/50'
-                                : idx < 3
-                                  ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-500/40'
-                                  : 'bg-slate-800 text-slate-400'
-                            }`}
+                            className={`inline-flex h-4 min-w-[20px] shrink-0 items-center justify-center rounded px-1 font-mono text-[9.5px] font-bold ${idx === 0
+                              ? 'bg-amber-500/25 text-amber-200 border border-amber-400/50'
+                              : idx < 3
+                                ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-500/40'
+                                : 'bg-slate-800 text-slate-400'
+                              }`}
                           >
                             #{tr.rank}
                           </span>
@@ -1266,13 +1336,12 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                 return (
                   <span
                     key={term}
-                    className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[9.5px] transition ${
-                      active
-                        ? 'border-amber-400/70 bg-amber-500/25 text-amber-100'
-                        : count > 0
-                          ? 'border-amber-500/40 bg-amber-500/12 text-amber-200'
-                          : 'border-slate-800 bg-slate-900 text-slate-400'
-                    }`}
+                    className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[9.5px] transition ${active
+                      ? 'border-amber-400/70 bg-amber-500/25 text-amber-100'
+                      : count > 0
+                        ? 'border-amber-500/40 bg-amber-500/12 text-amber-200'
+                        : 'border-slate-800 bg-slate-900 text-slate-400'
+                      }`}
                   >
                     <button
                       type="button"
@@ -1338,7 +1407,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                     const sampleIp =
                       String(
                         cyberThreats.find((c) => c.category === 'c2_ioc')?.meta.ipAddress ??
-                          '45.148.10.240',
+                        '45.148.10.240',
                       );
                     void runIocScan(sampleIp);
                   }}
@@ -1391,13 +1460,12 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                   <span className="font-bold text-slate-100">{iocResult.query}</span>
                   <div className="flex items-center gap-1.5">
                     <span
-                      className={`rounded px-1.5 py-0.2 text-[9px] font-bold uppercase ${
-                        iocResult.riskLevel === 'critical'
-                          ? 'bg-rose-500/25 text-rose-200 border border-rose-500/50'
-                          : iocResult.riskLevel === 'high'
-                            ? 'bg-amber-500/20 text-amber-200 border border-amber-500/45'
-                            : 'bg-cyan-500/15 text-cyan-200 border border-cyan-500/35'
-                      }`}
+                      className={`rounded px-1.5 py-0.2 text-[9px] font-bold uppercase ${iocResult.riskLevel === 'critical'
+                        ? 'bg-rose-500/25 text-rose-200 border border-rose-500/50'
+                        : iocResult.riskLevel === 'high'
+                          ? 'bg-amber-500/20 text-amber-200 border border-amber-500/45'
+                          : 'bg-cyan-500/15 text-cyan-200 border border-cyan-500/35'
+                        }`}
                     >
                       {iocResult.kind === 'cve' && iocResult.cvssScore !== undefined
                         ? `CVSS ${iocResult.cvssScore} · ${iocResult.cvssSeverity}`
@@ -1497,13 +1565,12 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                         setNewsQuery(sp.term.split(' / ')[0]);
                       }
                     }}
-                    className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[10px] transition hover:brightness-125 ${
-                      sp.kind === 'cve'
-                        ? 'border-rose-500/45 bg-rose-500/15 text-rose-200'
-                        : sp.kind === 'tech_ai'
-                          ? 'border-violet-500/40 bg-violet-500/15 text-violet-200'
-                          : 'border-amber-500/40 bg-amber-500/12 text-amber-200'
-                    }`}
+                    className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[10px] transition hover:brightness-125 ${sp.kind === 'cve'
+                      ? 'border-rose-500/45 bg-rose-500/15 text-rose-200'
+                      : sp.kind === 'tech_ai'
+                        ? 'border-violet-500/40 bg-violet-500/15 text-violet-200'
+                        : 'border-amber-500/40 bg-amber-500/12 text-amber-200'
+                      }`}
                   >
                     <span className="font-semibold">{sp.term}</span>
                     <span className="opacity-75">×{sp.mentions}</span>
@@ -1529,11 +1596,10 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                     key={tab.id}
                     type="button"
                     onClick={() => setIntelTopic(tab.id)}
-                    className={`rounded px-2 py-1 text-[10.5px] font-medium transition ${
-                      intelTopic === tab.id
-                        ? 'border border-fuchsia-500/50 bg-fuchsia-500/20 text-fuchsia-200'
-                        : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
-                    }`}
+                    className={`rounded px-2 py-1 text-[10.5px] font-medium transition ${intelTopic === tab.id
+                      ? 'border border-fuchsia-500/50 bg-fuchsia-500/20 text-fuchsia-200'
+                      : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                      }`}
                   >
                     {tab.label} ({count})
                   </button>
@@ -1547,11 +1613,10 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                   <div key={ioc.id} className="px-2.5 py-2 transition hover:bg-slate-900/70">
                     <div className="flex items-center justify-between gap-2 font-mono text-[9.5px]">
                       <span
-                        className={`rounded border px-1.5 py-0.2 font-semibold ${
-                          ioc.category === 'apt_group'
-                            ? 'border-rose-500/45 bg-rose-500/20 text-rose-200'
-                            : 'border-fuchsia-500/40 bg-fuchsia-500/15 text-fuchsia-300'
-                        }`}
+                        className={`rounded border px-1.5 py-0.2 font-semibold ${ioc.category === 'apt_group'
+                          ? 'border-rose-500/45 bg-rose-500/20 text-rose-200'
+                          : 'border-fuchsia-500/40 bg-fuchsia-500/15 text-fuchsia-300'
+                          }`}
                       >
                         {ioc.category === 'apt_group' ? 'APT ACTOR' : ioc.source}
                       </span>
@@ -1658,9 +1723,8 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                     key={row.code}
                     type="button"
                     onClick={() => onFlyToLocation(row.lat, row.lon, 5.2)}
-                    className={`flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left transition hover:bg-slate-900/75 ${
-                      row.isVietnam ? 'bg-emerald-500/8' : ''
-                    }`}
+                    className={`flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left transition hover:bg-slate-900/75 ${row.isVietnam ? 'bg-emerald-500/8' : ''
+                      }`}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
@@ -1729,11 +1793,10 @@ export const RightIntelPanel = memo(function RightIntelPanel({
               <button
                 type="button"
                 onClick={() => setTranslateVi((v) => !v)}
-                className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[10px] font-semibold transition ${
-                  translateVi
-                    ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
-                    : 'border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200'
-                }`}
+                className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[10px] font-semibold transition ${translateVi
+                  ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
+                  : 'border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200'
+                  }`}
               >
                 <Translate size={12} weight="bold" />
                 <span>{translateVi ? 'Dịch VI: BẬT' : 'Dịch VI: TẮT'}</span>
@@ -1758,11 +1821,10 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                     setTechFilter(cat.id);
                     if (cat.id === 'all') setMitreFilter(null);
                   }}
-                  className={`rounded px-2 py-1 text-[10.5px] font-medium transition ${
-                    techFilter === cat.id
-                      ? 'border border-violet-500/45 bg-violet-500/20 text-violet-200'
-                      : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
-                  }`}
+                  className={`rounded px-2 py-1 text-[10.5px] font-medium transition ${techFilter === cat.id
+                    ? 'border border-violet-500/45 bg-violet-500/20 text-violet-200'
+                    : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                    }`}
                 >
                   {cat.label}
                 </button>
@@ -1807,116 +1869,115 @@ export const RightIntelPanel = memo(function RightIntelPanel({
               </div>
             ) : (
               <>
-              {filteredTech.slice(0, visibleLimit).map((item) => {
-                const isTranslated =
-                  Boolean(item.titleVi) && item.titleVi !== item.title && item.subCategory !== 'vn_tech';
-                const headline = translateVi ? item.titleVi || item.title : item.title;
+                {filteredTech.slice(0, visibleLimit).map((item) => {
+                  const isTranslated =
+                    Boolean(item.titleVi) && item.titleVi !== item.title && item.subCategory !== 'vn_tech';
+                  const headline = translateVi ? item.titleVi || item.title : item.title;
 
-                return (
-                  <article key={item.id} className="px-3 py-2.5 transition hover:bg-slate-900/65">
-                    <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <span className={`truncate rounded px-1.5 py-0.2 font-semibold ${techBadgeStyle(item)}`}>
-                          {item.source}
-                        </span>
-                        {item.cveId && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActiveTab('intel');
-                              void runIocScan(item.cveId!);
-                            }}
-                            title="Bấm để tra cứu điểm CVSS & chi tiết trên NIST NVD"
-                            className="inline-flex shrink-0 items-center gap-0.5 rounded border border-rose-500/45 bg-rose-500/20 px-1.5 py-0.2 text-[9px] font-bold text-rose-200 hover:bg-rose-500/35"
-                          >
-                            <ShieldWarning size={10} weight="fill" />
-                            {item.cveId}
-                            {item.cvssScore !== undefined ? ` · ${item.cvssScore}` : ''}
-                          </button>
-                        )}
-                        {translateVi && isTranslated && (
-                          <span className="shrink-0 rounded bg-emerald-500/15 px-1 py-0.2 text-[9px] text-emerald-300">
-                            VI
+                  return (
+                    <article key={item.id} className="px-3 py-2.5 transition hover:bg-slate-900/65">
+                      <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span className={`truncate rounded px-1.5 py-0.2 font-semibold ${techBadgeStyle(item)}`}>
+                            {item.source}
                           </span>
-                        )}
+                          {item.cveId && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveTab('intel');
+                                void runIocScan(item.cveId!);
+                              }}
+                              title="Bấm để tra cứu điểm CVSS & chi tiết trên NIST NVD"
+                              className="inline-flex shrink-0 items-center gap-0.5 rounded border border-rose-500/45 bg-rose-500/20 px-1.5 py-0.2 text-[9px] font-bold text-rose-200 hover:bg-rose-500/35"
+                            >
+                              <ShieldWarning size={10} weight="fill" />
+                              {item.cveId}
+                              {item.cvssScore !== undefined ? ` · ${item.cvssScore}` : ''}
+                            </button>
+                          )}
+                          {translateVi && isTranslated && (
+                            <span className="shrink-0 rounded bg-emerald-500/15 px-1 py-0.2 text-[9px] text-emerald-300">
+                              VI
+                            </span>
+                          )}
+                        </div>
+                        <span className="shrink-0 text-slate-500 tabular-nums">
+                          {formatRelativeTime(item.publishedAt)}
+                        </span>
                       </div>
-                      <span className="shrink-0 text-slate-500 tabular-nums">
-                        {formatRelativeTime(item.publishedAt)}
-                      </span>
-                    </div>
 
-                    {item.mitreTtps && item.mitreTtps.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1 font-mono text-[8.5px]">
-                        {item.mitreTtps.map((ttp) => (
-                          <button
-                            key={ttp.id}
-                            type="button"
-                            onClick={() =>
-                              setMitreFilter((prev) => (prev === ttp.id ? null : ttp.id))
-                            }
-                            className={`rounded border px-1.5 py-0.2 font-semibold transition ${
-                              mitreFilter === ttp.id
+                      {item.mitreTtps && item.mitreTtps.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1 font-mono text-[8.5px]">
+                          {item.mitreTtps.map((ttp) => (
+                            <button
+                              key={ttp.id}
+                              type="button"
+                              onClick={() =>
+                                setMitreFilter((prev) => (prev === ttp.id ? null : ttp.id))
+                              }
+                              className={`rounded border px-1.5 py-0.2 font-semibold transition ${mitreFilter === ttp.id
                                 ? 'border-rose-400 bg-rose-500/30 text-rose-100'
                                 : 'border-rose-500/35 bg-rose-950/50 text-rose-300 hover:bg-rose-500/20'
-                            }`}
-                          >
-                            MITRE {ttp.id} · {ttp.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-1 block text-xs font-medium leading-relaxed text-slate-100 hover:text-violet-300"
-                    >
-                      {headline}
-                    </a>
-
-                    {translateVi && isTranslated && (
-                      <p className="mt-0.5 line-clamp-1 text-[10.5px] text-slate-500" title={item.title}>
-                        Gốc: {item.title}
-                      </p>
-                    )}
-
-                    <div className="mt-1.5 flex items-center justify-between">
-                      {item.matchedLat !== undefined && item.matchedLon !== undefined ? (
-                        <button
-                          type="button"
-                          onClick={() => onFlyToLocation(item.matchedLat!, item.matchedLon!, 5.5)}
-                          className="inline-flex items-center gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 font-mono text-[10px] font-medium text-cyan-300 transition hover:bg-cyan-500/20 active:scale-[0.98]"
-                        >
-                          <Crosshair size={11} />
-                          Bay tới: {item.matchedLocation}
-                        </button>
-                      ) : (
-                        <span />
+                                }`}
+                            >
+                              MITRE {ttp.id} · {ttp.name}
+                            </button>
+                          ))}
+                        </div>
                       )}
+
                       <a
                         href={item.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-0.5 text-[10.5px] text-slate-400 hover:text-slate-200"
+                        className="mt-1 block text-xs font-medium leading-relaxed text-slate-100 hover:text-violet-300"
                       >
-                        Mở nguồn <ArrowSquareOut size={11} />
+                        {headline}
                       </a>
-                    </div>
-                  </article>
-                );
-              })}
-              {filteredTech.length > visibleLimit && (
-                <div className="p-3 text-center">
-                  <button
-                    type="button"
-                    onClick={() => setVisibleLimit((v) => v + 40)}
-                    className="rounded border border-slate-700 bg-slate-900 px-3 py-1 font-mono text-[10.5px] text-slate-300 transition hover:border-violet-400 hover:text-violet-200"
-                  >
-                    Xem thêm ({filteredTech.length - visibleLimit} tin còn lại)
-                  </button>
-                </div>
-              )}
+
+                      {translateVi && isTranslated && (
+                        <p className="mt-0.5 line-clamp-1 text-[10.5px] text-slate-500" title={item.title}>
+                          Gốc: {item.title}
+                        </p>
+                      )}
+
+                      <div className="mt-1.5 flex items-center justify-between">
+                        {item.matchedLat !== undefined && item.matchedLon !== undefined ? (
+                          <button
+                            type="button"
+                            onClick={() => onFlyToLocation(item.matchedLat!, item.matchedLon!, 5.5)}
+                            className="inline-flex items-center gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 font-mono text-[10px] font-medium text-cyan-300 transition hover:bg-cyan-500/20 active:scale-[0.98]"
+                          >
+                            <Crosshair size={11} />
+                            Bay tới: {item.matchedLocation}
+                          </button>
+                        ) : (
+                          <span />
+                        )}
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-0.5 text-[10.5px] text-slate-400 hover:text-slate-200"
+                        >
+                          Mở nguồn <ArrowSquareOut size={11} />
+                        </a>
+                      </div>
+                    </article>
+                  );
+                })}
+                {filteredTech.length > visibleLimit && (
+                  <div className="p-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => setVisibleLimit((v) => v + 40)}
+                      className="rounded border border-slate-700 bg-slate-900 px-3 py-1 font-mono text-[10.5px] text-slate-300 transition hover:border-violet-400 hover:text-violet-200"
+                    >
+                      Xem thêm ({filteredTech.length - visibleLimit} tin còn lại)
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -1930,16 +1991,14 @@ export const RightIntelPanel = memo(function RightIntelPanel({
             <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-slate-800/90 bg-[#0d1524] px-2 py-1.5">
               <div className="flex flex-wrap items-center gap-1.5 font-mono text-[9.5px]">
                 <span
-                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${
-                    newsStreamStats?.wikimediaConnected
-                      ? 'bg-purple-500/15 text-purple-300'
-                      : 'bg-slate-800 text-slate-400'
-                  }`}
+                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${newsStreamStats?.wikimediaConnected
+                    ? 'bg-purple-500/15 text-purple-300'
+                    : 'bg-slate-800 text-slate-400'
+                    }`}
                 >
                   <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      newsStreamStats?.wikimediaConnected ? 'animate-pulse bg-purple-400' : 'bg-slate-500'
-                    }`}
+                    className={`h-1.5 w-1.5 rounded-full ${newsStreamStats?.wikimediaConnected ? 'animate-pulse bg-purple-400' : 'bg-slate-500'
+                      }`}
                   />
                   Wiki {newsStreamStats?.wikimediaCount ?? 0}
                 </span>
@@ -1964,11 +2023,10 @@ export const RightIntelPanel = memo(function RightIntelPanel({
               <button
                 type="button"
                 onClick={() => setTranslateVi((v) => !v)}
-                className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[10px] font-semibold transition ${
-                  translateVi
-                    ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
-                    : 'border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200'
-                }`}
+                className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[10px] font-semibold transition ${translateVi
+                  ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
+                  : 'border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200'
+                  }`}
               >
                 <Translate size={12} weight="bold" />
                 <span>{translateVi ? 'Dịch VI: BẬT' : 'Dịch VI: TẮT'}</span>
@@ -1990,13 +2048,12 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                   key={cat.id}
                   type="button"
                   onClick={() => setNewsFilter(cat.id)}
-                  className={`rounded px-2 py-1 text-[10.5px] font-medium transition ${
-                    newsFilter === cat.id
-                      ? cat.id === 'bbc'
-                        ? 'border border-red-500/55 bg-red-600/25 text-red-100'
-                        : 'border border-cyan-500/40 bg-cyan-500/20 text-cyan-200'
-                      : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
-                  }`}
+                  className={`rounded px-2 py-1 text-[10.5px] font-medium transition ${newsFilter === cat.id
+                    ? cat.id === 'bbc'
+                      ? 'border border-red-500/55 bg-red-600/25 text-red-100'
+                      : 'border border-cyan-500/40 bg-cyan-500/20 text-cyan-200'
+                    : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                    }`}
                 >
                   {cat.label}
                 </button>
@@ -2026,92 +2083,91 @@ export const RightIntelPanel = memo(function RightIntelPanel({
               </div>
             ) : (
               <>
-              {filteredNews.slice(0, visibleLimit).map((item) => {
-                const isTranslated =
-                  Boolean(item.titleVi) && item.titleVi !== item.title && item.category !== 'vietnam';
-                const headline = translateVi ? item.titleVi || item.title : item.title;
-                const isFresh = freshNewsIds?.has(item.id) ?? false;
+                {filteredNews.slice(0, visibleLimit).map((item) => {
+                  const isTranslated =
+                    Boolean(item.titleVi) && item.titleVi !== item.title && item.category !== 'vietnam';
+                  const headline = translateVi ? item.titleVi || item.title : item.title;
+                  const isFresh = freshNewsIds?.has(item.id) ?? false;
 
-                return (
-                  <article
-                    key={item.id}
-                    className={`px-3 py-2.5 transition-colors duration-500 hover:bg-slate-900/65 ${
-                      isFresh ? 'bg-cyan-500/12' : ''
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <span className={`truncate rounded px-1.5 py-0.2 font-semibold ${sourceBadgeStyle(item)}`}>
-                          {item.source}
-                        </span>
-                        {item.isLiveStream && (
-                          <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-cyan-500/15 px-1 py-0.2 text-[9px] font-semibold text-cyan-300">
-                            <Lightning size={9} weight="fill" />
-                            LIVE
-                          </span>
-                        )}
-                        {translateVi && isTranslated && (
-                          <span className="shrink-0 rounded bg-emerald-500/15 px-1 py-0.2 text-[9px] text-emerald-300">
-                            VI
-                          </span>
-                        )}
-                      </div>
-                      <span className="shrink-0 text-slate-500 tabular-nums">
-                        {formatRelativeTime(item.publishedAt)}
-                      </span>
-                    </div>
-
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-1 block text-xs font-medium leading-relaxed text-slate-100 hover:text-cyan-300"
+                  return (
+                    <article
+                      key={item.id}
+                      className={`px-3 py-2.5 transition-colors duration-500 hover:bg-slate-900/65 ${isFresh ? 'bg-cyan-500/12' : ''
+                        }`}
                     >
-                      {headline}
-                    </a>
+                      <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span className={`truncate rounded px-1.5 py-0.2 font-semibold ${sourceBadgeStyle(item)}`}>
+                            {item.source}
+                          </span>
+                          {item.isLiveStream && (
+                            <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-cyan-500/15 px-1 py-0.2 text-[9px] font-semibold text-cyan-300">
+                              <Lightning size={9} weight="fill" />
+                              LIVE
+                            </span>
+                          )}
+                          {translateVi && isTranslated && (
+                            <span className="shrink-0 rounded bg-emerald-500/15 px-1 py-0.2 text-[9px] text-emerald-300">
+                              VI
+                            </span>
+                          )}
+                        </div>
+                        <span className="shrink-0 text-slate-500 tabular-nums">
+                          {formatRelativeTime(item.publishedAt)}
+                        </span>
+                      </div>
 
-                    {translateVi && isTranslated && (
-                      <p className="mt-0.5 line-clamp-1 text-[10.5px] text-slate-500" title={item.title}>
-                        Gốc: {item.title}
-                      </p>
-                    )}
-
-                    <div className="mt-1.5 flex items-center justify-between">
-                      {item.matchedLat !== undefined && item.matchedLon !== undefined ? (
-                        <button
-                          type="button"
-                          onClick={() => onFlyToLocation(item.matchedLat!, item.matchedLon!, 5.5)}
-                          className="inline-flex items-center gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 font-mono text-[10px] font-medium text-cyan-300 transition hover:bg-cyan-500/20 active:scale-[0.98]"
-                        >
-                          <Crosshair size={11} />
-                          Bay tới: {item.matchedLocation}
-                        </button>
-                      ) : (
-                        <span />
-                      )}
                       <a
                         href={item.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-0.5 text-[10.5px] text-slate-400 hover:text-slate-200"
+                        className="mt-1 block text-xs font-medium leading-relaxed text-slate-100 hover:text-cyan-300"
                       >
-                        Mở nguồn <ArrowSquareOut size={11} />
+                        {headline}
                       </a>
-                    </div>
-                  </article>
-                );
-              })}
-              {filteredNews.length > visibleLimit && (
-                <div className="p-3 text-center">
-                  <button
-                    type="button"
-                    onClick={() => setVisibleLimit((v) => v + 40)}
-                    className="rounded border border-slate-700 bg-slate-900 px-3 py-1 font-mono text-[10.5px] text-slate-300 transition hover:border-cyan-400 hover:text-cyan-200"
-                  >
-                    Xem thêm ({filteredNews.length - visibleLimit} tin còn lại)
-                  </button>
-                </div>
-              )}
+
+                      {translateVi && isTranslated && (
+                        <p className="mt-0.5 line-clamp-1 text-[10.5px] text-slate-500" title={item.title}>
+                          Gốc: {item.title}
+                        </p>
+                      )}
+
+                      <div className="mt-1.5 flex items-center justify-between">
+                        {item.matchedLat !== undefined && item.matchedLon !== undefined ? (
+                          <button
+                            type="button"
+                            onClick={() => onFlyToLocation(item.matchedLat!, item.matchedLon!, 5.5)}
+                            className="inline-flex items-center gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 font-mono text-[10px] font-medium text-cyan-300 transition hover:bg-cyan-500/20 active:scale-[0.98]"
+                          >
+                            <Crosshair size={11} />
+                            Bay tới: {item.matchedLocation}
+                          </button>
+                        ) : (
+                          <span />
+                        )}
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-0.5 text-[10.5px] text-slate-400 hover:text-slate-200"
+                        >
+                          Mở nguồn <ArrowSquareOut size={11} />
+                        </a>
+                      </div>
+                    </article>
+                  );
+                })}
+                {filteredNews.length > visibleLimit && (
+                  <div className="p-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => setVisibleLimit((v) => v + 40)}
+                      className="rounded border border-slate-700 bg-slate-900 px-3 py-1 font-mono text-[10.5px] text-slate-300 transition hover:border-cyan-400 hover:text-cyan-200"
+                    >
+                      Xem thêm ({filteredNews.length - visibleLimit} tin còn lại)
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -2134,11 +2190,10 @@ export const RightIntelPanel = memo(function RightIntelPanel({
               </div>
               <div className="flex items-center gap-1.5">
                 <span
-                  className={`rounded px-1.5 py-0.5 font-semibold ${
-                    policyLegal?.aiSummaryEnabled
-                      ? 'bg-emerald-500/15 text-emerald-300'
-                      : 'bg-amber-500/15 text-amber-200'
-                  }`}
+                  className={`rounded px-1.5 py-0.5 font-semibold ${policyLegal?.aiSummaryEnabled
+                    ? 'bg-emerald-500/15 text-emerald-300'
+                    : 'bg-amber-500/15 text-amber-200'
+                    }`}
                 >
                   {policyLegal?.aiSummaryEnabled ? 'AI TÓM TẮT 3 Ý' : 'REGEX + TRÍCH YẾU'}
                 </span>
@@ -2177,13 +2232,12 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                     setLegalFilter(cat.id);
                     if (cat.id === 'all') setLegalPillar(null);
                   }}
-                  className={`rounded px-2 py-1 text-[10.5px] font-medium transition ${
-                    legalFilter === cat.id
-                      ? cat.id === 'most'
-                        ? 'border border-violet-400/55 bg-violet-500/20 text-violet-200'
-                        : 'border border-amber-500/50 bg-amber-500/20 text-amber-200'
-                      : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
-                  }`}
+                  className={`rounded px-2 py-1 text-[10.5px] font-medium transition ${legalFilter === cat.id
+                    ? cat.id === 'most'
+                      ? 'border border-violet-400/55 bg-violet-500/20 text-violet-200'
+                      : 'border border-amber-500/50 bg-amber-500/20 text-amber-200'
+                    : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                    }`}
                 >
                   {cat.label}
                 </button>
@@ -2208,11 +2262,10 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                     setLegalFilter('all');
                     setLegalPillar((prev) => (prev === pil.id ? null : pil.id));
                   }}
-                  className={`rounded border px-1.5 py-0.5 font-semibold transition ${
-                    legalPillar === pil.id
-                      ? 'border-amber-400/70 bg-red-600/25 text-amber-200'
-                      : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-amber-500/40 hover:text-amber-200'
-                  }`}
+                  className={`rounded border px-1.5 py-0.5 font-semibold transition ${legalPillar === pil.id
+                    ? 'border-amber-400/70 bg-red-600/25 text-amber-200'
+                    : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-amber-500/40 hover:text-amber-200'
+                    }`}
                 >
                   {pil.label}
                 </button>
@@ -2225,11 +2278,10 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                     setLegalPillar(null);
                     setLegalQuery((prev) => (prev === kw ? '' : kw));
                   }}
-                  className={`rounded border px-1.5 py-0.5 transition ${
-                    legalQuery === kw
-                      ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-200'
-                      : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
-                  }`}
+                  className={`rounded border px-1.5 py-0.5 transition ${legalQuery === kw
+                    ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-200'
+                    : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                    }`}
                 >
                   {kw}
                 </button>
@@ -2261,89 +2313,89 @@ export const RightIntelPanel = memo(function RightIntelPanel({
               </div>
             ) : (
               <>
-              {filteredPolicy.slice(0, visibleLimit).map((doc) => (
-                <article key={doc.id} className="px-3 py-2.5 transition hover:bg-slate-900/65">
-                  <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
-                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                      <span className={`shrink-0 rounded px-1.5 py-0.2 font-bold ${legalBadgeStyle(doc)}`}>
-                        {doc.typeBadge}
+                {filteredPolicy.slice(0, visibleLimit).map((doc) => (
+                  <article key={doc.id} className="px-3 py-2.5 transition hover:bg-slate-900/65">
+                    <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                        <span className={`shrink-0 rounded px-1.5 py-0.2 font-bold ${legalBadgeStyle(doc)}`}>
+                          {doc.typeBadge}
+                        </span>
+                        {doc.docCode && (
+                          <span className="shrink-0 rounded border border-cyan-500/40 bg-cyan-500/12 px-1.5 py-0.2 font-semibold text-cyan-200">
+                            {doc.docCode}
+                          </span>
+                        )}
+                        {doc.isMost && (
+                          <span className="shrink-0 rounded border border-violet-500/45 bg-violet-500/20 px-1.5 py-0.2 font-bold text-violet-200">
+                            BỘ KH&amp;CN
+                          </span>
+                        )}
+                        <span className="truncate text-[9.5px] text-slate-400">{doc.source}</span>
+                      </div>
+                      <span className="shrink-0 text-slate-500 tabular-nums">
+                        {doc.issuedDate ?? formatRelativeTime(doc.publishedAt)}
                       </span>
-                      {doc.docCode && (
-                        <span className="shrink-0 rounded border border-cyan-500/40 bg-cyan-500/12 px-1.5 py-0.2 font-semibold text-cyan-200">
-                          {doc.docCode}
-                        </span>
-                      )}
-                      {doc.isMost && (
-                        <span className="shrink-0 rounded border border-violet-500/45 bg-violet-500/20 px-1.5 py-0.2 font-bold text-violet-200">
-                          BỘ KH&amp;CN
-                        </span>
-                      )}
-                      <span className="truncate text-[9.5px] text-slate-400">{doc.source}</span>
                     </div>
-                    <span className="shrink-0 text-slate-500 tabular-nums">
-                      {doc.issuedDate ?? formatRelativeTime(doc.publishedAt)}
-                    </span>
-                  </div>
 
-                  <a
-                    href={doc.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-1.5 block text-xs font-semibold leading-relaxed text-slate-100 hover:text-amber-300"
-                  >
-                    {doc.title}
-                  </a>
+                    <a
+                      href={doc.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1.5 block text-xs font-semibold leading-relaxed text-slate-100 hover:text-amber-300"
+                    >
+                      {doc.title}
+                    </a>
 
                   {doc.highlights.length > 0 && (
                     <ul className="mt-1.5 space-y-0.5 rounded border border-slate-800/80 bg-[#0d1524]/90 px-2.5 py-1.5 text-[10.5px] leading-snug text-slate-300">
                       {doc.highlights.map((bullet, idx) => (
                         <li key={idx} className="flex items-start gap-1.5">
                           <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-amber-400" />
-                          <span>{bullet}</span>
+                          <span>{renderInlineMarkdown(bullet)}</span>
                         </li>
                       ))}
                     </ul>
                   )}
 
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    <span className="truncate rounded bg-slate-800/80 px-1.5 py-0.5 font-mono text-[9.5px] text-slate-300">
-                      {doc.sector}
-                    </span>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {doc.pdfUrl && (
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <span className="truncate rounded bg-slate-800/80 px-1.5 py-0.5 font-mono text-[9.5px] text-slate-300">
+                        {doc.sector}
+                      </span>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {doc.pdfUrl && (
+                          <a
+                            href={doc.pdfUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded border border-rose-500/45 bg-rose-600/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-rose-200 transition hover:bg-rose-600/35"
+                          >
+                            <FilePdf size={12} weight="fill" />
+                            PDF Dấu đỏ
+                          </a>
+                        )}
                         <a
-                          href={doc.pdfUrl}
+                          href={doc.url}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1 rounded border border-rose-500/45 bg-rose-600/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-rose-200 transition hover:bg-rose-600/35"
+                          className="inline-flex items-center gap-0.5 text-[10.5px] text-slate-400 hover:text-slate-200"
                         >
-                          <FilePdf size={12} weight="fill" />
-                          PDF Dấu đỏ
+                          Toàn văn <ArrowSquareOut size={11} />
                         </a>
-                      )}
-                      <a
-                        href={doc.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-0.5 text-[10.5px] text-slate-400 hover:text-slate-200"
-                      >
-                        Toàn văn <ArrowSquareOut size={11} />
-                      </a>
+                      </div>
                     </div>
+                  </article>
+                ))}
+                {filteredPolicy.length > visibleLimit && (
+                  <div className="p-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => setVisibleLimit((v) => v + 40)}
+                      className="rounded border border-slate-700 bg-slate-900 px-3 py-1 font-mono text-[10.5px] text-slate-300 transition hover:border-amber-400 hover:text-amber-200"
+                    >
+                      Xem thêm ({filteredPolicy.length - visibleLimit} văn bản còn lại)
+                    </button>
                   </div>
-                </article>
-              ))}
-              {filteredPolicy.length > visibleLimit && (
-                <div className="p-3 text-center">
-                  <button
-                    type="button"
-                    onClick={() => setVisibleLimit((v) => v + 40)}
-                    className="rounded border border-slate-700 bg-slate-900 px-3 py-1 font-mono text-[10.5px] text-slate-300 transition hover:border-amber-400 hover:text-amber-200"
-                  >
-                    Xem thêm ({filteredPolicy.length - visibleLimit} văn bản còn lại)
-                  </button>
-                </div>
-              )}
+                )}
               </>
             )}
           </div>
@@ -2456,9 +2508,8 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                           {st.priceThousandVnd.toFixed(2)}
                         </div>
                         <div
-                          className={`text-[10px] font-semibold ${
-                            up ? 'text-emerald-400' : 'text-rose-400'
-                          }`}
+                          className={`text-[10px] font-semibold ${up ? 'text-emerald-400' : 'text-rose-400'
+                            }`}
                         >
                           {up ? '+' : ''}
                           {st.changePercent.toFixed(2)}%
@@ -2523,9 +2574,8 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                             {(hptIntel.stock.priceThousandVnd * 1000).toLocaleString('en-US')}₫
                           </span>
                           <span
-                            className={`text-[10.5px] font-semibold ${
-                              hptIntel.stock.changePercent >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                            }`}
+                            className={`text-[10.5px] font-semibold ${hptIntel.stock.changePercent >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                              }`}
                           >
                             {hptIntel.stock.changePercent >= 0 ? '+' : ''}
                             {hptIntel.stock.changePercent.toFixed(2)}%
@@ -2635,11 +2685,10 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                     key={tab.id}
                     type="button"
                     onClick={() => setHptFilter(tab.id)}
-                    className={`rounded border px-2 py-0.5 text-[10px] font-medium transition ${
-                      hptFilter === tab.id
-                        ? 'border-cyan-400/55 bg-cyan-500/20 text-cyan-200'
-                        : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
-                    }`}
+                    className={`rounded border px-2 py-0.5 text-[10px] font-medium transition ${hptFilter === tab.id
+                      ? 'border-cyan-400/55 bg-cyan-500/20 text-cyan-200'
+                      : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                      }`}
                   >
                     {tab.label}
                   </button>
@@ -2674,15 +2723,14 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                         <div className="flex flex-wrap items-center justify-between gap-1 font-mono text-[9px]">
                           <div className="flex flex-wrap items-center gap-1">
                             <span
-                              className={`rounded border px-1.5 py-0.1 font-bold ${
-                                item.category === 'exchange_filing'
-                                  ? 'border-amber-400/50 bg-amber-500/18 text-amber-200'
-                                  : item.category === 'bidding_project'
-                                    ? 'border-emerald-400/50 bg-emerald-500/18 text-emerald-200'
-                                    : item.category === 'it_press_partner'
-                                      ? 'border-violet-500/45 bg-violet-500/15 text-violet-200'
-                                      : 'border-slate-700 bg-slate-800 text-slate-300'
-                              }`}
+                              className={`rounded border px-1.5 py-0.1 font-bold ${item.category === 'exchange_filing'
+                                ? 'border-amber-400/50 bg-amber-500/18 text-amber-200'
+                                : item.category === 'bidding_project'
+                                  ? 'border-emerald-400/50 bg-emerald-500/18 text-emerald-200'
+                                  : item.category === 'it_press_partner'
+                                    ? 'border-violet-500/45 bg-violet-500/15 text-violet-200'
+                                    : 'border-slate-700 bg-slate-800 text-slate-300'
+                                }`}
                             >
                               {item.badge}
                             </span>
@@ -2706,7 +2754,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
 
                         {item.aiSummary && (
                           <p className="mt-1 rounded border border-slate-800/80 bg-[#0b1424] px-2 py-1 text-[10.5px] leading-snug text-emerald-200/90">
-                            🤖 {item.aiSummary}
+                            🤖 {renderInlineMarkdown(item.aiSummary)}
                           </p>
                         )}
 
@@ -2753,17 +2801,15 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                 return (
                   <div
                     key={fx.symbol}
-                    className={`rounded border px-2.5 py-2 ${
-                      isVnd
-                        ? 'border-emerald-500/40 bg-emerald-500/10'
-                        : 'border-slate-800/90 bg-[#0d1524]'
-                    }`}
+                    className={`rounded border px-2.5 py-2 ${isVnd
+                      ? 'border-emerald-500/40 bg-emerald-500/10'
+                      : 'border-slate-800/90 bg-[#0d1524]'
+                      }`}
                   >
                     <div className="flex items-center justify-between">
                       <span
-                        className={`font-mono text-[11px] font-semibold ${
-                          isVnd ? 'text-emerald-300' : 'text-slate-300'
-                        }`}
+                        className={`font-mono text-[11px] font-semibold ${isVnd ? 'text-emerald-300' : 'text-slate-300'
+                          }`}
                       >
                         {fx.symbol}
                       </span>
@@ -2800,11 +2846,10 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                   return (
                     <div
                       key={fm.id}
-                      className={`rounded border px-2.5 py-2 ${
-                        fm.alertBadge
-                          ? 'border-rose-500/45 bg-rose-950/25'
-                          : 'border-slate-800/95 bg-[#0d1524]'
-                      }`}
+                      className={`rounded border px-2.5 py-2 ${fm.alertBadge
+                        ? 'border-rose-500/45 bg-rose-950/25'
+                        : 'border-slate-800/95 bg-[#0d1524]'
+                        }`}
                     >
                       <div className="flex items-center justify-between gap-1">
                         <span className="truncate font-mono text-[10.5px] font-bold text-slate-200">
@@ -2819,9 +2864,8 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                       <div className="mt-1 flex items-center justify-between gap-1">
                         <MiniSparkline values={fm.sparkline} positive={up} />
                         <span
-                          className={`font-mono text-[9.5px] font-semibold tabular-nums ${
-                            up ? 'text-emerald-400' : 'text-rose-400'
-                          }`}
+                          className={`font-mono text-[9.5px] font-semibold tabular-nums ${up ? 'text-emerald-400' : 'text-rose-400'
+                            }`}
                         >
                           {up ? '+' : ''}
                           {fm.change.toFixed(2)}
@@ -2852,15 +2896,14 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                 return (
                   <div
                     key={q.symbol}
-                    className={`flex items-center justify-between px-2.5 py-2 transition-colors duration-300 ${
-                      flash === 'up'
-                        ? 'bg-emerald-500/25'
-                        : flash === 'down'
-                          ? 'bg-rose-500/25'
-                          : isVn
-                            ? 'bg-emerald-500/8'
-                            : ''
-                    }`}
+                    className={`flex items-center justify-between px-2.5 py-2 transition-colors duration-300 ${flash === 'up'
+                      ? 'bg-emerald-500/25'
+                      : flash === 'down'
+                        ? 'bg-rose-500/25'
+                        : isVn
+                          ? 'bg-emerald-500/8'
+                          : ''
+                      }`}
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
@@ -2882,9 +2925,8 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                           {q.price.toLocaleString('en-US', { maximumFractionDigits: 2 })}
                         </div>
                         <div
-                          className={`inline-flex items-center gap-0.5 text-[10.5px] ${
-                            up ? 'text-emerald-400' : 'text-rose-400'
-                          }`}
+                          className={`inline-flex items-center gap-0.5 text-[10.5px] ${up ? 'text-emerald-400' : 'text-rose-400'
+                            }`}
                         >
                           {up ? <TrendUp size={11} /> : <TrendDown size={11} />}
                           {up ? '+' : ''}
@@ -2918,11 +2960,10 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                         <div className="text-[10px] text-slate-400">${sc.priceUsd.toFixed(4)}</div>
                       </div>
                       <span
-                        className={`rounded border px-1.5 py-0.5 text-[9px] font-bold ${
-                          onPeg
-                            ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
-                            : 'border-rose-500/50 bg-rose-500/20 text-rose-200'
-                        }`}
+                        className={`rounded border px-1.5 py-0.5 text-[9px] font-bold ${onPeg
+                          ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
+                          : 'border-rose-500/50 bg-rose-500/20 text-rose-200'
+                          }`}
                       >
                         {onPeg ? 'ON PEG' : 'DEPEG WARN'}
                       </span>
@@ -2979,13 +3020,12 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                 return (
                   <div
                     key={coin.id}
-                    className={`flex items-center justify-between px-2.5 py-1.5 transition-colors duration-300 ${
-                      flash === 'up'
-                        ? 'bg-emerald-500/22'
-                        : flash === 'down'
-                          ? 'bg-rose-500/22'
-                          : ''
-                    }`}
+                    className={`flex items-center justify-between px-2.5 py-1.5 transition-colors duration-300 ${flash === 'up'
+                      ? 'bg-emerald-500/22'
+                      : flash === 'down'
+                        ? 'bg-rose-500/22'
+                        : ''
+                      }`}
                   >
                     <div>
                       <span className="font-mono text-xs font-semibold text-slate-100">{coin.symbol}</span>
@@ -2993,13 +3033,12 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                     </div>
                     <div className="text-right font-mono tabular-nums">
                       <div
-                        className={`text-xs font-semibold ${
-                          flash === 'up'
-                            ? 'text-emerald-200'
-                            : flash === 'down'
-                              ? 'text-rose-200'
-                              : 'text-slate-100'
-                        }`}
+                        className={`text-xs font-semibold ${flash === 'up'
+                          ? 'text-emerald-200'
+                          : flash === 'down'
+                            ? 'text-rose-200'
+                            : 'text-slate-100'
+                          }`}
                       >
                         $
                         {coin.priceUsd.toLocaleString('en-US', {
@@ -3046,13 +3085,12 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                         <span className="ml-1 font-mono text-[9.5px] text-slate-400">{row.countryCode}</span>
                       </td>
                       <td
-                        className={`px-2 py-1.5 text-right font-semibold ${
-                          (row.gdpGrowthPct ?? 0) >= 5
-                            ? 'text-emerald-400'
-                            : (row.gdpGrowthPct ?? 0) < 0
-                              ? 'text-rose-400'
-                              : 'text-slate-100'
-                        }`}
+                        className={`px-2 py-1.5 text-right font-semibold ${(row.gdpGrowthPct ?? 0) >= 5
+                          ? 'text-emerald-400'
+                          : (row.gdpGrowthPct ?? 0) < 0
+                            ? 'text-rose-400'
+                            : 'text-slate-100'
+                          }`}
                       >
                         {row.gdpGrowthPct !== null ? `${row.gdpGrowthPct.toFixed(1)}%` : '—'}
                       </td>
