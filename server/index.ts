@@ -313,7 +313,6 @@ async function main(): Promise<void> {
     newsStream,
     regimeLedger,
     telegramAlerter,
-    hptWatchStore,
   } = buildProductionRuntime();
   await store.hydrateFromDisk();
   scheduler.startAll({ runImmediately: true });
@@ -334,7 +333,6 @@ async function main(): Promise<void> {
     getNewsStreamStats: () => newsStream.getStats(),
     regimeLedger,
     telegramAlerter,
-    hptWatchStore,
   });
 
   const clientDistDir = resolve(process.cwd(), 'dist/client');

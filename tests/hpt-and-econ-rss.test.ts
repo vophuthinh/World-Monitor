@@ -312,7 +312,7 @@ describe('Economic RSS Feeds & Independent External HPT (UPCoM · MST 0301447436
       const tg = new TelegramAlertEngine(tempDir);
       const summary = tg.updateConfig({
         botToken: '123456789:AAHtesttoken1234',
-        chatId: '6131476839',
+        chatId: '999999999',
         enabled: true,
       });
 
