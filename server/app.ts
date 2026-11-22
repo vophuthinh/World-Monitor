@@ -212,19 +212,6 @@ export function createApp(
     }
   });
 
-  app.get('/api/telegram/status', (c) => {
-    if (!options.telegramAlerter) {
-      return c.json({
-        configured: false,
-        enabled: false,
-        source: 'none',
-        preferences: { macroCompass: false, hptIntel: true, policyLegal: false, eastSeaWeather: false },
-        sentCount: 0,
-      });
-    }
-    return c.json(options.telegramAlerter.getSummary());
-  });
-
   app.get('/api/hpt-watch/config', (c) => {
     return c.json(
       options.hptWatchStore?.get() ?? {
@@ -247,61 +234,6 @@ export function createApp(
     } catch (err) {
       return c.json(
         { error: err instanceof Error ? err.message : 'Cấu hình nguồn quét HPT không hợp lệ' },
-        400,
-      );
-    }
-  });
-
-  app.post('/api/telegram/config', async (c) => {
-    if (!options.telegramAlerter) {
-      return c.json({ error: 'Telegram engine chưa khởi tạo' }, 503);
-    }
-    try {
-      const body = (await c.req.json()) as {
-        botToken?: string;
-        chatId?: string;
-        enabled?: boolean;
-        preferences?: Record<string, boolean>;
-      };
-      const summary = options.telegramAlerter.updateConfig(body);
-      return c.json(summary);
-    } catch (err) {
-      return c.json(
-        { error: err instanceof Error ? err.message : 'Cấu hình Telegram không hợp lệ' },
-        400,
-      );
-    }
-  });
-
-  app.post('/api/telegram/detect-chat', async (c) => {
-    if (!options.telegramAlerter) {
-      return c.json({ error: 'Telegram engine chưa khởi tạo' }, 503);
-    }
-    try {
-      const body = (await c.req.json().catch(() => ({}))) as { botToken?: string };
-      const detected = await options.telegramAlerter.detectChatIdFromBot(body.botToken);
-      return c.json({
-        ...detected,
-        status: options.telegramAlerter.getSummary(),
-      });
-    } catch (err) {
-      return c.json(
-        { error: err instanceof Error ? err.message : 'Không thể dò Chat ID từ Bot' },
-        400,
-      );
-    }
-  });
-
-  app.post('/api/telegram/test', async (c) => {
-    if (!options.telegramAlerter) {
-      return c.json({ error: 'Telegram engine chưa khởi tạo' }, 503);
-    }
-    try {
-      const summary = await options.telegramAlerter.sendLiveTestBriefing(store);
-      return c.json({ ok: true, status: summary });
-    } catch (err) {
-      return c.json(
-        { error: err instanceof Error ? err.message : 'Gửi tin thử Telegram thất bại' },
         400,
       );
     }
@@ -366,7 +298,6 @@ export function createApp(
       regimeHistory: options.regimeLedger
         ? options.regimeLedger.recordSnapshot(rawMarkets, macro, predictionsPayload, now)
         : undefined,
-      telegramStatus: options.telegramAlerter?.getSummary(),
     };
 
     return c.json(payload);

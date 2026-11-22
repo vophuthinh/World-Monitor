@@ -163,7 +163,6 @@ export function App() {
         onToggleLiveTv={() => setLiveTvOpen((v) => !v)}
         desktopIntelOpen={desktopIntelOpen}
         onToggleDesktopIntel={() => setDesktopIntelOpen((v) => !v)}
-        telegramStatus={data?.telegramStatus}
       />
 
       {error && (

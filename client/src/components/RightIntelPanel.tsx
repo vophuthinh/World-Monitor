@@ -4015,7 +4015,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                   </div>
                   <div className="flex items-center justify-between gap-2 pt-0.5">
                     <span className="truncate font-sans text-[10px] text-emerald-300">
-                      {hptWatchMsg ?? 'Mọi bài mới về HPT sẽ đẩy thẳng vào @ThinhVP_bot'}
+                      {hptWatchMsg ?? 'Tự động lọc nội dung thật & loại trừ tin tuyển dụng'}
                     </span>
                     <button
                       type="button"

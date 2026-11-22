@@ -283,7 +283,7 @@ export class TelegramAlertEngine {
           `• <b>Bài gần nhất (${escapeHtml(latest.badge)}):</b> ${escapeHtml(latest.title)} (<a href="${escapeHtml(latest.url)}">${escapeHtml(latest.source)}</a>)`,
         );
       }
-      lines.push('✅ <i>Bot @ThinhVP_bot đang canh 24/7 cho riêng từ khóa HPT!</i>');
+      lines.push('✅ <i>Bot Telegram đang canh 24/7 cho riêng từ khóa HPT!</i>');
       await this.sendMessageHtml(lines.join('\n'), true);
       return this.getSummary();
     }

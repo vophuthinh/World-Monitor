@@ -14,7 +14,6 @@ import {
   MagnifyingGlass,
   MapTrifold,
   NavigationArrow,
-  PaperPlaneTilt,
   Pulse,
   SidebarSimple,
   Television,
@@ -29,8 +28,6 @@ import type {
   MapLayerId,
   MarketQuote,
   SourceHealth,
-  TelegramAlertConfigSummary,
-  TelegramAlertPreferences,
   TheaterViewPreset,
   TimeWindow,
 } from '@shared/types';
@@ -66,7 +63,6 @@ interface TopCommandBarProps {
   onToggleLiveTv: () => void;
   desktopIntelOpen?: boolean;
   onToggleDesktopIntel?: () => void;
-  telegramStatus?: TelegramAlertConfigSummary;
 }
 
 const TIME_OPTIONS: ReadonlyArray<{ id: TimeWindow; label: string }> = [
@@ -136,128 +132,11 @@ export const TopCommandBar = memo(function TopCommandBar({
   onToggleLiveTv,
   desktopIntelOpen = true,
   onToggleDesktopIntel,
-  telegramStatus,
 }: TopCommandBarProps) {
   const [healthOpen, setHealthOpen] = useState(false);
-  const [tgOpen, setTgOpen] = useState(false);
-  const [localTg, setLocalTg] = useState<TelegramAlertConfigSummary | undefined>(telegramStatus);
-  const [tgTokenInput, setTgTokenInput] = useState('');
-  const [tgChatInput, setTgChatInput] = useState('');
-  const [tgPrefs, setTgPrefs] = useState<TelegramAlertPreferences>(
-    telegramStatus?.preferences ?? {
-      macroCompass: false,
-      hptIntel: true,
-      policyLegal: false,
-      eastSeaWeather: false,
-    },
-  );
-  const [tgBusy, setTgBusy] = useState(false);
-  const [tgFeedback, setTgFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
   const [searchFocused, setSearchFocused] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    if (telegramStatus) {
-      setLocalTg(telegramStatus);
-      if (telegramStatus.chatId && !tgChatInput) {
-        setTgChatInput(telegramStatus.chatId);
-      }
-      setTgPrefs(telegramStatus.preferences);
-    }
-  }, [telegramStatus]);
-
-  const effectiveTg = localTg ?? telegramStatus;
-
-  const handleDetectTelegramChat = async () => {
-    setTgBusy(true);
-    setTgFeedback(null);
-    try {
-      const resp = await fetch('/api/telegram/detect-chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ botToken: tgTokenInput.trim() || undefined }),
-      });
-      const json = (await resp.json()) as {
-        chatId?: string;
-        chatTitle?: string;
-        status?: TelegramAlertConfigSummary;
-        error?: string;
-      };
-      if (!resp.ok || json.error) throw new Error(json.error || `HTTP ${resp.status}`);
-      if (json.chatId) setTgChatInput(json.chatId);
-      if (json.status) setLocalTg(json.status);
-      setTgFeedback({ ok: true, msg: `Đã nhận Chat ID: ${json.chatId} (${json.chatTitle ?? 'OK'})` });
-    } catch (err) {
-      setTgFeedback({
-        ok: false,
-        msg: err instanceof Error ? err.message : 'Không thể dò Chat ID',
-      });
-    } finally {
-      setTgBusy(false);
-    }
-  };
-
-  const handleSaveTelegramConfig = async (nextEnabled?: boolean) => {
-    setTgBusy(true);
-    setTgFeedback(null);
-    try {
-      const resp = await fetch('/api/telegram/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...(tgTokenInput.trim() ? { botToken: tgTokenInput.trim() } : {}),
-          ...(tgChatInput.trim() ? { chatId: tgChatInput.trim() } : {}),
-          enabled: nextEnabled ?? effectiveTg?.enabled ?? true,
-          preferences: tgPrefs,
-        }),
-      });
-      const json = (await resp.json()) as TelegramAlertConfigSummary & { error?: string };
-      if (!resp.ok || json.error) throw new Error(json.error || `HTTP ${resp.status}`);
-      setLocalTg(json);
-      setTgTokenInput('');
-      setTgFeedback({ ok: true, msg: 'Đã lưu cấu hình cảnh báo Telegram 24/7!' });
-    } catch (err) {
-      setTgFeedback({
-        ok: false,
-        msg: err instanceof Error ? err.message : 'Lưu cấu hình thất bại',
-      });
-    } finally {
-      setTgBusy(false);
-    }
-  };
-
-  const handleSendTelegramTest = async () => {
-    setTgBusy(true);
-    setTgFeedback(null);
-    try {
-      if (tgTokenInput.trim() || tgChatInput.trim()) {
-        await fetch('/api/telegram/config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...(tgTokenInput.trim() ? { botToken: tgTokenInput.trim() } : {}),
-            ...(tgChatInput.trim() ? { chatId: tgChatInput.trim() } : {}),
-            enabled: true,
-            preferences: tgPrefs,
-          }),
-        });
-        setTgTokenInput('');
-      }
-      const resp = await fetch('/api/telegram/test', { method: 'POST' });
-      const json = (await resp.json()) as { ok?: boolean; status?: TelegramAlertConfigSummary; error?: string };
-      if (!resp.ok || json.error) throw new Error(json.error || `HTTP ${resp.status}`);
-      if (json.status) setLocalTg(json.status);
-      setTgFeedback({ ok: true, msg: 'Đã gửi Bản tin World Monitor trực tiếp vào Telegram của bạn!' });
-    } catch (err) {
-      setTgFeedback({
-        ok: false,
-        msg: err instanceof Error ? err.message : 'Gửi bản tin thử thất bại',
-      });
-    } finally {
-      setTgBusy(false);
-    }
-  };
 
   useEffect(() => {
     const onFsChange = () => {
@@ -540,158 +419,12 @@ export const TopCommandBar = memo(function TopCommandBar({
             <span className="hidden 2xl:inline">{isFullscreen ? 'THOÁT FULL' : 'FULLSCREEN'}</span>
           </button>
 
-          {/* 24/7 Telegram Alert Bot Pill & Popover */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => {
-                setTgOpen((v) => !v);
-                setHealthOpen(false);
-              }}
-              title="Cảnh báo chủ động 24/7 qua Telegram Bot (Đổi pha La bàn, Đấu thầu HPT, Chính sách, Bão Biển Đông)"
-              className={`inline-flex items-center gap-1 rounded border px-2 py-1 font-mono text-[11px] font-medium transition ${
-                effectiveTg?.configured && effectiveTg.enabled
-                  ? 'border-sky-400/55 bg-sky-500/20 text-sky-200'
-                  : 'border-slate-700/85 bg-[#0d1524] text-slate-300 hover:border-sky-500/45 hover:text-sky-200'
-              }`}
-            >
-              <PaperPlaneTilt size={13} weight="fill" className="text-sky-400" />
-              <span className="hidden xl:inline">TELEGRAM</span>
-              {effectiveTg?.configured && effectiveTg.enabled && (
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              )}
-            </button>
-
-            {tgOpen && (
-              <div className="absolute right-0 top-full z-50 mt-1.5 w-[350px] rounded-md border border-slate-700 bg-[#0a101d] p-3 shadow-2xl">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <div>
-                    <div className="flex items-center gap-1.5 font-mono text-xs font-semibold text-sky-200">
-                      <PaperPlaneTilt size={14} weight="fill" className="text-sky-400" />
-                      <span>TRỢ LÝ CẢNH BÁO TELEGRAM 24/7</span>
-                    </div>
-                    <div className="mt-0.5 text-[10.5px] text-slate-400">
-                      {effectiveTg?.configured
-                        ? `Đang kết nối (${effectiveTg.maskedToken ?? 'Token OK'} · Chat ${effectiveTg.chatId}) · Đã gửi ${effectiveTg.sentCount}`
-                        : 'Tạo Bot qua @BotFather, nhắn /start vào Bot rồi bấm Dò Chat ID'}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setTgOpen(false)}
-                    className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-
-                <div className="mt-2.5 space-y-2 text-xs">
-                  <div>
-                    <label className="block font-mono text-[10px] text-slate-400">
-                      1. Bot Token (@BotFather) {effectiveTg?.maskedToken ? `— Đã lưu ${effectiveTg.maskedToken}` : ''}
-                    </label>
-                    <input
-                      type="password"
-                      value={tgTokenInput}
-                      onChange={(e) => setTgTokenInput(e.target.value)}
-                      placeholder={effectiveTg?.maskedToken ? 'Để trống nếu giữ Token hiện tại...' : '123456789:AAH...'}
-                      className="mt-1 w-full rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-[11px] text-slate-100 outline-none focus:border-sky-400"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-mono text-[10px] text-slate-400">
-                      2. Chat ID người nhận / Nhóm
-                    </label>
-                    <div className="mt-1 flex gap-1.5">
-                      <input
-                        type="text"
-                        value={tgChatInput}
-                        onChange={(e) => setTgChatInput(e.target.value)}
-                        placeholder="VD: 581920411"
-                        className="min-w-0 flex-1 rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-[11px] text-slate-100 outline-none focus:border-sky-400"
-                      />
-                      <button
-                        type="button"
-                        disabled={tgBusy}
-                        onClick={() => void handleDetectTelegramChat()}
-                        className="shrink-0 rounded border border-sky-500/45 bg-sky-500/15 px-2 py-1 font-mono text-[10px] font-semibold text-sky-200 hover:bg-sky-500/25 disabled:opacity-50"
-                      >
-                        Dò Chat ID
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="rounded border border-slate-800 bg-slate-900/70 p-2">
-                    <div className="mb-1 font-mono text-[10px] font-semibold text-slate-300">
-                      Kênh kích hoạt thông báo tự động:
-                    </div>
-                    <div className="grid grid-cols-2 gap-1.5 text-[10.5px] text-slate-200">
-                      {(
-                        [
-                          ['macroCompass', 'Đổi pha La bàn Đầu tư'],
-                          ['hptIntel', 'Mọi bài viết & thảo luận HPT'],
-                          ['policyLegal', 'Chính sách & Bộ tứ NQ'],
-                          ['eastSeaWeather', 'Bão Biển Đông & Tác chiến'],
-                        ] as const
-                      ).map(([key, label]) => (
-                        <label key={key} className="flex cursor-pointer items-center gap-1.5">
-                          <input
-                            type="checkbox"
-                            checked={tgPrefs[key]}
-                            onChange={(e) =>
-                              setTgPrefs((prev) => ({ ...prev, [key]: e.target.checked }))
-                            }
-                            className="accent-sky-400"
-                          />
-                          <span>{label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  {tgFeedback && (
-                    <div
-                      className={`rounded border px-2 py-1 text-[10.5px] ${
-                        tgFeedback.ok
-                          ? 'border-emerald-500/45 bg-emerald-950/40 text-emerald-200'
-                          : 'border-rose-500/45 bg-rose-950/40 text-rose-200'
-                      }`}
-                    >
-                      {tgFeedback.msg}
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between gap-1.5 pt-0.5 font-mono text-[10.5px]">
-                    <button
-                      type="button"
-                      disabled={tgBusy}
-                      onClick={() => void handleSaveTelegramConfig()}
-                      className="flex-1 rounded border border-emerald-500/45 bg-emerald-500/20 px-2 py-1.5 font-semibold text-emerald-200 hover:bg-emerald-500/30 disabled:opacity-50"
-                    >
-                      Lưu cấu hình
-                    </button>
-                    <button
-                      type="button"
-                      disabled={tgBusy}
-                      onClick={() => void handleSendTelegramTest()}
-                      className="flex-1 rounded border border-sky-500/45 bg-sky-500/20 px-2 py-1.5 font-semibold text-sky-200 hover:bg-sky-500/30 disabled:opacity-50"
-                    >
-                      Gửi bản tin thử
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
           {/* Upstream Health Diagnostics Pill & Popover */}
           <div className="relative">
             <button
               type="button"
               onClick={() => {
                 setHealthOpen((v) => !v);
-                setTgOpen(false);
               }}
               className="inline-flex items-center gap-1.5 rounded border border-slate-700/90 bg-[#0d1524] px-2.5 py-1 font-mono text-[11px] text-slate-200 transition hover:border-cyan-500/40"
             >

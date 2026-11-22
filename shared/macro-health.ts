@@ -569,25 +569,25 @@ export function buildVietnamMacroHealth(
       },
     pulse?.tradeBalanceBillionUsd !== undefined
       ? {
-          id: 'vn-trade',
-          name: 'Cán cân Thương mại Tháng (Xuất/Nhập siêu)',
-          actual: pulse.tradeBalanceBillionUsd,
-          unit: 'B$',
-          benchmarkLabel: 'Thặng dư tháng',
-          benchmarkValue: 1.5,
-          deltaVsBenchmark: Number((pulse.tradeBalanceBillionUsd - 1.5).toFixed(2)),
-          trendLabel:
-            ytdTradeB !== undefined
-              ? `Lũy kế ${pulse?.ytdCpiMonths ? `${pulse.ytdCpiMonths}T` : 'năm'}: ${ytdTradeB >= 0 ? '+' : ''}${ytdTradeB.toFixed(2)}B$ (${ytdTradeB < 0 ? 'nhập siêu máy móc/NL' : 'xuất siêu'})`
-              : `Độ mở XK: ${exportsGdp.toFixed(0)}% GDP`,
-          periodLabel: 'Tháng mới nhất',
-          status:
-            pulse.tradeBalanceBillionUsd >= 1.5 && (ytdTradeB === undefined || ytdTradeB >= -5)
-              ? 'good'
-              : pulse.tradeBalanceBillionUsd >= 0
-                ? 'watch'
-                : 'warn',
-        }
+        id: 'vn-trade',
+        name: 'Cán cân Thương mại Tháng (Xuất/Nhập siêu)',
+        actual: pulse.tradeBalanceBillionUsd,
+        unit: 'B$',
+        benchmarkLabel: 'Thặng dư tháng',
+        benchmarkValue: 1.5,
+        deltaVsBenchmark: Number((pulse.tradeBalanceBillionUsd - 1.5).toFixed(2)),
+        trendLabel:
+          ytdTradeB !== undefined
+            ? `Lũy kế ${pulse?.ytdCpiMonths ? `${pulse.ytdCpiMonths}T` : 'năm'}: ${ytdTradeB >= 0 ? '+' : ''}${ytdTradeB.toFixed(2)}B$ (${ytdTradeB < 0 ? 'nhập siêu máy móc/NL' : 'xuất siêu'})`
+            : `Độ mở XK: ${exportsGdp.toFixed(0)}% GDP`,
+        periodLabel: 'Tháng mới nhất',
+        status:
+          pulse.tradeBalanceBillionUsd >= 1.5 && (ytdTradeB === undefined || ytdTradeB >= -5)
+            ? 'good'
+            : pulse.tradeBalanceBillionUsd >= 0
+              ? 'watch'
+              : 'warn',
+      }
       : {
         id: 'vn-exp',
         name: 'Độ mở Xuất khẩu / GDP',
