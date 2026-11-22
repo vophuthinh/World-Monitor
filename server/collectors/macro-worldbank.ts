@@ -27,10 +27,16 @@ interface WorldBankRecord {
   value?: number | null;
 }
 
-function pickLatestByCountry(rawPayload: unknown): Map<string, { value: number; year: number }> {
-  const result = new Map<string, { value: number; year: number }>();
+interface CountryHistoryPoint {
+  value: number;
+  year: number;
+  prevValue?: number;
+}
+
+function pickLatestAndPrevByCountry(rawPayload: unknown): Map<string, CountryHistoryPoint> {
+  const byCountry = new Map<string, Array<{ year: number; value: number }>>();
   if (!Array.isArray(rawPayload) || rawPayload.length < 2 || !Array.isArray(rawPayload[1])) {
-    return result;
+    return new Map();
   }
 
   const rows = rawPayload[1] as WorldBankRecord[];
@@ -47,29 +53,61 @@ function pickLatestByCountry(rawPayload: unknown): Map<string, { value: number; 
     );
 
     for (const key of keys) {
-      const existing = result.get(key);
-      if (!existing || year > existing.year) {
-        result.set(key, { value: val, year });
+      const arr = byCountry.get(key) ?? [];
+      if (!arr.some((p) => p.year === year)) {
+        arr.push({ year, value: val });
       }
+      byCountry.set(key, arr);
+    }
+  }
+
+  const result = new Map<string, CountryHistoryPoint>();
+  for (const [key, arr] of byCountry.entries()) {
+    arr.sort((a, b) => b.year - a.year);
+    if (arr.length > 0) {
+      result.set(key, {
+        value: arr[0].value,
+        year: arr[0].year,
+        prevValue: arr[1]?.value,
+      });
     }
   }
 
   return result;
 }
 
+export interface WorldBankExtraRawBundle {
+  manufacturingRaw?: unknown;
+  exportsRaw?: unknown;
+  fdiRaw?: unknown;
+  unemploymentRaw?: unknown;
+}
+
 export function normalizeWorldBankIndicators(
   gdpGrowthRaw: unknown,
   gdpCurrentRaw: unknown,
   cpiRaw: unknown,
+  extra: WorldBankExtraRawBundle = {},
 ): MacroCountryIndicator[] {
-  const growthMap = pickLatestByCountry(gdpGrowthRaw);
-  const currentMap = pickLatestByCountry(gdpCurrentRaw);
-  const cpiMap = pickLatestByCountry(cpiRaw);
+  const growthMap = pickLatestAndPrevByCountry(gdpGrowthRaw);
+  const currentMap = pickLatestAndPrevByCountry(gdpCurrentRaw);
+  const cpiMap = pickLatestAndPrevByCountry(cpiRaw);
+  const manfMap = pickLatestAndPrevByCountry(extra.manufacturingRaw);
+  const expMap = pickLatestAndPrevByCountry(extra.exportsRaw);
+  const fdiMap = pickLatestAndPrevByCountry(extra.fdiRaw);
+  const uemMap = pickLatestAndPrevByCountry(extra.unemploymentRaw);
+
+  const pick = (m: Map<string, CountryHistoryPoint>, iso3: string, iso2: string) =>
+    m.get(iso3) ?? m.get(iso2);
 
   return TARGET_ECONOMIES.map((econ) => {
-    const growth = growthMap.get(econ.iso3) ?? growthMap.get(econ.iso2);
-    const current = currentMap.get(econ.iso3) ?? currentMap.get(econ.iso2);
-    const cpi = cpiMap.get(econ.iso3) ?? cpiMap.get(econ.iso2);
+    const growth = pick(growthMap, econ.iso3, econ.iso2);
+    const current = pick(currentMap, econ.iso3, econ.iso2);
+    const cpi = pick(cpiMap, econ.iso3, econ.iso2);
+    const manf = pick(manfMap, econ.iso3, econ.iso2);
+    const exp = pick(expMap, econ.iso3, econ.iso2);
+    const fdi = pick(fdiMap, econ.iso3, econ.iso2);
+    const uem = pick(uemMap, econ.iso3, econ.iso2);
 
     return {
       countryCode: econ.iso3,
@@ -77,11 +115,17 @@ export function normalizeWorldBankIndicators(
       regionLabel: econ.regionLabel,
       isVietnam: econ.isVietnam,
       gdpGrowthPct: growth ? Number(growth.value.toFixed(2)) : null,
+      gdpPrevPct: growth?.prevValue !== undefined ? Number(growth.prevValue.toFixed(2)) : null,
       gdpGrowthYear: growth ? growth.year : null,
       gdpCurrentUsd: current ? Math.round(current.value) : null,
       gdpCurrentYear: current ? current.year : null,
       cpiInflationPct: cpi ? Number(cpi.value.toFixed(2)) : null,
+      cpiPrevPct: cpi?.prevValue !== undefined ? Number(cpi.prevValue.toFixed(2)) : null,
       cpiYear: cpi ? cpi.year : null,
+      manufacturingGrowthPct: manf ? Number(manf.value.toFixed(2)) : null,
+      exportsPctGdp: exp ? Number(exp.value.toFixed(1)) : null,
+      fdiPctGdp: fdi ? Number(fdi.value.toFixed(2)) : null,
+      unemploymentPct: uem ? Number(uem.value.toFixed(2)) : null,
     };
   });
 }
@@ -98,13 +142,22 @@ async function fetchIndicator(indicatorCode: string): Promise<unknown> {
 }
 
 export async function fetchWorldBankMacro(): Promise<MacroCountryIndicator[]> {
-  const [growthRes, currentRes, cpiRes] = await Promise.all([
+  const [growthRes, currentRes, cpiRes, manfRes, expRes, fdiRes, uemRes] = await Promise.all([
     fetchIndicator('NY.GDP.MKTP.KD.ZG'),
     fetchIndicator('NY.GDP.MKTP.CD'),
     fetchIndicator('FP.CPI.TOTL.ZG'),
+    fetchIndicator('NV.IND.MANF.KD.ZG').catch(() => null),
+    fetchIndicator('NE.EXP.GNFS.ZS').catch(() => null),
+    fetchIndicator('BX.KLT.DINV.WD.GD.ZS').catch(() => null),
+    fetchIndicator('SL.UEM.TOTL.ZS').catch(() => null),
   ]);
 
-  const normalized = normalizeWorldBankIndicators(growthRes, currentRes, cpiRes);
+  const normalized = normalizeWorldBankIndicators(growthRes, currentRes, cpiRes, {
+    manufacturingRaw: manfRes,
+    exportsRaw: expRes,
+    fdiRaw: fdiRes,
+    unemploymentRaw: uemRes,
+  });
   const populatedCount = normalized.filter(
     (row) => row.gdpGrowthPct !== null || row.gdpCurrentUsd !== null || row.cpiInflationPct !== null,
   ).length;

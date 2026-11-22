@@ -426,15 +426,96 @@ export interface FredSeriesTarget {
   label: string;
   subtitle: string;
   unit: string;
+  unitsParam?: 'pc1';
+  pillar: 'growth' | 'inflation' | 'monetary' | 'market';
+  benchmarkLabel?: string;
+  benchmarkValue?: number;
 }
 
 const FRED_SERIES_TARGETS: readonly FredSeriesTarget[] = [
-  { id: 'FEDFUNDS', label: 'Fed Funds Rate', subtitle: 'Lãi suất Điều hành Fed', unit: '%' },
-  { id: 'DGS10', label: 'US 10Y Yield', subtitle: 'Lợi suất Trái phiếu Mỹ 10 năm', unit: '%' },
-  { id: 'DGS2', label: 'US 2Y Yield', subtitle: 'Lợi suất Trái phiếu Mỹ 2 năm', unit: '%' },
-  { id: 'T10Y2Y', label: '10Y–2Y Spread', subtitle: 'Độ dốc Đường cong Lợi suất', unit: '%' },
-  { id: 'VIXCLS', label: 'CBOE VIX', subtitle: 'Chỉ số Biến động Phố Wall', unit: 'pts' },
-  { id: 'DTWEXBGS', label: 'Broad USD (DXY)', subtitle: 'Chỉ số Sức mạnh Đồng USD', unit: 'idx' },
+  // Market Rates, Yield Curve & Volatility (displayed in quick FRED grid + used in Macro Health)
+  {
+    id: 'FEDFUNDS',
+    label: 'Fed Funds Rate',
+    subtitle: 'Lãi suất Điều hành Fed',
+    unit: '%',
+    pillar: 'monetary',
+    benchmarkLabel: 'Trung tính Fed',
+    benchmarkValue: 3.25,
+  },
+  { id: 'DGS10', label: 'US 10Y Yield', subtitle: 'Lợi suất Trái phiếu Mỹ 10 năm', unit: '%', pillar: 'market' },
+  { id: 'DGS2', label: 'US 2Y Yield', subtitle: 'Lợi suất Trái phiếu Mỹ 2 năm', unit: '%', pillar: 'market' },
+  {
+    id: 'T10Y2Y',
+    label: '10Y–2Y Spread',
+    subtitle: 'Độ dốc Đường cong Lợi suất',
+    unit: '%',
+    pillar: 'monetary',
+    benchmarkLabel: 'Ngưỡng dương',
+    benchmarkValue: 0.0,
+  },
+  { id: 'VIXCLS', label: 'CBOE VIX', subtitle: 'Chỉ số Biến động Phố Wall', unit: 'pts', pillar: 'market' },
+  { id: 'DTWEXBGS', label: 'Broad USD (DXY)', subtitle: 'Chỉ số Sức mạnh Đồng USD', unit: 'idx', pillar: 'market' },
+
+  // 3 Core Macroeconomic Health Pillars (Growth/Production · Inflation/Costs · Labor)
+  {
+    id: 'A191RL1Q225SBEA',
+    label: 'US Real GDP',
+    subtitle: 'Tăng trưởng GDP thực (Quý SAAR)',
+    unit: '%',
+    pillar: 'growth',
+    benchmarkLabel: 'Dự báo IMF/Fed',
+    benchmarkValue: 2.1,
+  },
+  {
+    id: 'INDPRO',
+    label: 'Industrial Prod YoY',
+    subtitle: 'Sản xuất Công nghiệp (YoY)',
+    unit: '%',
+    unitsParam: 'pc1',
+    pillar: 'growth',
+    benchmarkLabel: 'TB mở rộng',
+    benchmarkValue: 1.5,
+  },
+  {
+    id: 'NEWORDER',
+    label: 'Factory Orders YoY',
+    subtitle: 'Đơn hàng Mới Nhà máy (Leading PMI)',
+    unit: '%',
+    unitsParam: 'pc1',
+    pillar: 'growth',
+    benchmarkLabel: 'Ngưỡng mở rộng',
+    benchmarkValue: 2.0,
+  },
+  {
+    id: 'CPIAUCSL',
+    label: 'US CPI YoY',
+    subtitle: 'Lạm phát Tiêu dùng CPI (YoY)',
+    unit: '%',
+    unitsParam: 'pc1',
+    pillar: 'inflation',
+    benchmarkLabel: 'Mục tiêu Fed',
+    benchmarkValue: 2.0,
+  },
+  {
+    id: 'PPIFIS',
+    label: 'US PPI YoY',
+    subtitle: 'Chỉ số Giá Sản xuất PPI (YoY)',
+    unit: '%',
+    unitsParam: 'pc1',
+    pillar: 'inflation',
+    benchmarkLabel: 'Ngưỡng ổn định',
+    benchmarkValue: 2.5,
+  },
+  {
+    id: 'UNRATE',
+    label: 'US Unemployment',
+    subtitle: 'Tỷ lệ Thất nghiệp Mỹ',
+    unit: '%',
+    pillar: 'monetary',
+    benchmarkLabel: 'Toàn dụng (NAIRU)',
+    benchmarkValue: 4.2,
+  },
 ];
 
 export interface FredObservationsPayload {
@@ -466,11 +547,21 @@ export function normalizeFredObservationSeries(
     .reverse()
     .map((x) => Number(x.num.toFixed(2)));
 
+  const slice3 = valid.slice(0, Math.min(3, valid.length));
+  const slice12 = valid.slice(0, Math.min(12, valid.length));
+  const avg3m = Number((slice3.reduce((s, x) => s + x.num, 0) / slice3.length).toFixed(2));
+  const avg12m = Number((slice12.reduce((s, x) => s + x.num, 0) / slice12.length).toFixed(2));
+  const trendSlope = Number((avg3m - avg12m).toFixed(2));
+
   let alertBadge: string | undefined;
   if (target.id === 'T10Y2Y' && latest.num < 0) {
     alertBadge = 'ĐẢO NGƯỢC (CẢNH BÁO SUY THOÁI)';
   } else if (target.id === 'VIXCLS' && latest.num >= 25) {
     alertBadge = 'BIẾN ĐỘNG CAO';
+  } else if (target.id === 'CPIAUCSL' && latest.num >= 3.5) {
+    alertBadge = 'VƯỢT MỤC TIÊU FED 2%';
+  } else if (target.id === 'PPIFIS' && latest.num >= 4.5) {
+    alertBadge = 'CHI PHÍ ĐẦU VÀO TĂNG';
   }
 
   return {
@@ -481,6 +572,12 @@ export function normalizeFredObservationSeries(
     change,
     unit: target.unit,
     date: latest.date,
+    pillar: target.pillar,
+    ...(target.benchmarkLabel ? { benchmarkLabel: target.benchmarkLabel } : {}),
+    ...(target.benchmarkValue !== undefined ? { benchmarkValue: target.benchmarkValue } : {}),
+    avg3m,
+    avg12m,
+    trendSlope,
     alertBadge,
     sparkline: chronological,
   };
@@ -492,9 +589,10 @@ async function fetchFredMacroMetrics(): Promise<FredMacroMetric[]> {
 
   const results = await Promise.allSettled(
     FRED_SERIES_TARGETS.map(async (target) => {
-      const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${encodeURIComponent(target.id)}&api_key=${encodeURIComponent(apiKey)}&file_type=json&sort_order=desc&limit=14`;
+      const unitsPart = target.unitsParam ? `&units=${target.unitsParam}` : '';
+      const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${encodeURIComponent(target.id)}&api_key=${encodeURIComponent(apiKey)}${unitsPart}&file_type=json&sort_order=desc&limit=16`;
       const payload = await fetchJsonWithTimeout<FredObservationsPayload>(url, {
-        timeoutMs: 7_500,
+        timeoutMs: 8_000,
         retries: 1,
         userAgent: NAMED_APP_UA,
       });

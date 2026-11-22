@@ -36,6 +36,7 @@ import {
   detectTrendingSpikes,
   selectTopHotPolymarket,
 } from '@shared/intelligence';
+import { evaluateMacroHealth } from '@shared/macro-health';
 import type {
   AiAskResponse,
   AiSitrepSnapshot,
@@ -367,6 +368,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
   const [onDemandPolicyAi, setOnDemandPolicyAi] = useState<Record<string, string[]>>({});
   const [policyAiLoadingIds, setPolicyAiLoadingIds] = useState<Set<string>>(new Set());
   const [hptFilter, setHptFilter] = useState<'all' | 'filings' | HptItemCategory>('all');
+  const [macroRegion, setMacroRegion] = useState<'VN' | 'US'>('VN');
   const [translateVi, setTranslateVi] = useState<boolean>(true);
   const [visibleLimit, setVisibleLimit] = useState<number>(40);
 
@@ -513,6 +515,11 @@ export const RightIntelPanel = memo(function RightIntelPanel({
     () => markets.quotes.filter((q) => q.group !== 'fx'),
     [markets.quotes],
   );
+  const macroHealth = useMemo(() => evaluateMacroHealth(markets), [markets]);
+  const activeMacroReport =
+    macroRegion === 'VN'
+      ? macroHealth.vn ?? macroHealth.us
+      : macroHealth.us ?? macroHealth.vn;
 
   const techItems = techCyber?.items ?? [];
 
@@ -2714,9 +2721,218 @@ export const RightIntelPanel = memo(function RightIntelPanel({
         </div>
       )}
 
-      {/* Tab 5: Markets, Domestic Gold SJC/9999, VN30 Bluechips, FX, Crypto 1s WS, World Bank Macro & Top 5 Polymarket */}
+      {/* Tab 5: Markets, Macro Health Radar, Domestic Gold SJC/9999, VN30 Bluechips, FX, Crypto 1s WS, World Bank Macro & Top 5 Polymarket */}
       {activeTab === 'markets' && (
         <div className="flex-1 space-y-4 overflow-y-auto p-3">
+          {/* Macroeconomic Health & Regime Diagnosis Radar (VN & US/Global — Actual vs Forecast + 3M/12M Slope) */}
+          {activeMacroReport && (
+            <section className="rounded-md border border-cyan-500/35 bg-[#0a1322] p-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-1.5">
+                <h2 className="flex items-center gap-1.5 font-mono text-[11px] font-bold tracking-wider text-cyan-300">
+                  <Gauge size={14} weight="fill" className="text-cyan-400" />
+                  <span>CHẨN ĐOÁN SỨC KHỎE VĨ MÔ</span>
+                </h2>
+                <div className="flex items-center gap-1 font-mono text-[9.5px]">
+                  {macroHealth.vn && (
+                    <button
+                      type="button"
+                      onClick={() => setMacroRegion('VN')}
+                      className={`rounded border px-2 py-0.5 font-semibold transition ${
+                        activeMacroReport.id === 'VN'
+                          ? 'border-emerald-400/60 bg-emerald-500/20 text-emerald-200'
+                          : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      🇻🇳 Việt Nam ({macroHealth.vn.compositeScore})
+                    </button>
+                  )}
+                  {macroHealth.us && (
+                    <button
+                      type="button"
+                      onClick={() => setMacroRegion('US')}
+                      className={`rounded border px-2 py-0.5 font-semibold transition ${
+                        activeMacroReport.id === 'US'
+                          ? 'border-sky-400/60 bg-sky-500/20 text-sky-200'
+                          : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      🇺🇸 Mỹ · FRED ({macroHealth.us.compositeScore})
+                    </button>
+                  )}
+                  {onForceRefresh && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onForceRefresh('markets-crypto');
+                        onForceRefresh('macro-worldbank');
+                      }}
+                      title="Làm mới dữ liệu FRED & World Bank"
+                      className="inline-flex items-center rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-slate-300 hover:border-cyan-400/50 hover:text-cyan-200"
+                    >
+                      <ArrowsClockwise
+                        size={10}
+                        className={
+                          refreshingIds?.has('markets-crypto') || refreshingIds?.has('macro-worldbank')
+                            ? 'animate-spin text-cyan-300'
+                            : ''
+                        }
+                      />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Composite Score + Automatic Economic Regime Badge */}
+              <div className="mt-2 rounded border border-slate-800/95 bg-[#070d18] p-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="font-mono text-[10px] text-slate-400">{activeMacroReport.subtitle}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[10px] font-bold ${
+                          activeMacroReport.regime === 'soft_landing'
+                            ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-200'
+                            : activeMacroReport.regime === 'overheating'
+                              ? 'border-amber-500/50 bg-amber-500/20 text-amber-200'
+                              : activeMacroReport.regime === 'early_slowdown'
+                                ? 'border-orange-500/50 bg-orange-500/20 text-orange-200'
+                                : 'border-rose-500/55 bg-rose-500/20 text-rose-200'
+                        }`}
+                      >
+                        {activeMacroReport.regimeLabel}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right font-mono tabular-nums">
+                    <div className="text-lg font-extrabold leading-none text-slate-100">
+                      {activeMacroReport.compositeScore}
+                      <span className="text-[11px] font-normal text-slate-400">/100</span>
+                    </div>
+                    <div className="mt-0.5 text-[9px] text-slate-400">ĐIỂM SỨC KHỎE</div>
+                  </div>
+                </div>
+
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${activeMacroReport.compositeScore}%`,
+                      backgroundColor:
+                        activeMacroReport.compositeScore >= 70
+                          ? '#10b981'
+                          : activeMacroReport.compositeScore >= 52
+                            ? '#f59e0b'
+                            : '#f43f5e',
+                    }}
+                  />
+                </div>
+
+                <p className="mt-1.5 text-[11px] leading-snug text-slate-300">
+                  {activeMacroReport.regimeSummary}
+                </p>
+
+                {activeMacroReport.warningFlags.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {activeMacroReport.warningFlags.map((flag, idx) => (
+                      <div
+                        key={idx}
+                        className={`rounded border px-2 py-1 text-[10.5px] leading-snug ${
+                          flag.severity === 'critical'
+                            ? 'border-rose-500/45 bg-rose-950/40 text-rose-200'
+                            : flag.severity === 'warn'
+                              ? 'border-amber-500/40 bg-amber-950/35 text-amber-200'
+                              : 'border-emerald-500/35 bg-emerald-950/25 text-emerald-200'
+                        }`}
+                      >
+                        {flag.severity === 'critical' ? '🚨 ' : flag.severity === 'warn' ? '⚠️ ' : '✓ '}
+                        {flag.text}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 3 Core Macro Pillars: Actual vs Forecast/Target + 3M/12M Trend Slope */}
+              <div className="mt-2 space-y-2">
+                {activeMacroReport.pillars.map((pillar) => (
+                  <div
+                    key={pillar.id}
+                    className="rounded border border-slate-800/90 bg-[#0d1524] px-2.5 py-2"
+                  >
+                    <div className="mb-1.5 flex items-center justify-between font-mono text-[9.5px]">
+                      <span className="font-bold text-slate-200">{pillar.title}</span>
+                      <span
+                        className={`rounded px-1.5 py-0.2 font-bold tabular-nums ${
+                          pillar.score >= 70
+                            ? 'bg-emerald-500/15 text-emerald-300'
+                            : pillar.score >= 52
+                              ? 'bg-amber-500/15 text-amber-300'
+                              : 'bg-rose-500/20 text-rose-300'
+                        }`}
+                      >
+                        {pillar.score}/100
+                      </span>
+                    </div>
+
+                    <div className="divide-y divide-slate-800/75">
+                      {pillar.metrics.map((m) => (
+                        <div key={m.id} className="flex items-center justify-between gap-2 py-1.5 first:pt-0 last:pb-0">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                                  m.status === 'good'
+                                    ? 'bg-emerald-400'
+                                    : m.status === 'watch'
+                                      ? 'bg-amber-400'
+                                      : 'bg-rose-400'
+                                }`}
+                              />
+                              <span className="truncate text-[11px] font-medium text-slate-100">
+                                {m.name}
+                              </span>
+                            </div>
+                            <div className="mt-0.5 flex flex-wrap items-center gap-1.5 font-mono text-[9.5px] text-slate-400">
+                              <span>
+                                {m.benchmarkLabel}: {m.benchmarkValue.toLocaleString('en-US')}
+                                {m.unit === '%' ? '%' : m.unit === '₫' ? '₫' : ` ${m.unit}`}
+                              </span>
+                              {m.trendLabel && (
+                                <span className="rounded bg-slate-800/90 px-1 py-0.1 text-slate-300">
+                                  {m.trendLabel}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 text-right font-mono tabular-nums">
+                            <div className="text-xs font-bold text-cyan-200">
+                              {m.unit === '₫'
+                                ? `${m.actual.toLocaleString('en-US')}₫`
+                                : `${m.actual.toFixed(2)}${m.unit === '%' ? '%' : ` ${m.unit}`}`}
+                            </div>
+                            <div
+                              className={`text-[9.5px] font-semibold ${
+                                m.status === 'good'
+                                  ? 'text-emerald-400'
+                                  : m.status === 'watch'
+                                    ? 'text-amber-300'
+                                    : 'text-rose-400'
+                              }`}
+                            >
+                              Δ {m.deltaVsBenchmark >= 0 ? '+' : ''}
+                              {m.deltaVsBenchmark.toFixed(2)}
+                              {m.unit.includes('%') || m.unit === '₫' ? '%' : ''}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
           {/* Vietnam Domestic Gold (SJC & Nhẫn 9999) + World Parity Spread */}
           {markets.vnGold && markets.vnGold.length > 0 && (
             <section>
@@ -3153,7 +3369,9 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                 <span className="font-mono text-[9.5px] text-slate-500">St. Louis Fed</span>
               </div>
               <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-                {markets.fred.map((fm) => {
+                {markets.fred
+                  .filter((fm) => fm.pillar === 'market' || fm.id === 'FEDFUNDS' || fm.id === 'T10Y2Y')
+                  .map((fm) => {
                   const up = fm.change >= 0;
                   return (
                     <div
@@ -3381,9 +3599,10 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                 <thead>
                   <tr className="border-b border-slate-800 font-mono text-[10px] text-slate-400">
                     <th className="px-2.5 py-1.5">QUỐC GIA</th>
-                    <th className="px-2 py-1.5 text-right">GDP %</th>
-                    <th className="px-2 py-1.5 text-right">QUY MÔ</th>
-                    <th className="px-2.5 py-1.5 text-right">CPI %</th>
+                    <th className="px-1.5 py-1.5 text-right">GDP %</th>
+                    <th className="px-1.5 py-1.5 text-right">CPI %</th>
+                    <th className="px-1.5 py-1.5 text-right">TN %</th>
+                    <th className="px-2.5 py-1.5 text-right">QUY MÔ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/75 font-mono text-[11px] tabular-nums">
@@ -3393,11 +3612,22 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                       className={row.isVietnam ? 'bg-emerald-500/12 text-emerald-200' : 'text-slate-200'}
                     >
                       <td className="px-2.5 py-1.5 font-sans">
-                        <span className="font-semibold">{row.countryName}</span>
-                        <span className="ml-1 font-mono text-[9.5px] text-slate-400">{row.countryCode}</span>
+                        <div>
+                          <span className="font-semibold">{row.countryName}</span>
+                          <span className="ml-1 font-mono text-[9.5px] text-slate-400">{row.countryCode}</span>
+                        </div>
+                        {(row.manufacturingGrowthPct !== null && row.manufacturingGrowthPct !== undefined) && (
+                          <div className="font-mono text-[9px] text-slate-400">
+                            Chế tạo: {row.manufacturingGrowthPct >= 0 ? '+' : ''}
+                            {row.manufacturingGrowthPct.toFixed(1)}%
+                            {row.fdiPctGdp !== null && row.fdiPctGdp !== undefined
+                              ? ` · FDI ${row.fdiPctGdp.toFixed(1)}%`
+                              : ''}
+                          </div>
+                        )}
                       </td>
                       <td
-                        className={`px-2 py-1.5 text-right font-semibold ${(row.gdpGrowthPct ?? 0) >= 5
+                        className={`px-1.5 py-1.5 text-right font-semibold ${(row.gdpGrowthPct ?? 0) >= 5
                           ? 'text-emerald-400'
                           : (row.gdpGrowthPct ?? 0) < 0
                             ? 'text-rose-400'
@@ -3406,11 +3636,16 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                       >
                         {row.gdpGrowthPct !== null ? `${row.gdpGrowthPct.toFixed(1)}%` : '—'}
                       </td>
-                      <td className="px-2 py-1.5 text-right text-slate-300">
-                        {formatCompactUsd(row.gdpCurrentUsd)}
-                      </td>
-                      <td className="px-2.5 py-1.5 text-right text-amber-300">
+                      <td className="px-1.5 py-1.5 text-right text-amber-300">
                         {row.cpiInflationPct !== null ? `${row.cpiInflationPct.toFixed(1)}%` : '—'}
+                      </td>
+                      <td className="px-1.5 py-1.5 text-right text-slate-300">
+                        {row.unemploymentPct !== null && row.unemploymentPct !== undefined
+                          ? `${row.unemploymentPct.toFixed(1)}%`
+                          : '—'}
+                      </td>
+                      <td className="px-2.5 py-1.5 text-right text-slate-300">
+                        {formatCompactUsd(row.gdpCurrentUsd)}
                       </td>
                     </tr>
                   ))}

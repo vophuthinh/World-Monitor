@@ -1,4 +1,5 @@
 import { computeGlobalThreatLevel, computeTheaterPostures, selectTopHotPolymarket } from '@shared/intelligence';
+import { evaluateMacroHealth } from '@shared/macro-health';
 import type {
   AiAskResponse,
   AiSitrepBullet,
@@ -6,6 +7,7 @@ import type {
   GeoPointFeature,
   GoogleTrendsSnapshot,
   HptCompanyIntelSnapshot,
+  MacroCountryIndicator,
   MarketSnapshot,
   NewsItem,
   PolicyLegalSnapshot,
@@ -229,7 +231,17 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now()):
             `${f.label}: ${f.value}${f.unit === '%' ? '%' : ` ${f.unit}`} (${f.change >= 0 ? '+' : ''}${f.change})`,
         )
         .join(', ');
-      lines.push(`[LÃI SUẤT FED & TRÁI PHIẾU MỸ FRED] ${fredSummary}`);
+      lines.push(`[LÃI SUẤT FED & VĨ MÔ MỸ FRED] ${fredSummary}`);
+    }
+
+    const wbMacro = store.get<MacroCountryIndicator[]>('macro-worldbank', now) ?? markets.macro ?? [];
+    const health = evaluateMacroHealth({ ...markets, macro: wbMacro });
+    if (health.vn || health.us) {
+      const parts = [
+        health.vn ? `Việt Nam: ${health.vn.compositeScore}/100 (${health.vn.regimeLabel})` : '',
+        health.us ? `Mỹ/Toàn cầu: ${health.us.compositeScore}/100 (${health.us.regimeLabel})` : '',
+      ].filter(Boolean);
+      lines.push(`[CHẨN ĐOÁN SỨC KHỎE VĨ MÔ] ${parts.join(' | ')}`);
     }
 
     if (markets.crypto.length > 0) {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { evaluateMacroHealth } from '../shared/macro-health';
 import { SnapshotStore } from '../server/cache/snapshot-store';
 import {
   computeWorldGoldLuongMillionVnd,
@@ -250,6 +251,7 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
         label: '10Y–2Y Spread',
         subtitle: 'Độ dốc Đường cong Lợi suất Mỹ',
         unit: '%',
+        pillar: 'monetary',
       },
       {
         observations: [
@@ -257,13 +259,16 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
           { date: '2026-11-19', value: '-0.18' },
           { date: '2026-11-18', value: '-0.12' },
           { date: '2026-11-17', value: '-0.05' },
+          { date: '2026-11-16', value: '0.10' },
         ],
       },
     );
     expect(fredMetric).not.toBeNull();
     expect(fredMetric?.value).toBe(-0.18);
+    expect(fredMetric?.avg3m).toBeCloseTo(-0.12, 1);
+    expect(fredMetric?.trendSlope).toBeLessThan(0);
     expect(fredMetric?.alertBadge).toContain('ĐẢO NGƯỢC');
-    expect(fredMetric?.sparkline).toEqual([-0.05, -0.12, -0.18]);
+    expect(fredMetric?.sparkline).toEqual([0.1, -0.05, -0.12, -0.18]);
 
     const viirsCsv = [
       'latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight',
@@ -275,5 +280,121 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     expect(viirsPoints[0].meta.instrument).toBe('VIIRS');
     expect(viirsPoints[0].magnitude).toBe(52.4);
     expect(viirsPoints[0].severity).toBe('high');
+  });
+
+  it('evaluates Vietnam & US Macroeconomic Health Scores, Actual-vs-Forecast deltas, and Regime classifications', () => {
+    const health = evaluateMacroHealth({
+      quotes: [
+        {
+          symbol: 'USD/VND',
+          name: 'Tỷ giá USD/VND',
+          group: 'fx',
+          price: 25480,
+          changePercent24h: 0,
+          updatedAt: 1700000000000,
+          source: 'FX',
+        },
+      ],
+      crypto: [],
+      fearGreed: null,
+      macro: [
+        {
+          countryCode: 'VNM',
+          countryName: 'Việt Nam',
+          regionLabel: 'ASEAN',
+          isVietnam: true,
+          gdpGrowthPct: 7.09,
+          gdpPrevPct: 5.05,
+          gdpGrowthYear: 2025,
+          gdpCurrentUsd: 476_000_000_000,
+          gdpCurrentYear: 2025,
+          cpiInflationPct: 3.63,
+          cpiPrevPct: 3.25,
+          cpiYear: 2025,
+          manufacturingGrowthPct: 9.97,
+          exportsPctGdp: 87.2,
+          fdiPctGdp: 4.27,
+          unemploymentPct: 1.52,
+        },
+      ],
+      fred: [
+        {
+          id: 'A191RL1Q225SBEA',
+          label: 'US Real GDP',
+          subtitle: 'Tăng trưởng GDP thực (Quý SAAR)',
+          value: 3.4,
+          change: 0.4,
+          unit: '%',
+          date: '2026-07-01',
+          pillar: 'growth',
+          benchmarkValue: 2.1,
+          trendSlope: 0.5,
+          sparkline: [2.8, 3.0, 3.4],
+        },
+        {
+          id: 'INDPRO',
+          label: 'Industrial Prod YoY',
+          subtitle: 'Sản xuất Công nghiệp (YoY)',
+          value: 2.15,
+          change: 0.2,
+          unit: '%',
+          date: '2026-10-01',
+          pillar: 'growth',
+          benchmarkValue: 1.5,
+          trendSlope: 0.4,
+          sparkline: [1.8, 2.0, 2.15],
+        },
+        {
+          id: 'CPIAUCSL',
+          label: 'US CPI YoY',
+          subtitle: 'Lạm phát Tiêu dùng CPI (YoY)',
+          value: 3.72,
+          change: 0.36,
+          unit: '%',
+          date: '2026-09-01',
+          pillar: 'inflation',
+          benchmarkValue: 2.0,
+          trendSlope: 0.35,
+          sparkline: [3.3, 3.35, 3.72],
+        },
+        {
+          id: 'PPIFIS',
+          label: 'US PPI YoY',
+          subtitle: 'Chỉ số Giá Sản xuất PPI (YoY)',
+          value: 6.52,
+          change: 0.23,
+          unit: '%',
+          date: '2026-10-01',
+          pillar: 'inflation',
+          benchmarkValue: 2.5,
+          trendSlope: 0.8,
+          sparkline: [5.46, 6.29, 6.52],
+        },
+        {
+          id: 'T10Y2Y',
+          label: '10Y–2Y Spread',
+          subtitle: 'Độ dốc Đường cong Lợi suất',
+          value: -0.15,
+          change: -0.05,
+          unit: '%',
+          date: '2026-11-20',
+          pillar: 'monetary',
+          benchmarkValue: 0.0,
+          trendSlope: -0.2,
+          sparkline: [0.05, -0.08, -0.15],
+        },
+      ],
+      updatedAt: 1700000000000,
+    });
+
+    expect(health.vn).not.toBeNull();
+    expect(health.vn?.regime).toBe('soft_landing');
+    expect(health.vn?.compositeScore).toBeGreaterThan(75);
+    expect(health.vn?.pillars).toHaveLength(3);
+
+    expect(health.us).not.toBeNull();
+    expect(health.us?.regime).toBe('overheating');
+    expect(health.us?.warningFlags.some((f) => f.text.includes('10Y–2Y đảo ngược'))).toBe(true);
+    expect(health.us?.warningFlags.some((f) => f.text.includes('PPI'))).toBe(true);
   });
 });

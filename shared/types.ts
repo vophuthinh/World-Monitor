@@ -178,6 +178,12 @@ export interface FredMacroMetric {
   change: number;
   unit: string;
   date: string;
+  pillar?: 'growth' | 'inflation' | 'monetary' | 'market';
+  benchmarkLabel?: string;
+  benchmarkValue?: number;
+  avg3m?: number;
+  avg12m?: number;
+  trendSlope?: number;
   alertBadge?: string;
   sparkline: number[];
 }
@@ -205,11 +211,59 @@ export interface MacroCountryIndicator {
   regionLabel: string;
   isVietnam?: boolean;
   gdpGrowthPct: number | null;
+  gdpPrevPct?: number | null;
   gdpGrowthYear: number | null;
   gdpCurrentUsd: number | null;
   gdpCurrentYear: number | null;
   cpiInflationPct: number | null;
+  cpiPrevPct?: number | null;
   cpiYear: number | null;
+  manufacturingGrowthPct?: number | null;
+  exportsPctGdp?: number | null;
+  fdiPctGdp?: number | null;
+  unemploymentPct?: number | null;
+}
+
+export type EconomicRegime =
+  | 'soft_landing'
+  | 'overheating'
+  | 'early_slowdown'
+  | 'stagflation_risk';
+
+export interface MacroPillarMetric {
+  id: string;
+  name: string;
+  actual: number;
+  unit: string;
+  benchmarkLabel: string;
+  benchmarkValue: number;
+  deltaVsBenchmark: number;
+  trendSlope?: number;
+  trendLabel?: string;
+  periodLabel: string;
+  status: 'good' | 'watch' | 'warn';
+}
+
+export interface MacroPillarGroup {
+  id: 'growth' | 'inflation' | 'monetary';
+  title: string;
+  score: number;
+  metrics: MacroPillarMetric[];
+}
+
+export interface EconomyHealthReport {
+  id: 'VN' | 'US';
+  title: string;
+  subtitle: string;
+  compositeScore: number;
+  regime: EconomicRegime;
+  regimeLabel: string;
+  regimeSummary: string;
+  pillars: MacroPillarGroup[];
+  warningFlags: Array<{
+    severity: 'critical' | 'warn' | 'good';
+    text: string;
+  }>;
 }
 
 export interface MarketSnapshot {
