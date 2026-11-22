@@ -110,4 +110,44 @@ describe('Hono Backend API Routes', () => {
     const throttledRes = await app.request('/api/refresh/earthquakes', { method: 'POST' });
     expect(throttledRes.status).toBe(429);
   });
+
+  it('restricts CORS to trusted local/configured origins instead of wildcard *', async () => {
+    const app = createApp(scheduler);
+
+    const trustedRes = await app.request('/api/health', {
+      headers: { Origin: 'http://localhost:5173' },
+    });
+    expect(trustedRes.headers.get('access-control-allow-origin')).toBe('http://localhost:5173');
+
+    const untrustedRes = await app.request('/api/health', {
+      headers: { Origin: 'https://evil-attacker.example.com' },
+    });
+    expect(untrustedRes.headers.get('access-control-allow-origin')).toBeNull();
+  });
+
+  it('rate-limits POST /api/ai-sitrep/refresh and POST /api/policy-summarize to protect AI quota', async () => {
+    const app = createApp(scheduler);
+
+    const sitrep1 = await app.request('/api/ai-sitrep/refresh', { method: 'POST' });
+    expect(sitrep1.status).toBe(200);
+
+    const sitrep2 = await app.request('/api/ai-sitrep/refresh', { method: 'POST' });
+    expect(sitrep2.status).toBe(429);
+
+    for (let i = 0; i < 6; i++) {
+      const r = await app.request('/api/policy-summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-real-ip': '10.0.0.42' },
+        body: JSON.stringify({ id: `doc-${i}`, title: `Nghị quyết ${i}` }),
+      });
+      expect([200, 400]).toContain(r.status);
+    }
+
+    const throttledPolicy = await app.request('/api/policy-summarize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-real-ip': '10.0.0.42' },
+      body: JSON.stringify({ id: 'doc-overflow', title: 'Nghị quyết tràn hạn mức' }),
+    });
+    expect(throttledPolicy.status).toBe(429);
+  });
 });

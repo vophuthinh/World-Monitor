@@ -25,11 +25,27 @@ import { summarizeSinglePolicyItemWithAi } from './collectors/vietnam-policy-leg
 import { answerMonitorQuestion, generateAiSitrep } from './lib/groq-intel';
 import { lookupLiveIocOrCve } from './lib/ioc-scanner';
 import type { RegimeHistoryLedger } from './lib/regime-ledger';
-import type { TelegramAlertEngine } from './lib/telegram-alerter';
 import { RealtimeHub } from './realtime/hub';
 
 const STATIC_GEO_BUNDLE = buildStaticGeoBundle();
 const encoder = new TextEncoder();
+
+const DEFAULT_TRUSTED_ORIGINS = new Set([
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:8787',
+  'http://127.0.0.1:8787',
+]);
+
+function resolveAllowedOrigin(origin: string): string | null {
+  if (!origin) return null;
+  if (DEFAULT_TRUSTED_ORIGINS.has(origin)) return origin;
+  const extra = (process.env.ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return extra.includes(origin) ? origin : null;
+}
 
 export function createApp(
   scheduler: CollectorScheduler,
@@ -40,13 +56,19 @@ export function createApp(
     getUnifiedNews?: () => NewsItem[];
     getNewsStreamStats?: () => NewsStreamStats;
     regimeLedger?: RegimeHistoryLedger;
-    telegramAlerter?: TelegramAlertEngine;
   } = {},
 ): Hono {
   const app = new Hono();
   const store = scheduler.getStore();
+  let lastSitrepRefreshMs = 0;
+  const policySummaryBuckets = new Map<string, number[]>();
 
-  app.use('/api/*', cors());
+  app.use(
+    '/api/*',
+    cors({
+      origin: (origin) => resolveAllowedOrigin(origin),
+    }),
+  );
 
   // Never apply gzip/deflate middleware to /api/stream, as compression buffers small SSE frames
   const gzipMiddleware = compress();
@@ -145,6 +167,18 @@ export function createApp(
   });
 
   app.post('/api/ai-sitrep/refresh', async (c) => {
+    const now = Date.now();
+    const sitrepCooldownMs = 20_000;
+    if (now - lastSitrepRefreshMs < sitrepCooldownMs) {
+      return c.json(
+        {
+          error: 'Bản tin AI Sitrep vừa mới cập nhật, vui lòng đợi ít giây.',
+          retryAfterMs: sitrepCooldownMs - (now - lastSitrepRefreshMs),
+        },
+        429,
+      );
+    }
+    lastSitrepRefreshMs = now;
     const sitrep = await generateAiSitrep(store, true);
     store.set('ai-sitrep', sitrep, 2 * 3_600_000, sitrep.bullets.length);
     return c.json(sitrep);
@@ -179,6 +213,31 @@ export function createApp(
       if (!body?.id || !body?.title) {
         return c.json({ error: 'Thiếu thông tin văn bản cần tóm tắt' }, 400);
       }
+
+      const now = Date.now();
+      const clientIp =
+        c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
+        c.req.header('x-real-ip') ||
+        'local';
+      const windowMs = 60_000;
+      const recent = (policySummaryBuckets.get(clientIp) ?? []).filter((t) => now - t < windowMs);
+      if (recent.length >= 6) {
+        policySummaryBuckets.set(clientIp, recent);
+        return c.json(
+          {
+            error: 'Đang đạt giới hạn tóm tắt AI (tối đa 6 văn bản/phút), vui lòng thử lại sau ít giây.',
+            retryAfterMs: windowMs - (now - recent[0]),
+          },
+          429,
+        );
+      }
+      recent.push(now);
+      policySummaryBuckets.set(clientIp, recent);
+      if (policySummaryBuckets.size > 200) {
+        const firstKey = policySummaryBuckets.keys().next().value;
+        if (firstKey) policySummaryBuckets.delete(firstKey);
+      }
+
       const summary = await summarizeSinglePolicyItemWithAi({
         id: body.id,
         title: body.title,

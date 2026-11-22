@@ -23,7 +23,7 @@ import { fetchCyberThreats } from './collectors/cyber-threats';
 import { fetchEarthquakes } from './collectors/earthquakes';
 import { fetchGeopoliticsGdelt } from './collectors/geopolitics-gdelt';
 import { fetchGoogleTrendsRealtime } from './collectors/google-trends';
-import { HptWatchConfigStore, fetchHptCompanyIntelligence } from './collectors/hpt-company-intel';
+import { fetchHptCompanyIntelligence } from './collectors/hpt-company-intel';
 import { fetchWorldBankMacro } from './collectors/macro-worldbank';
 import { MaritimeVesselStreamManager } from './collectors/maritime-vessels';
 import { fetchMarketsAndCrypto } from './collectors/markets-crypto';
@@ -54,6 +54,7 @@ for (const envName of ['.env.local', '.env']) {
 }
 
 const PORT = Number(process.env.PORT ?? 8787);
+const HOST = (process.env.HOST ?? '127.0.0.1').trim() || '127.0.0.1';
 const CACHE_DIR = resolve(process.cwd(), '.cache');
 
 export function buildProductionRuntime(cacheDir = CACHE_DIR) {
@@ -61,16 +62,9 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
   const hub = new RealtimeHub();
   const regimeLedger = new RegimeHistoryLedger(cacheDir);
   const telegramAlerter = new TelegramAlertEngine(cacheDir);
-  const hptWatchStore = new HptWatchConfigStore(cacheDir);
   const vesselManager = new MaritimeVesselStreamManager(hub, process.env.AISSTREAM_API_KEY);
   const newsStream = new UnifiedNewsStreamService(hub, store);
   const polymarketStream = new PolymarketRealtimeStream(hub, store);
-
-  hub.subscribe((ev) => {
-    if (ev.type === 'breaking_alert') {
-      void telegramAlerter.forwardBreakingTacticalAlert(ev.alert);
-    }
-  });
 
   const scheduler = new CollectorScheduler(store, (id, data) => {
     const now = Date.now();
@@ -274,7 +268,7 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
     intervalMs: 300_000,
     retainMs: 12 * 3_600_000,
     countItems: (snap) => snap.items.length + (snap.stock ? 1 : 0),
-    fetcher: (prev) => fetchHptCompanyIntelligence(prev, hptWatchStore),
+    fetcher: (prev) => fetchHptCompanyIntelligence(prev),
   });
 
   scheduler.registerCollector<AiSitrepSnapshot>({
@@ -298,7 +292,6 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
     newsStream,
     regimeLedger,
     telegramAlerter,
-    hptWatchStore,
   };
 }
 
@@ -312,7 +305,6 @@ async function main(): Promise<void> {
     vesselManager,
     newsStream,
     regimeLedger,
-    telegramAlerter,
   } = buildProductionRuntime();
   await store.hydrateFromDisk();
   scheduler.startAll({ runImmediately: true });
@@ -332,7 +324,6 @@ async function main(): Promise<void> {
     getUnifiedNews: () => newsStream.getUnifiedNews(),
     getNewsStreamStats: () => newsStream.getStats(),
     regimeLedger,
-    telegramAlerter,
   });
 
   const clientDistDir = resolve(process.cwd(), 'dist/client');
@@ -345,10 +336,11 @@ async function main(): Promise<void> {
     {
       fetch: app.fetch,
       port: PORT,
+      hostname: HOST,
     },
     (info) => {
       console.log(
-        `[worldmonitor-api] Realtime Server on http://localhost:${info.port} (SSE /api/stream + Binance WS + 10s ADS-B + Open AIS)`,
+        `[worldmonitor-api] Realtime Server on http://${HOST}:${info.port} (SSE /api/stream + Binance WS + 10s ADS-B + Open AIS)`,
       );
     },
   );

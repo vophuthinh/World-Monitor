@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SnapshotStore } from '../server/cache/snapshot-store';
 import {
-  HptWatchConfigStore,
   classifyHptExternalItem,
   isAuthenticHptMention,
   normalizeSimplizeHptSummary,
@@ -279,24 +278,9 @@ describe('Economic RSS Feeds & Independent External HPT (UPCoM · MST 0301447436
     expect(tgItems[0].url).toBe('https://t.me/f319channel/4521');
     expect(tgItems[0].source).toBe('Telegram · @f319channel');
     expect(tgItems[0].sentiment).toBe('positive');
-
-    const tempDir = mkdtempSync(join(tmpdir(), 'wm-hpt-watch-'));
-    try {
-      const watchStore = new HptWatchConfigStore(tempDir);
-      const saved = watchStore.update({
-        rssUrls: ['https://rsshub.app/youtube/user/@VTV24'],
-        telegramChannels: ['@f319channel', 'https://t.me/s/tinhtevn'],
-        customKeywords: ['HPT SmartNOC'],
-      });
-      expect(saved.rssUrls).toEqual(['https://rsshub.app/youtube/user/@VTV24']);
-      expect(saved.telegramChannels).toEqual(['f319channel', 'tinhtevn']);
-      expect(saved.customKeywords).toEqual(['HPT SmartNOC']);
-    } finally {
-      rmSync(tempDir, { recursive: true, force: true });
-    }
   });
 
-  it('configures TelegramAlertEngine exclusively for HPT articles by default and flags NEGATIVE HPT articles with RED alert', async () => {
+  it('runs headless TelegramAlertEngine exclusively for HPT articles and flags NEGATIVE HPT articles with RED alert', async () => {
     const tempDir = mkdtempSync(join(tmpdir(), 'wm-tg-hpt-only-'));
     try {
       const sentTexts: string[] = [];
@@ -309,19 +293,9 @@ describe('Economic RSS Feeds & Independent External HPT (UPCoM · MST 0301447436
       });
 
       const store = new SnapshotStore(tempDir);
-      const tg = new TelegramAlertEngine(tempDir);
-      const summary = tg.updateConfig({
+      const tg = new TelegramAlertEngine(tempDir, {
         botToken: '123456789:AAHtesttoken1234',
         chatId: '999999999',
-        enabled: true,
-      });
-
-      // Default preferences must ONLY enable hptIntel (zero non-HPT noise!)
-      expect(summary.preferences).toEqual({
-        macroCompass: false,
-        hptIntel: true,
-        policyLegal: false,
-        eastSeaWeather: false,
       });
 
       // First pass seeds baseline without sending old items
@@ -329,17 +303,9 @@ describe('Economic RSS Feeds & Independent External HPT (UPCoM · MST 0301447436
       await tg.evaluateCollectorUpdate('hpt-intel', store);
       expect(sentTexts.length).toBe(0);
 
-      // Non-HPT tactical alerts must NOT be sent when eastSeaWeather is false
-      await tg.forwardBreakingTacticalAlert({
-        id: 'storm-1',
-        severity: 'critical',
-        badge: 'BÃO',
-        title: 'Bão số 9 trên Biển Đông',
-        subtitle: 'Cấp 12',
-        lat: 15,
-        lon: 112,
-        timestamp: 2,
-      });
+      // Non-HPT collectors must be ignored completely
+      await tg.evaluateCollectorUpdate('markets-crypto', store);
+      await tg.evaluateCollectorUpdate('vietnam-env', store);
       expect(sentTexts.length).toBe(0);
 
       // New HPT forum/press posts (both press_social & negative sentiment) MUST trigger immediate Telegram alerts!

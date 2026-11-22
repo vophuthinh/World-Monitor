@@ -52,7 +52,6 @@ import {
   parseSitrepResponseText,
 } from '../server/lib/groq-intel';
 import { RegimeHistoryLedger } from '../server/lib/regime-ledger';
-import { TelegramAlertEngine } from '../server/lib/telegram-alerter';
 
 describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / GPS-BGP', () => {
   it('defines active Groq 2026 frontier models and parses AI Sitrep structured bullets cleanly', () => {
@@ -952,17 +951,6 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
       );
       expect(history.length).toBeGreaterThanOrEqual(5);
       expect(history[history.length - 1].date).toBe('2026-11-22');
-
-      const tg = new TelegramAlertEngine(tempDir);
-      const cfg = tg.updateConfig({
-        botToken: '123456789:AAHxyz9876543210abcd',
-        chatId: '581920411',
-        enabled: true,
-        preferences: { hptIntel: true },
-      });
-      expect(cfg.configured).toBe(true);
-      expect(cfg.maskedToken).toBe('123456••••abcd');
-      expect(cfg.chatId).toBe('581920411');
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }

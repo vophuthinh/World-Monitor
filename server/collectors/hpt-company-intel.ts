@@ -1,5 +1,3 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
 import { XMLParser } from 'fast-xml-parser';
 import type {
   HptCompanyIntelSnapshot,
@@ -8,7 +6,6 @@ import type {
   HptItemCategory,
   HptSentiment,
   HptStockSnapshot,
-  HptWatchConfig,
 } from '@shared/types';
 import { callGroqChatCompletion } from '../lib/groq-intel';
 import { DEFAULT_BROWSER_UA, fetchJsonWithTimeout, fetchTextWithTimeout } from '../lib/http';
@@ -239,90 +236,6 @@ export function classifyHptExternalItem(
 // 1b. Custom RSS / RSSHub & Public Telegram Channel Watchlist Store
 // ============================================================================
 
-function normalizeTelegramHandle(raw: string): string | null {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  const fromUrl = trimmed.match(/t\.me\/(?:s\/)?([a-zA-Z0-9_]{4,64})/i);
-  if (fromUrl) return fromUrl[1];
-  const clean = trimmed.replace(/^@+/, '');
-  return /^[a-zA-Z0-9_]{4,64}$/.test(clean) ? clean : null;
-}
-
-export class HptWatchConfigStore {
-  private readonly filePath: string;
-  private config: HptWatchConfig = {
-    rssUrls: [],
-    telegramChannels: [],
-    customKeywords: [],
-  };
-
-  constructor(cacheDir: string) {
-    this.filePath = resolve(cacheDir, 'hpt-watch-config.json');
-    this.load();
-  }
-
-  private load(): void {
-    try {
-      if (!existsSync(this.filePath)) return;
-      const parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as Partial<HptWatchConfig>;
-      this.config = this.sanitize(parsed);
-    } catch {
-      // Ignore malformed cache
-    }
-  }
-
-  private sanitize(input: Partial<HptWatchConfig>): HptWatchConfig {
-    const rssUrls = [...new Set((input.rssUrls ?? []).map((u) => u.trim()))].filter(
-      (u) =>
-        /^https?:\/\//i.test(u) &&
-        !u.toLowerCase().includes('hpt.vn') &&
-        !HPT_RECRUITMENT_DOMAIN_RE.test(u),
-    );
-    const telegramChannels = [
-      ...new Set(
-        (input.telegramChannels ?? [])
-          .map(normalizeTelegramHandle)
-          .filter((c): c is string => Boolean(c)),
-      ),
-    ];
-    const customKeywords = [
-      ...new Set(
-        (input.customKeywords ?? [])
-          .map((k) => k.trim())
-          .filter((k) => k.length >= 3 && k.length <= 80 && !HPT_RECRUITMENT_NOISE_RE.test(k)),
-      ),
-    ];
-    return {
-      rssUrls: rssUrls.slice(0, 20),
-      telegramChannels: telegramChannels.slice(0, 20),
-      customKeywords: customKeywords.slice(0, 25),
-    };
-  }
-
-  get(): HptWatchConfig {
-    return {
-      rssUrls: [...this.config.rssUrls],
-      telegramChannels: [...this.config.telegramChannels],
-      customKeywords: [...this.config.customKeywords],
-    };
-  }
-
-  update(next: Partial<HptWatchConfig>): HptWatchConfig {
-    this.config = this.sanitize({
-      rssUrls: next.rssUrls ?? this.config.rssUrls,
-      telegramChannels: next.telegramChannels ?? this.config.telegramChannels,
-      customKeywords: next.customKeywords ?? this.config.customKeywords,
-    });
-    try {
-      mkdirSync(dirname(this.filePath), { recursive: true });
-      writeFileSync(this.filePath, JSON.stringify(this.config, null, 2), 'utf8');
-    } catch {
-      // Non-fatal
-    }
-    return this.get();
-  }
-}
-
 export interface RedditSearchPayload {
   data?: {
     children?: Array<{
@@ -388,7 +301,7 @@ export function parseTelegramPublicChannelHtml(
   customKeywords: readonly string[] = [],
 ): HptCompanyItem[] {
   if (!html) return [];
-  const handle = normalizeTelegramHandle(channelHandle) ?? channelHandle;
+  const handle = channelHandle.replace(/^@+/, '').trim() || channelHandle;
   const out: HptCompanyItem[] = [];
   const blocks = [...html.matchAll(/<div[^>]+class=["'][^"']*tgme_widget_message\b[^"']*["'][^>]*data-post=["']([^"']+)["'][^>]*>([\s\S]*?)(?=<div[^>]+class=["'][^"']*tgme_widget_message_wrap|$)/gi)];
 
@@ -852,24 +765,8 @@ async function fetchHptUpcomStockAndFundamentals(now: number): Promise<HptStockS
 
 export async function fetchHptCompanyIntelligence(
   previous?: HptCompanyIntelSnapshot | null,
-  watchStore?: HptWatchConfigStore,
 ): Promise<HptCompanyIntelSnapshot> {
   const now = Date.now();
-  const watchConfig = watchStore?.get() ?? {
-    rssUrls: [],
-    telegramChannels: [],
-    customKeywords: [],
-  };
-  const customKeywords = watchConfig.customKeywords;
-
-  const dynamicFeeds: ExternalRssFeedDef[] = [
-    ...HPT_EXTERNAL_FEEDS,
-    ...watchConfig.rssUrls.map((url, idx) => ({
-      name: `RSS/RSSHub Tùy chỉnh #${idx + 1}`,
-      defaultCategory: 'press_social' as const,
-      url,
-    })),
-  ];
 
   const [stockRes, cfNewsRes, cfEventsRes, baoMoiRes, redditRes, ...restResults] =
     await Promise.allSettled([
@@ -896,21 +793,13 @@ export async function fetchHptCompanyIntelligence(
         retries: 0,
         userAgent: 'WorldMonitor-HPT-Intel/1.0',
       }),
-      ...dynamicFeeds.map(async (feed) => {
+      ...HPT_EXTERNAL_FEEDS.map(async (feed) => {
         const { text } = await fetchTextWithTimeout(feed.url, {
           timeoutMs: 7_500,
           retries: 0,
           userAgent: DEFAULT_BROWSER_UA,
         });
-        return parseHptExternalRss(text, feed, now, customKeywords);
-      }),
-      ...watchConfig.telegramChannels.map(async (handle) => {
-        const { text } = await fetchTextWithTimeout(`https://t.me/s/${encodeURIComponent(handle)}`, {
-          timeoutMs: 7_000,
-          retries: 0,
-          userAgent: DEFAULT_BROWSER_UA,
-        });
-        return parseTelegramPublicChannelHtml(text, handle, now, customKeywords);
+        return parseHptExternalRss(text, feed, now);
       }),
     ]);
 
@@ -939,7 +828,7 @@ export async function fetchHptCompanyIntelligence(
     }
   }
   if (redditRes.status === 'fulfilled') {
-    const items = parseRedditHptSearchJson(redditRes.value, now, customKeywords);
+    const items = parseRedditHptSearchJson(redditRes.value, now);
     if (items.length > 0) {
       sourceCount += 1;
       rawCollected.push(...items);
@@ -1002,7 +891,6 @@ export async function fetchHptCompanyIntelligence(
     items: enriched.items,
     sourceCount: Math.max(sourceCount, 1),
     aiSentimentEnabled: enriched.aiEnabled,
-    watchConfig,
     updatedAt: now,
   };
 }

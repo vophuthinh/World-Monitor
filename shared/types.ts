@@ -528,18 +528,11 @@ export interface HptStockSnapshot {
   updatedAt: number;
 }
 
-export interface HptWatchConfig {
-  rssUrls: string[];
-  telegramChannels: string[];
-  customKeywords: string[];
-}
-
 export interface HptCompanyIntelSnapshot {
   stock: HptStockSnapshot | null;
   items: HptCompanyItem[];
   sourceCount: number;
   aiSentimentEnabled: boolean;
-  watchConfig?: HptWatchConfig;
   updatedAt: number;
 }
 
@@ -782,25 +775,6 @@ export interface RegimeHistoryPoint {
   equitiesWeightPct: number;
 }
 
-export interface TelegramAlertPreferences {
-  macroCompass: boolean;
-  hptIntel: boolean;
-  policyLegal: boolean;
-  eastSeaWeather: boolean;
-}
-
-export interface TelegramAlertConfigSummary {
-  configured: boolean;
-  enabled: boolean;
-  source: 'env' | 'runtime' | 'none';
-  maskedToken?: string;
-  chatId?: string;
-  preferences: TelegramAlertPreferences;
-  sentCount: number;
-  lastSentAt?: number;
-  lastError?: string;
-}
-
 export interface MarketCatalystEvent {
   id: string;
   title: string;
@@ -859,7 +833,6 @@ export interface BootstrapResponse {
   hptIntel?: HptCompanyIntelSnapshot;
   aiSitrep?: AiSitrepSnapshot;
   regimeHistory?: RegimeHistoryPoint[];
-  telegramStatus?: TelegramAlertConfigSummary;
 }
 
 export interface LiveFastResponse {
