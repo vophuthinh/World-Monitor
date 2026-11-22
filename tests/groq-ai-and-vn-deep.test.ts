@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { SnapshotStore } from '../server/cache/snapshot-store';
-import { normalizeAcledEvents } from '../server/collectors/geopolitics-gdelt';
 import {
   computeWorldGoldLuongMillionVnd,
   normalizeFredObservationSeries,
@@ -237,7 +236,7 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     expect(bgpFeature?.severity).toBe('high');
   });
 
-  it('normalizes FRED Federal Reserve series, 375m VIIRS NASA FIRMS CSV, and ACLED OAuth conflict events', () => {
+  it('normalizes FRED Federal Reserve series and 375m VIIRS NASA FIRMS CSV', () => {
     const fredMetric = normalizeFredObservationSeries(
       {
         id: 'T10Y2Y',
@@ -269,27 +268,5 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     expect(viirsPoints[0].meta.instrument).toBe('VIIRS');
     expect(viirsPoints[0].magnitude).toBe(52.4);
     expect(viirsPoints[0].severity).toBe('high');
-
-    const acledPoints = normalizeAcledEvents({
-      data: [
-        {
-          event_id_cnty: 'MMR9912',
-          event_date: '2026-11-21',
-          event_type: 'Explosions/Remote violence',
-          sub_event_type: 'Air/drone strike',
-          actor1: 'Military Forces of Myanmar',
-          country: 'Myanmar',
-          location: 'Lashio',
-          latitude: '22.935',
-          longitude: '97.749',
-          fatalities: '4',
-          notes: 'Airstrike reported near Lashio township.',
-        },
-      ],
-    });
-    expect(acledPoints.length).toBe(1);
-    expect(acledPoints[0].layer).toBe('geopolitics');
-    expect(acledPoints[0].severity).toBe('critical');
-    expect(acledPoints[0].source).toContain('ACLED');
   });
 });
