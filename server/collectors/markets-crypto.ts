@@ -427,7 +427,7 @@ export interface FredSeriesTarget {
   subtitle: string;
   unit: string;
   unitsParam?: 'pc1';
-  pillar: 'growth' | 'inflation' | 'monetary' | 'market';
+  pillar: 'growth' | 'inflation' | 'monetary' | 'market' | 'leading';
   benchmarkLabel?: string;
   benchmarkValue?: number;
 }
@@ -516,6 +516,83 @@ const FRED_SERIES_TARGETS: readonly FredSeriesTarget[] = [
     benchmarkLabel: 'Toàn dụng (NAIRU)',
     benchmarkValue: 4.2,
   },
+
+  // Forward-Looking Leading Investment Indicators (3–9 Month Horizon)
+  {
+    id: 'M2SL',
+    label: 'US M2 Money YoY',
+    subtitle: 'Tăng trưởng Cung tiền M2 (YoY)',
+    unit: '%',
+    unitsParam: 'pc1',
+    pillar: 'leading',
+    benchmarkLabel: 'Ngưỡng bơm tiền',
+    benchmarkValue: 4.0,
+  },
+  {
+    id: 'WALCL',
+    label: 'Fed Assets YoY',
+    subtitle: 'Bảng Cân đối Kế toán Fed (QE/QT)',
+    unit: '%',
+    unitsParam: 'pc1',
+    pillar: 'leading',
+    benchmarkLabel: 'Ngưỡng mở rộng',
+    benchmarkValue: 0.0,
+  },
+  {
+    id: 'NFCI',
+    label: 'Chicago Fed NFCI',
+    subtitle: 'Chỉ số Điều kiện Tài chính (<0 Nới lỏng)',
+    unit: 'idx',
+    pillar: 'leading',
+    benchmarkLabel: 'Ngưỡng thắt chặt',
+    benchmarkValue: 0.0,
+  },
+  {
+    id: 'BAMLH0A0HYM2',
+    label: 'HY Credit Spread',
+    subtitle: 'Chênh lệch Tín dụng Rủi ro cao',
+    unit: '%',
+    pillar: 'leading',
+    benchmarkLabel: 'Ngưỡng cảnh báo',
+    benchmarkValue: 4.5,
+  },
+  {
+    id: 'DFII10',
+    label: '10Y Real Yield',
+    subtitle: 'Lãi suất Thực Mỹ 10 năm (TIPS)',
+    unit: '%',
+    pillar: 'leading',
+    benchmarkLabel: 'Trung tính thực',
+    benchmarkValue: 1.8,
+  },
+  {
+    id: 'SAHMREALTIME',
+    label: 'Sahm Recession Rule',
+    subtitle: 'Quy tắc Báo động Suy thoái Sahm',
+    unit: 'pts',
+    pillar: 'leading',
+    benchmarkLabel: 'Báo động suy thoái',
+    benchmarkValue: 0.5,
+  },
+  {
+    id: 'ICSA',
+    label: 'Jobless Claims',
+    subtitle: 'Đơn Trợ cấp Thất nghiệp Tuần',
+    unit: 'đơn',
+    pillar: 'leading',
+    benchmarkLabel: 'Ngưỡng an toàn',
+    benchmarkValue: 250000,
+  },
+  {
+    id: 'PERMIT',
+    label: 'Building Permits YoY',
+    subtitle: 'Giấy phép Xây dựng Nhà mới (Leading BĐS)',
+    unit: '%',
+    unitsParam: 'pc1',
+    pillar: 'leading',
+    benchmarkLabel: 'Mở rộng BĐS',
+    benchmarkValue: 0.0,
+  },
 ];
 
 export interface FredObservationsPayload {
@@ -587,23 +664,27 @@ async function fetchFredMacroMetrics(): Promise<FredMacroMetric[]> {
   const apiKey = process.env.FRED_API_KEY?.trim();
   if (!apiKey) return [];
 
-  const results = await Promise.allSettled(
-    FRED_SERIES_TARGETS.map(async (target) => {
-      const unitsPart = target.unitsParam ? `&units=${target.unitsParam}` : '';
-      const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${encodeURIComponent(target.id)}&api_key=${encodeURIComponent(apiKey)}${unitsPart}&file_type=json&sort_order=desc&limit=16`;
-      const payload = await fetchJsonWithTimeout<FredObservationsPayload>(url, {
-        timeoutMs: 8_000,
-        retries: 1,
-        userAgent: NAMED_APP_UA,
-      });
-      return normalizeFredObservationSeries(target, payload);
-    }),
-  );
-
   const out: FredMacroMetric[] = [];
-  for (const r of results) {
-    if (r.status === 'fulfilled' && r.value) {
-      out.push(r.value);
+  // Fetch in smooth batches of 7 to avoid upstream burst throttling
+  for (let i = 0; i < FRED_SERIES_TARGETS.length; i += 7) {
+    const batch = FRED_SERIES_TARGETS.slice(i, i + 7);
+    const results = await Promise.allSettled(
+      batch.map(async (target) => {
+        const unitsPart = target.unitsParam ? `&units=${target.unitsParam}` : '';
+        const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${encodeURIComponent(target.id)}&api_key=${encodeURIComponent(apiKey)}${unitsPart}&file_type=json&sort_order=desc&limit=16`;
+        const payload = await fetchJsonWithTimeout<FredObservationsPayload>(url, {
+          timeoutMs: 8_000,
+          retries: 1,
+          userAgent: NAMED_APP_UA,
+        });
+        return normalizeFredObservationSeries(target, payload);
+      }),
+    );
+
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value) {
+        out.push(r.value);
+      }
     }
   }
   return out;
@@ -620,9 +701,11 @@ interface YahooTarget {
 const YAHOO_TARGETS: readonly YahooTarget[] = [
   { yahooSymbol: '^GSPC', displaySymbol: 'S&P 500', name: 'S&P 500 Index (US)', group: 'index', unit: 'pts' },
   { yahooSymbol: '^IXIC', displaySymbol: 'NASDAQ', name: 'NASDAQ Composite (US)', group: 'index', unit: 'pts' },
+  { yahooSymbol: '^SOX', displaySymbol: 'SOX Semi', name: 'PHLX Semiconductor (Bán dẫn AI)', group: 'index', unit: 'pts' },
   { yahooSymbol: '^N225', displaySymbol: 'Nikkei 225', name: 'Nikkei 225 (Nhật Bản)', group: 'index', unit: 'pts' },
   { yahooSymbol: '^HSI', displaySymbol: 'Hang Seng', name: 'Hang Seng Index (HK)', group: 'index', unit: 'pts' },
   { yahooSymbol: 'GC=F', displaySymbol: 'Gold', name: 'Vàng thế giới (COMEX)', group: 'commodity', unit: 'USD/oz' },
+  { yahooSymbol: 'HG=F', displaySymbol: 'Copper', name: 'Đồng công nghiệp (Dr. Copper)', group: 'commodity', unit: 'USD/lb' },
   { yahooSymbol: 'CL=F', displaySymbol: 'WTI Crude', name: 'Dầu thô WTI', group: 'commodity', unit: 'USD/bbl' },
   { yahooSymbol: 'BZ=F', displaySymbol: 'Brent Crude', name: 'Dầu thô Brent', group: 'commodity', unit: 'USD/bbl' },
   { yahooSymbol: 'SI=F', displaySymbol: 'Silver', name: 'Bạc thế giới', group: 'commodity', unit: 'USD/oz' },

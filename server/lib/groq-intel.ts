@@ -1,5 +1,5 @@
 import { computeGlobalThreatLevel, computeTheaterPostures, selectTopHotPolymarket } from '@shared/intelligence';
-import { evaluateMacroHealth } from '@shared/macro-health';
+import { evaluateInvestmentCompass, evaluateMacroHealth } from '@shared/macro-health';
 import type {
   AiAskResponse,
   AiSitrepBullet,
@@ -242,6 +242,13 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now()):
         health.us ? `Mỹ/Toàn cầu: ${health.us.compositeScore}/100 (${health.us.regimeLabel})` : '',
       ].filter(Boolean);
       lines.push(`[CHẨN ĐOÁN SỨC KHỎE VĨ MÔ] ${parts.join(' | ')}`);
+    }
+
+    const compass = evaluateInvestmentCompass({ ...markets, macro: wbMacro });
+    if (compass) {
+      lines.push(
+        `[LA BÀN ĐẦU TƯ 3-9 THÁNG] ${compass.stanceLabel} (${compass.riskAppetiteScore}/100). Ưu tiên: ${compass.favoredAssets.join('; ')}`,
+      );
     }
 
     if (markets.crypto.length > 0) {

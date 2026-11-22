@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateMacroHealth } from '../shared/macro-health';
+import { evaluateInvestmentCompass, evaluateMacroHealth } from '../shared/macro-health';
 import { SnapshotStore } from '../server/cache/snapshot-store';
 import {
   computeWorldGoldLuongMillionVnd,
@@ -396,5 +396,48 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     expect(health.us?.regime).toBe('overheating');
     expect(health.us?.warningFlags.some((f) => f.text.includes('10Y–2Y đảo ngược'))).toBe(true);
     expect(health.us?.warningFlags.some((f) => f.text.includes('PPI'))).toBe(true);
+
+    const compass = evaluateInvestmentCompass({
+      quotes: [
+        { symbol: 'Copper', name: 'Dr. Copper', group: 'commodity', price: 5.48, changePercent24h: 1.4, updatedAt: 1700000000000, source: 'Yahoo' },
+        { symbol: 'Gold', name: 'Gold', group: 'commodity', price: 3550, changePercent24h: 0.2, updatedAt: 1700000000000, source: 'Yahoo' },
+        { symbol: 'SOX Semi', name: 'PHLX Semiconductor', group: 'index', price: 8408, changePercent24h: 1.8, updatedAt: 1700000000000, source: 'Yahoo' },
+        { symbol: 'USD/VND', name: 'USD/VND', group: 'fx', price: 25780, changePercent24h: 0, updatedAt: 1700000000000, source: 'FX' },
+      ],
+      crypto: [],
+      fearGreed: null,
+      macro: [],
+      vnGold: [
+        {
+          code: 'SJC',
+          name: 'Vàng miếng SJC',
+          buyPerLuongMillionVnd: 132,
+          sellPerLuongMillionVnd: 133.5,
+          spreadMillionVnd: 1.5,
+          premiumVsWorldMillionVnd: 23.5,
+          changeBuyPercent: 0,
+          changeSellPercent: 0,
+          updatedAt: 1700000000000,
+          source: 'Mi Hồng',
+        },
+      ],
+      fred: [
+        { id: 'M2SL', label: 'M2', subtitle: 'M2 YoY', value: 5.71, change: 0.3, unit: '%', date: '2026-09-01', pillar: 'leading', sparkline: [5.1, 5.4, 5.71] },
+        { id: 'NFCI', label: 'NFCI', subtitle: 'NFCI', value: -0.48, change: -0.02, unit: 'idx', date: '2026-11-13', pillar: 'leading', sparkline: [-0.4, -0.45, -0.48] },
+        { id: 'BAMLH0A0HYM2', label: 'HY Spread', subtitle: 'HY Spread', value: 3.52, change: -0.04, unit: '%', date: '2026-11-19', pillar: 'leading', sparkline: [3.6, 3.56, 3.52] },
+        { id: 'DFII10', label: '10Y Real', subtitle: '10Y Real', value: 2.88, change: 0.03, unit: '%', date: '2026-11-19', pillar: 'leading', sparkline: [2.8, 2.85, 2.88] },
+        { id: 'SAHMREALTIME', label: 'Sahm', subtitle: 'Sahm', value: 0.0, change: 0, unit: 'pts', date: '2026-10-01', pillar: 'leading', sparkline: [0.0, 0.0] },
+        { id: 'ICSA', label: 'Claims', subtitle: 'Claims', value: 203000, change: -2000, unit: 'đơn', date: '2026-11-14', pillar: 'leading', sparkline: [208000, 205000, 203000] },
+        { id: 'PERMIT', label: 'Permits', subtitle: 'Permits', value: -8.67, change: -1.1, unit: '%', date: '2026-10-01', pillar: 'leading', sparkline: [-6.5, -7.5, -8.67] },
+      ],
+      updatedAt: 1700000000000,
+    });
+
+    expect(compass).not.toBeNull();
+    expect(compass?.stance).toBe('selective_growth');
+    expect(compass?.riskAppetiteScore).toBeGreaterThan(70);
+    expect(compass?.signals.length).toBe(8);
+    expect(compass?.favoredAssets.length).toBeGreaterThanOrEqual(2);
+    expect(compass?.avoidAssets.some((a) => a.includes('SJC'))).toBe(true);
   });
 });

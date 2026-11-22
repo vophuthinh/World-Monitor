@@ -2,6 +2,9 @@ import type {
   EconomicRegime,
   EconomyHealthReport,
   FredMacroMetric,
+  InvestmentCompassReport,
+  InvestmentStance,
+  LeadingCompassSignal,
   MacroCountryIndicator,
   MacroPillarGroup,
   MacroPillarMetric,
@@ -423,5 +426,264 @@ export function evaluateMacroHealth(markets: MarketSnapshot): {
   return {
     vn: buildVietnamMacroHealth(vnRow, usdVnd),
     us: buildUsGlobalMacroHealth(markets.fred),
+  };
+}
+
+export function evaluateInvestmentCompass(markets: MarketSnapshot): InvestmentCompassReport | null {
+  const fredById = new Map((markets.fred ?? []).map((m) => [m.id, m]));
+  const quoteBySym = new Map(markets.quotes.map((q) => [q.symbol, q]));
+
+  const m2 = fredById.get('M2SL');
+  const walcl = fredById.get('WALCL');
+  const nfci = fredById.get('NFCI');
+  const hySpread = fredById.get('BAMLH0A0HYM2');
+  const realYield = fredById.get('DFII10');
+  const sahm = fredById.get('SAHMREALTIME');
+  const icsa = fredById.get('ICSA');
+  const permit = fredById.get('PERMIT');
+  const curve = fredById.get('T10Y2Y');
+
+  const copper = quoteBySym.get('Copper');
+  const gold = quoteBySym.get('Gold');
+  const sox = quoteBySym.get('SOX Semi');
+  const usdVnd = quoteBySym.get('USD/VND');
+  const sjcGold = markets.vnGold?.find((g) => g.code === 'SJC');
+
+  if (!m2 && !nfci && !hySpread && !realYield && !copper && !sox) {
+    return null;
+  }
+
+  let score = 58;
+  const signals: LeadingCompassSignal[] = [];
+
+  // 1. M2 Money Supply YoY
+  if (m2) {
+    const val = m2.value;
+    if (val >= 3.5) score += 9;
+    else if (val >= 0) score += 3;
+    else score -= 12;
+
+    signals.push({
+      id: 'm2',
+      label: 'Cung tiền M2 (YoY)',
+      category: 'liquidity',
+      valueDisplay: `${val >= 0 ? '+' : ''}${val.toFixed(2)}%`,
+      subtext: val >= 0 ? 'Bơm thanh khoản vào hệ thống' : 'Thanh khoản thu hẹp',
+      signalBadge: val >= 3.5 ? 'BƠM TIỀN MẠNH' : val >= 0 ? 'MỞ RỘNG NHẸ' : 'THẮT CHẶT',
+      tone: val >= 3.5 ? 'bullish' : val >= 0 ? 'neutral' : 'bearish',
+    });
+  }
+
+  // 2. Chicago Fed NFCI + Fed Balance Sheet WALCL
+  if (nfci) {
+    const val = nfci.value;
+    if (val <= -0.2) score += 7;
+    else if (val <= 0) score += 3;
+    else score -= 11;
+
+    signals.push({
+      id: 'nfci',
+      label: 'Điều kiện Tài chính (NFCI)',
+      category: 'liquidity',
+      valueDisplay: val.toFixed(2),
+      subtext:
+        walcl !== undefined
+          ? `Bảng CĐKT Fed: ${walcl.value >= 0 ? '+' : ''}${walcl.value.toFixed(1)}% YoY`
+          : '< 0 là vốn dồi dào, dễ vay',
+      signalBadge: val < 0 ? 'VỐN NỚI LỎNG' : 'CĂNG THANH KHOẢN',
+      tone: val <= -0.15 ? 'bullish' : val <= 0.05 ? 'neutral' : 'bearish',
+    });
+  }
+
+  // 3. High-Yield Credit Spread (Smart Money)
+  if (hySpread) {
+    const val = hySpread.value;
+    if (val < 3.9) score += 8;
+    else if (val > 4.8) score -= 15;
+
+    signals.push({
+      id: 'hy-spread',
+      label: 'Chênh lệch Tín dụng HY',
+      category: 'credit_rates',
+      valueDisplay: `${val.toFixed(2)}%`,
+      subtext: 'Đo rủi ro vỡ nợ trái phiếu DN',
+      signalBadge: val < 4.0 ? 'TÍN DỤNG AN TOÀN' : val < 4.8 ? 'THEO DÕI' : 'THÁO CHẠY RỦI RO',
+      tone: val < 4.0 ? 'bullish' : val < 4.8 ? 'neutral' : 'bearish',
+    });
+  }
+
+  // 4. 10Y Real TIPS Yield
+  if (realYield) {
+    const val = realYield.value;
+    if (val >= 2.4) score -= 5;
+    else if (val <= 1.4) score += 6;
+
+    signals.push({
+      id: 'real-yield',
+      label: 'Lãi suất Thực 10Y (TIPS)',
+      category: 'credit_rates',
+      valueDisplay: `${val >= 0 ? '+' : ''}${val.toFixed(2)}%`,
+      subtext: val >= 2.3 ? 'Kìm P/E đắt & ngành nợ vay cao' : 'Hỗ trợ Vàng & Cổ phiếu Tech',
+      signalBadge: val >= 2.3 ? 'LÃI THỰC CAO' : val <= 1.5 ? 'HỖ TRỢ ĐỊNH GIÁ' : 'TRUNG TÍNH',
+      tone: val >= 2.4 ? 'bearish' : val <= 1.5 ? 'bullish' : 'neutral',
+    });
+  }
+
+  // 5. Dr. Copper / Gold Ratio
+  if (copper && gold && gold.price > 0) {
+    // Ratio expressed in lbs per 1,000 USD of Gold: (Copper $/lb * 1000) / Gold $/oz
+    const ratio = Number(((copper.price * 1000) / gold.price).toFixed(2));
+    const copperUp = copper.changePercent24h >= gold.changePercent24h;
+    if (copperUp) score += 3;
+
+    signals.push({
+      id: 'copper-gold',
+      label: 'Tỷ lệ Đồng / Vàng',
+      category: 'cycle_tech',
+      valueDisplay: `${ratio.toFixed(2)}x`,
+      subtext: `Đồng $${copper.price.toFixed(2)}/lb (${copper.changePercent24h >= 0 ? '+' : ''}${copper.changePercent24h.toFixed(1)}%)`,
+      signalBadge: copperUp ? 'CẦU SẢN XUẤT TỐT' : 'THIÊN VỀ TRÚ ẨN',
+      tone: copperUp ? 'bullish' : 'neutral',
+    });
+  }
+
+  // 6. PHLX Semiconductor Index (^SOX)
+  if (sox) {
+    const up = sox.changePercent24h >= 0;
+    if (up) score += 3;
+
+    signals.push({
+      id: 'sox',
+      label: 'Chu kỳ Bán dẫn AI (SOX)',
+      category: 'cycle_tech',
+      valueDisplay: `${Math.round(sox.price).toLocaleString('en-US')}`,
+      subtext: `24h: ${up ? '+' : ''}${sox.changePercent24h.toFixed(2)}% · Dẫn dắt CNTT & ĐTử`,
+      signalBadge: up ? ' CHU KỲ AI MẠNH' : 'NHỊP ĐIỀU CHỈNH',
+      tone: up ? 'bullish' : 'neutral',
+    });
+  }
+
+  // 7. Sahm Rule + Weekly Jobless Claims
+  if (sahm) {
+    const val = sahm.value;
+    if (val >= 0.5) score -= 22;
+    else if (val < 0.3) score += 6;
+
+    const claimsK = icsa ? Math.round(icsa.value / 1000) : null;
+    if (claimsK !== null) {
+      if (claimsK < 240) score += 4;
+      else if (claimsK > 275) score -= 10;
+    }
+
+    signals.push({
+      id: 'sahm-claims',
+      label: 'Quy tắc Suy thoái Sahm',
+      category: 'recession_watch',
+      valueDisplay: `${val.toFixed(2)} / 0.50`,
+      subtext: claimsK !== null ? `Trợ cấp thất nghiệp tuần: ${claimsK}k đơn` : 'Báo động đỏ khi ≥ 0.50',
+      signalBadge: val >= 0.5 ? 'BÁO ĐỘNG SUY THOÁI' : val >= 0.35 ? 'CẢNH GIÁC' : 'CHƯA SUY THOÁI',
+      tone: val >= 0.5 ? 'bearish' : val >= 0.35 ? 'neutral' : 'bullish',
+    });
+  }
+
+  // 8. Building Permits YoY (Leading Real Estate 6–9m)
+  if (permit) {
+    const val = permit.value;
+    if (val < -5) score -= 4;
+    else if (val > 2) score += 4;
+
+    signals.push({
+      id: 'permits',
+      label: 'Giấy phép Xây dựng (YoY)',
+      category: 'recession_watch',
+      valueDisplay: `${val >= 0 ? '+' : ''}${val.toFixed(1)}%`,
+      subtext: 'Đi trước chu kỳ Bất động sản 6–9 tháng',
+      signalBadge: val >= 0 ? 'BĐS PHỤC HỒI' : 'BĐS CHỊU ÁP LỰC LÃI',
+      tone: val >= 1 ? 'bullish' : val >= -4 ? 'neutral' : 'bearish',
+    });
+  }
+
+  if (curve && curve.value < 0) {
+    score -= 10;
+  }
+
+  const riskAppetiteScore = clampScore(score);
+
+  let stance: InvestmentStance = 'selective_growth';
+  let stanceLabel = 'RISK-ON CHỌN LỌC · ƯU TIÊN CHẤT LƯỢNG';
+  let summary =
+    'Thanh khoản M2 & điều kiện tín dụng đang ủng hộ tài sản tăng trưởng, nhưng lãi suất thực còn cao — ưu tiên doanh nghiệp ít nợ vay, dòng tiền thật.';
+
+  if ((sahm && sahm.value >= 0.5) || (hySpread && hySpread.value >= 5.0) || riskAppetiteScore < 42) {
+    stance = 'defensive_recession';
+    stanceLabel = 'PHÒNG THỦ TỐI ĐA · RỦI RO SUY THOÁI';
+    summary =
+      'Chỉ báo lao động / tín dụng phát tín hiệu suy thoái sớm — ưu tiên bảo toàn vốn, tiền gửi, trái phiếu và tài sản trú ẩn.';
+  } else if (riskAppetiteScore < 58) {
+    stance = 'cautious';
+    stanceLabel = 'THẬN TRỌNG · GIỮ SỨC MUA & GIẢM ĐÒN BẨY';
+    summary =
+      'Các chỉ báo dẫn dắt phân hóa — nên hạ margin, giải ngân từng phần khi thị trường chiết khấu và giữ tỷ trọng tiền mặt dự phòng.';
+  } else if (riskAppetiteScore >= 74 && (!realYield || realYield.value < 2.2)) {
+    stance = 'risk_on';
+    stanceLabel = 'RISK-ON MẠNH · DÒNG TIỀN MỞ RỘNG';
+    summary =
+      'Cung tiền M2 mở rộng kết hợp tín dụng an toàn & chu kỳ sản xuất phục hồi — thuận lợi cho cổ phiếu tăng trưởng và tài sản rủi ro.';
+  }
+
+  const favoredAssets: string[] = [];
+  const watchAssets: string[] = [];
+  const avoidAssets: string[] = [];
+
+  if (stance === 'defensive_recession' || stance === 'cautious') {
+    favoredAssets.push('Tiền gửi kỳ hạn / Trái phiếu lãi suất thực cao để giữ sức mua');
+    favoredAssets.push('Cổ phiếu phòng thủ ít nợ vay, cổ tức tiền mặt đều (Điện, Nước, Hạ tầng CNTT)');
+    favoredAssets.push('Vàng nhẫn 9999 / Vàng quốc tế trong các nhịp điều chỉnh');
+
+    watchAssets.push('Cổ phiếu đầu ngành VN30 chiết khấu sâu về vùng P/B thấp');
+    avoidAssets.push('Sử dụng đòn bẩy margin cao hoặc cổ phiếu đầu cơ P/E quá đắt');
+  } else {
+    favoredAssets.push(
+      'Cổ phiếu CNTT · Tích hợp hệ thống · Bán dẫn & Xuất khẩu (hưởng lợi chu kỳ AI, FDI & đơn hàng mới)',
+    );
+    favoredAssets.push(
+      'Doanh nghiệp P/E thấp, ít nợ vay, chia cổ tức tiền mặt đều (miễn nhiễm với lãi suất thực cao)',
+    );
+    favoredAssets.push(
+      'Cổ phiếu Ngân hàng & KCN đầu ngành Việt Nam (tích lũy ở nhịp chỉnh khi tỷ giá USD/VND ổn định)',
+    );
+
+    watchAssets.push(
+      `Bitcoin / Crypto vốn hóa lớn (hưởng lợi thanh khoản M2 ${m2 ? `+${m2.value.toFixed(1)}%` : 'tăng'}, giải ngân từng phần không đòn bẩy)`,
+    );
+    watchAssets.push(
+      'Vàng nhẫn 9999 (chờ nhịp hạ nhiệt của Lãi suất thực 10Y để tối ưu giá vốn)',
+    );
+
+    if (realYield && realYield.value >= 2.2) {
+      avoidAssets.push(
+        `Doanh nghiệp Bất động sản vay nợ lớn (Giấy phép XD ${permit ? `${permit.value.toFixed(1)}%` : 'chững'}, lãi thực ${realYield.value.toFixed(2)}% còn cao)`,
+      );
+    }
+    if (sjcGold?.premiumVsWorldMillionVnd && sjcGold.premiumVsWorldMillionVnd >= 15) {
+      avoidAssets.push(
+        `Mua đuổi Vàng miếng SJC ngắn hạn khi chênh lệch thế giới quá rộng (+${sjcGold.premiumVsWorldMillionVnd.toFixed(1)} tr/lượng)`,
+      );
+    } else if (usdVnd && usdVnd.price >= 25_750) {
+      avoidAssets.push(
+        `FOMO mua đuổi bằng margin cao khi tỷ giá USD/VND (${Math.round(usdVnd.price).toLocaleString('en-US')}₫) còn căng`,
+      );
+    }
+  }
+
+  return {
+    riskAppetiteScore,
+    stance,
+    stanceLabel,
+    summary,
+    favoredAssets,
+    watchAssets,
+    avoidAssets,
+    signals,
   };
 }

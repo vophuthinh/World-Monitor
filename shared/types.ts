@@ -178,7 +178,7 @@ export interface FredMacroMetric {
   change: number;
   unit: string;
   date: string;
-  pillar?: 'growth' | 'inflation' | 'monetary' | 'market';
+  pillar?: 'growth' | 'inflation' | 'monetary' | 'market' | 'leading';
   benchmarkLabel?: string;
   benchmarkValue?: number;
   avg3m?: number;
@@ -264,6 +264,33 @@ export interface EconomyHealthReport {
     severity: 'critical' | 'warn' | 'good';
     text: string;
   }>;
+}
+
+export type InvestmentStance =
+  | 'risk_on'
+  | 'selective_growth'
+  | 'cautious'
+  | 'defensive_recession';
+
+export interface LeadingCompassSignal {
+  id: string;
+  label: string;
+  category: 'liquidity' | 'credit_rates' | 'cycle_tech' | 'recession_watch';
+  valueDisplay: string;
+  subtext: string;
+  signalBadge: string;
+  tone: 'bullish' | 'neutral' | 'bearish';
+}
+
+export interface InvestmentCompassReport {
+  riskAppetiteScore: number;
+  stance: InvestmentStance;
+  stanceLabel: string;
+  summary: string;
+  favoredAssets: string[];
+  watchAssets: string[];
+  avoidAssets: string[];
+  signals: LeadingCompassSignal[];
 }
 
 export interface MarketSnapshot {
