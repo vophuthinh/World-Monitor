@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildSectorRotation,
   classifyMacroQuadrant,
   computeDynamicPortfolioAllocation,
   computeFedNetLiquidity,
@@ -8,6 +9,8 @@ import {
   computeVn30MarketBreadth,
   evaluateInvestmentCompass,
   evaluateMacroHealth,
+  extractPolymarketMacroInsight,
+  smoothFactorScore,
 } from '../shared/macro-health';
 import { SnapshotStore } from '../server/cache/snapshot-store';
 import {
@@ -17,7 +20,9 @@ import {
   normalizeMihongGoldPrices,
   normalizeVn30DchartQuote,
   normalizeYahooChartQuote,
+  parseMultplSp500PeHtml,
   parseSimplizeIndexValuationHtml,
+  parseTradingEconomicsVietnamHtml,
 } from '../server/collectors/markets-crypto';
 import {
   normalizeNwsWeatherAlerts,
@@ -704,5 +709,127 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     expect(compass?.capitulationSignal).toBe(true);
     expect(compass?.allocations.reduce((s, a) => s + a.weightPct, 0)).toBe(100);
     expect(compass?.signals.some((s) => s.id === 'aud-jpy' && s.tone === 'bearish')).toBe(true);
+  });
+
+  it('computes continuous multi-factor scores, live VN 10Y / PMI / CPI pulse, S&P 500 ERP, Polymarket FOMC odds & 4-phase Sector Rotation', () => {
+    // 1. Continuous smooth factor scoring has zero step-function discontinuities
+    const s1 = smoothFactorScore(3.89, 4.15, 0.75, true);
+    const s2 = smoothFactorScore(3.91, 4.15, 0.75, true);
+    expect(Math.abs(s1 - s2)).toBeLessThanOrEqual(2);
+    expect(smoothFactorScore(6.0, 2.0, 2.5, false)).toBeGreaterThan(smoothFactorScore(1.0, 2.0, 2.5, false));
+
+    // 2. Parse live Vietnam monthly PMI, CPI, Interbank, Quarterly GDP, Trade Surplus & VN10Y Bond Yield
+    const vnPulse = parseTradingEconomicsVietnamHtml(
+      `<table>
+        <tr><td><a href='/vietnam/inflation-cpi'>Inflation Rate</a></td><td>5.09</td><td>5.08</td></tr>
+        <tr><td><a href='/vietnam/manufacturing-pmi'>Manufacturing PMI</a></td><td>52.3</td><td>51.9</td></tr>
+        <tr><td><a href='/vietnam/interbank-rate'>Interbank Rate</a></td><td>7.66</td><td>7.04</td></tr>
+        <tr><td><a href='/vietnam/gdp-growth-annual'>GDP Annual Growth Rate</a></td><td>9.95</td><td>8.81</td></tr>
+        <tr><td><a href='/vietnam/balance-of-trade'>Balance of Trade</a></td><td>7.31</td><td>1.27</td></tr>
+      </table>`,
+      `<meta name="description" content="The yield on Vietnam 10Y Bond Yield held steady at 4.57% on November 20, 2026." />`,
+    );
+    expect(vnPulse.vn10yYieldPct).toBe(4.57);
+    expect(vnPulse.monthlyCpiPct).toBe(5.09);
+    expect(vnPulse.manufacturingPmi).toBe(52.3);
+    expect(vnPulse.interbankRatePct).toBe(7.66);
+    expect(vnPulse.quarterlyGdpPct).toBe(9.95);
+    expect(vnPulse.tradeBalanceBillionUsd).toBe(7.31);
+
+    const spPe = parseMultplSp500PeHtml(`<div id="current">Current S&amp;P 500 PE Ratio: <b>23.55</b></div>`);
+    expect(spPe).toBe(23.55);
+
+    // 3. Polymarket real-money FOMC hawkish rate hike detection
+    const polyInsight = extractPolymarketMacroInsight([
+      {
+        id: 'fed-decision-in-december',
+        title: 'Fed Decision in December?',
+        category: 'finance',
+        yesPercent: 90,
+        outcomeLabel: '25 bps increase',
+        volumeUsd: 49_745_117,
+        liquidityUsd: 2_500_000,
+        endDate: '2026-12-18',
+        url: 'https://polymarket.com/event/fed-decision-in-december',
+        updatedAt: 1,
+      },
+    ]);
+    expect(polyInsight).not.toBeNull();
+    expect(polyInsight?.bias).toBe('hawkish_hike');
+    expect(polyInsight?.fedActionLabel).toContain('90%');
+
+    // 4. Sector rotation maps all 4 quadrants distinctly
+    expect(buildSectorRotation('Q1_GOLDILOCKS').leadingSectors[0]).toContain('CNTT');
+    expect(buildSectorRotation('Q2_REFLATION').leadingSectors[0]).toContain('Dầu khí');
+    expect(buildSectorRotation('Q3_STAGFLATION').leadingSectors[0]).toContain('Điện');
+    expect(buildSectorRotation('Q4_DEFLATION').leadingSectors[0]).toContain('Trái phiếu');
+
+    // 5. End-to-end Macro Health & Multi-Factor Investment Compass with live VN10Y & Polymarket
+    const snapshot = {
+      quotes: [
+        { symbol: 'VN-Index', name: 'VN-Index', group: 'index' as const, price: 1689, changePercent24h: -0.05, ma50: 1748, ma200: 1784, rsi14: 37, peRatio: 10.46, pbRatio: 1.8, updatedAt: 1, source: 'HOSE' },
+        { symbol: 'S&P 500', name: 'S&P 500', group: 'index' as const, price: 6910, changePercent24h: -3.7, ma50: 7625, ma200: 7349, rsi14: 25, updatedAt: 1, source: 'Yahoo' },
+        { symbol: 'USD/VND', name: 'USD/VND', group: 'fx' as const, price: 25783, changePercent24h: 0, updatedAt: 1, source: 'FX' },
+      ],
+      crypto: [],
+      fearGreed: null,
+      macro: [
+        {
+          countryCode: 'VNM',
+          countryName: 'Việt Nam',
+          regionLabel: 'ASEAN',
+          isVietnam: true,
+          gdpGrowthPct: 8.02,
+          gdpGrowthYear: 2025,
+          gdpCurrentUsd: 514_000_000_000,
+          gdpCurrentYear: 2025,
+          cpiInflationPct: 3.31,
+          cpiYear: 2025,
+          fdiPctGdp: 4.27,
+          currentAccountPctGdp: 6.44,
+          creditPctGdp: 125.0,
+        },
+      ],
+      fred: [
+        { id: 'DGS10', label: 'US 10Y', subtitle: 'US 10Y', value: 5.04, change: 0, unit: '%', date: '2026-11-20', pillar: 'market' as const, sparkline: [] },
+        { id: 'PCEPILFE', label: 'Core PCE', subtitle: 'Core PCE', value: 3.12, change: 0.09, zScore: 1.01, unit: '%', date: '2026-09-01', pillar: 'inflation' as const, sparkline: [] },
+        { id: 'M2SL', label: 'M2', subtitle: 'M2', value: 5.71, change: 0.1, unit: '%', date: '2026-09-01', pillar: 'leading' as const, sparkline: [] },
+      ],
+      vnMacroPulse: {
+        ...vnPulse,
+        sp500PeRatio: 23.55,
+        updatedAt: 1,
+      },
+      updatedAt: 1,
+    };
+
+    const predictions = [
+      {
+        id: 'fed-decision-in-december',
+        title: 'Fed Decision in December?',
+        category: 'finance' as const,
+        yesPercent: 90,
+        outcomeLabel: '25 bps increase',
+        volumeUsd: 49_745_117,
+        liquidityUsd: 2_500_000,
+        endDate: '2026-12-18',
+        url: 'https://polymarket.com/event/fed-decision-in-december',
+        updatedAt: 1,
+      },
+    ];
+
+    const health = evaluateMacroHealth(snapshot, predictions);
+    // Live monthly CPI 5.09% (>4.5% ceiling) + Quarterly GDP 9.95% accurately shifts VN to Q2 Reflation!
+    expect(health.vn?.quadrant).toBe('Q2_REFLATION');
+    expect(health.vn?.regime).toBe('overheating');
+    expect(health.us?.warningFlags.some((f) => f.text.includes('Polymarket'))).toBe(true);
+
+    const compassFull = evaluateInvestmentCompass(snapshot, predictions);
+    expect(compassFull?.vnErpPct).toBeCloseTo(4.99, 1); // 100/10.46 - 4.57% live VN10Y!
+    expect(compassFull?.usErpPct).toBeCloseTo(-0.79, 1); // 100/23.55 - 5.04% live US10Y!
+    expect(compassFull?.vnUsYieldSpreadBps).toBe(-47);
+    expect(compassFull?.factorPillars).toHaveLength(5);
+    expect(compassFull?.factorPillars?.reduce((s, p) => s + p.weightPct, 0)).toBe(100);
+    expect(compassFull?.sectorRotation?.quadrant).toBe('Q2_REFLATION');
   });
 });

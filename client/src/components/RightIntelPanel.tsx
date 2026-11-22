@@ -554,18 +554,20 @@ export const RightIntelPanel = memo(function RightIntelPanel({
   // Only compute heavy macro & compass diagnostics when the Markets tab is active,
   // and ignore 1.5s BTC/ETH ticks so streaming prices never re-run macro math!
   const macroHealth = useMemo(
-    () => (activeTab === 'markets' ? evaluateMacroHealth(markets) : { vn: null, us: null }),
+    () => (activeTab === 'markets' ? evaluateMacroHealth(markets, predictions) : { vn: null, us: null }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeTab, markets.macro, markets.fred, usdVndPrice, vniQuoteRef?.peRatio],
+    [activeTab, markets.macro, markets.fred, markets.vnMacroPulse, usdVndPrice, vniQuoteRef?.peRatio, predictions],
   );
   const investmentCompass = useMemo(
-    () => (activeTab === 'markets' ? evaluateInvestmentCompass(markets) : null),
+    () => (activeTab === 'markets' ? evaluateInvestmentCompass(markets, predictions) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       activeTab,
       markets.fred,
       markets.vnGold,
       markets.vn30,
+      markets.vnMacroPulse,
+      predictions,
       usdVndPrice,
       copperPrice,
       soxPrice,
@@ -2931,6 +2933,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                       onClick={() => {
                         onForceRefresh('markets-crypto');
                         onForceRefresh('macro-worldbank');
+                        onForceRefresh('polymarket-news');
                       }}
                       title="Làm mới dữ liệu FRED & World Bank"
                       className="inline-flex items-center rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-slate-300 hover:border-cyan-400/50 hover:text-cyan-200"
@@ -3231,6 +3234,46 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                   {investmentCompass.summary}
                 </p>
 
+                {/* 5 Orthogonal Continuous Factor Pillars (0..100 each) */}
+                {investmentCompass.factorPillars && investmentCompass.factorPillars.length > 0 && (
+                  <div className="mt-2 rounded border border-slate-800/90 bg-[#0a1220] p-2 font-mono">
+                    <div className="mb-1 flex items-center justify-between text-[9px]">
+                      <span className="font-bold text-sky-300">ĐIỂM 5 NHÂN TỐ ĐỊNH LƯỢNG LIÊN TỤC</span>
+                      <span className="text-slate-400">Trọng số 100%</span>
+                    </div>
+                    <div className="space-y-1">
+                      {investmentCompass.factorPillars.map((fp) => {
+                        const barColor =
+                          fp.score >= 65 ? '#10b981' : fp.score >= 46 ? '#f59e0b' : '#f43f5e';
+                        return (
+                          <div key={fp.id} className="grid grid-cols-[1fr_72px_36px] items-center gap-1.5 text-[9px]">
+                            <span className="truncate text-slate-300">
+                              {fp.label} <span className="text-slate-500">({fp.weightPct}%)</span>
+                            </span>
+                            <div className="h-1.5 overflow-hidden rounded-full bg-slate-800">
+                              <div
+                                className="h-full rounded-full transition-all duration-500"
+                                style={{ width: `${fp.score}%`, backgroundColor: barColor }}
+                              />
+                            </div>
+                            <span
+                              className={`text-right font-bold tabular-nums ${
+                                fp.score >= 65
+                                  ? 'text-emerald-300'
+                                  : fp.score >= 46
+                                    ? 'text-amber-300'
+                                    : 'text-rose-300'
+                              }`}
+                            >
+                              {fp.score}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Dynamic Multi-Asset Target Portfolio Allocation (100% Sum) */}
                 {investmentCompass.allocations.length > 0 && (
                   <div className="mt-2 rounded border border-slate-800/90 bg-[#0b1322] p-2">
@@ -3284,8 +3327,13 @@ export const RightIntelPanel = memo(function RightIntelPanel({
 
                 <div className="mt-2 space-y-1.5 text-[10.5px] leading-snug">
                   <div className="rounded border border-emerald-500/35 bg-emerald-950/25 px-2 py-1.5">
-                    <div className="font-mono text-[9.5px] font-bold text-emerald-300">
-                      🟢 KÊNH ƯU TIÊN TÍCH SẢN / NẮM GIỮ
+                    <div className="flex flex-wrap items-center justify-between gap-1 font-mono text-[9.5px] font-bold text-emerald-300">
+                      <span>🟢 LUÂN CHUYỂN NGÀNH &amp; KÊNH ƯU TIÊN</span>
+                      {investmentCompass.sectorRotation && (
+                        <span className="text-[8.5px] font-normal text-emerald-200/80">
+                          {investmentCompass.sectorRotation.phaseTitle.split('(')[0].trim()}
+                        </span>
+                      )}
                     </div>
                     <ul className="mt-0.5 space-y-0.5 text-slate-200">
                       {investmentCompass.favoredAssets.map((item, idx) => (

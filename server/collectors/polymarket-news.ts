@@ -8,6 +8,8 @@ export { selectTopHotPolymarket };
 
 const POLYMARKET_EVENTS_URL =
   'https://gamma-api.polymarket.com/events?active=true&closed=false&order=volume24hr&ascending=false&limit=80';
+const POLYMARKET_ECONOMY_URL =
+  'https://gamma-api.polymarket.com/events?active=true&closed=false&tag_slug=economy&order=volume24hr&ascending=false&limit=18';
 
 export interface RawPolymarketMarket {
   question?: string;
@@ -228,12 +230,27 @@ export function normalizePolymarketEvents(events: RawPolymarketEvent[]): Predict
 }
 
 export async function fetchPolymarketPredictions(): Promise<PredictionItem[]> {
-  const payload = await fetchJsonWithTimeout<RawPolymarketEvent[]>(POLYMARKET_EVENTS_URL, {
-    timeoutMs: 12_000,
-    retries: 1,
-    userAgent: NAMED_APP_UA,
-  });
-  const normalized = normalizePolymarketEvents(payload);
+  const [mainRes, econRes] = await Promise.allSettled([
+    fetchJsonWithTimeout<RawPolymarketEvent[]>(POLYMARKET_EVENTS_URL, {
+      timeoutMs: 12_000,
+      retries: 1,
+      userAgent: NAMED_APP_UA,
+    }),
+    fetchJsonWithTimeout<RawPolymarketEvent[]>(POLYMARKET_ECONOMY_URL, {
+      timeoutMs: 10_000,
+      retries: 0,
+      userAgent: NAMED_APP_UA,
+    }),
+  ]);
+
+  const rawEvents: RawPolymarketEvent[] = [
+    ...(mainRes.status === 'fulfilled' && Array.isArray(mainRes.value) ? mainRes.value : []),
+    ...(econRes.status === 'fulfilled' && Array.isArray(econRes.value) ? econRes.value : []),
+  ];
+  if (rawEvents.length === 0) {
+    throw new Error('Polymarket Gamma API returned zero events');
+  }
+  const normalized = normalizePolymarketEvents(rawEvents);
 
   // Combine Top Hottest 24h events (for Live Intel) + High-Signal Macro/Geopolitical events (for Thị trường)
   const topHot = selectTopHotPolymarket(normalized, 12);

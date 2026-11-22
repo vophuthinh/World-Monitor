@@ -235,7 +235,7 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now()):
     }
 
     const wbMacro = store.get<MacroCountryIndicator[]>('macro-worldbank', now) ?? markets.macro ?? [];
-    const health = evaluateMacroHealth({ ...markets, macro: wbMacro });
+    const health = evaluateMacroHealth({ ...markets, macro: wbMacro }, predictions);
     if (health.vn || health.us) {
       const parts = [
         health.vn
@@ -250,7 +250,7 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now()):
       lines.push(`[CHẨN ĐOÁN SỨC KHỎE VĨ MÔ] ${parts.join(' | ')}`);
     }
 
-    const compass = evaluateInvestmentCompass({ ...markets, macro: wbMacro });
+    const compass = evaluateInvestmentCompass({ ...markets, macro: wbMacro }, predictions);
     if (compass) {
       const netLiqPart =
         compass.netLiquidityBillions !== undefined

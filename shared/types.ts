@@ -325,6 +325,35 @@ export interface PortfolioAllocationSlice {
   colorHex: string;
 }
 
+export interface VietnamLiveMacroPulse {
+  vn10yYieldPct?: number;
+  interbankRatePct?: number;
+  sbvPolicyRatePct?: number;
+  monthlyCpiPct?: number;
+  monthlyCpiPrevPct?: number;
+  manufacturingPmi?: number;
+  manufacturingPmiPrev?: number;
+  quarterlyGdpPct?: number;
+  quarterlyGdpPrevPct?: number;
+  tradeBalanceBillionUsd?: number;
+  sp500PeRatio?: number;
+  updatedAt: number;
+}
+
+export interface CompassFactorPillar {
+  id: 'liquidity' | 'credit_recession' | 'valuation_erp' | 'trend_breadth' | 'fx_volatility';
+  label: string;
+  weightPct: number;
+  score: number;
+}
+
+export interface SectorRotationRecommendation {
+  quadrant: MacroQuadrant;
+  phaseTitle: string;
+  leadingSectors: string[];
+  laggingSectors: string[];
+}
+
 export interface InvestmentCompassReport {
   riskAppetiteScore: number;
   stance: InvestmentStance;
@@ -335,6 +364,9 @@ export interface InvestmentCompassReport {
   recessionProb12m?: number;
   vnIndexPe?: number;
   vnErpPct?: number;
+  usErpPct?: number;
+  vnUsYieldSpreadBps?: number;
+  polymarketFedSummary?: string;
   vnBreadthMa50Pct?: number;
   vnBreadthMa200Pct?: number;
   vixTermRatio?: number;
@@ -342,6 +374,8 @@ export interface InvestmentCompassReport {
   capitulationLabel?: string;
   dualConfirmation?: 'confirmed_bull' | 'macro_bull_trend_weak' | 'macro_weak_trend_bull' | 'confirmed_bear';
   dualConfirmationLabel?: string;
+  factorPillars?: CompassFactorPillar[];
+  sectorRotation?: SectorRotationRecommendation;
   allocations: PortfolioAllocationSlice[];
   favoredAssets: string[];
   watchAssets: string[];
@@ -357,6 +391,7 @@ export interface MarketSnapshot {
   vnGold?: VnGoldQuote[];
   vn30?: Vn30StockQuote[];
   fred?: FredMacroMetric[];
+  vnMacroPulse?: VietnamLiveMacroPulse;
   updatedAt: number;
 }
 

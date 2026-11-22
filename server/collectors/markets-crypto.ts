@@ -4,6 +4,7 @@ import type {
   FredMacroMetric,
   MarketQuote,
   MarketSnapshot,
+  VietnamLiveMacroPulse,
   Vn30StockQuote,
   VnGoldQuote,
 } from '@shared/types';
@@ -540,6 +541,101 @@ async function fetchSimplizeVnIndexValuation(): Promise<SimplizeIndexValuation |
   }
 }
 
+export function parseTradingEconomicsVietnamHtml(
+  indicatorsHtml: string,
+  bondHtml = '',
+): Partial<VietnamLiveMacroPulse> {
+  const out: Partial<VietnamLiveMacroPulse> = {};
+
+  if (bondHtml) {
+    const bondMeta = bondHtml.match(
+      /Vietnam\s+10Y?\s+(?:Government\s+)?Bond\s+Yield[\s\S]{0,120}?at\s+([0-9]+\.[0-9]+)\s*%/i,
+    );
+    if (bondMeta) {
+      const y = Number(bondMeta[1]);
+      if (Number.isFinite(y) && y > 0.5 && y < 20) out.vn10yYieldPct = Number(y.toFixed(2));
+    }
+  }
+
+  if (indicatorsHtml) {
+    const rowRe =
+      /href=['"]\/vietnam\/([^'"]+)['"][^>]*>\s*([^<]+?)\s*<\/a>\s*<\/td>\s*<td[^>]*>\s*([-0-9.,]+)\s*<\/td>\s*<td[^>]*>\s*([-0-9.,]+)\s*<\/td>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = rowRe.exec(indicatorsHtml)) !== null) {
+      const slug = m[1].toLowerCase().trim();
+      const latest = Number(m[3].replace(/,/g, ''));
+      const prev = Number(m[4].replace(/,/g, ''));
+      if (!Number.isFinite(latest)) continue;
+
+      if (slug === 'inflation-cpi' && latest > -10 && latest < 40) {
+        out.monthlyCpiPct = Number(latest.toFixed(2));
+        if (Number.isFinite(prev)) out.monthlyCpiPrevPct = Number(prev.toFixed(2));
+      } else if (slug === 'manufacturing-pmi' && latest > 20 && latest < 85) {
+        out.manufacturingPmi = Number(latest.toFixed(1));
+        if (Number.isFinite(prev)) out.manufacturingPmiPrev = Number(prev.toFixed(1));
+      } else if (slug === 'interbank-rate' && latest >= 0 && latest < 30) {
+        out.interbankRatePct = Number(latest.toFixed(2));
+      } else if (slug === 'interest-rate' && latest >= 0 && latest < 25) {
+        out.sbvPolicyRatePct = Number(latest.toFixed(2));
+      } else if (slug === 'gdp-growth-annual' && latest > -15 && latest < 25) {
+        out.quarterlyGdpPct = Number(latest.toFixed(2));
+        if (Number.isFinite(prev)) out.quarterlyGdpPrevPct = Number(prev.toFixed(2));
+      } else if (slug === 'balance-of-trade' && Math.abs(latest) < 100) {
+        out.tradeBalanceBillionUsd = Number(latest.toFixed(2));
+      } else if (slug === 'government-bond-yield' && out.vn10yYieldPct === undefined && latest > 0.5 && latest < 20) {
+        out.vn10yYieldPct = Number(latest.toFixed(2));
+      }
+    }
+  }
+
+  return out;
+}
+
+export function parseMultplSp500PeHtml(html: string): number | undefined {
+  if (!html) return undefined;
+  const match =
+    html.match(/Current\s+S(?:&amp;|&)P\s+500\s+PE\s+Ratio[\s\S]{0,180}?([0-9]+\.[0-9]+)/i) ??
+    html.match(/id=["']current["'][\s\S]{0,220}?([0-9]+\.[0-9]+)/i);
+  if (!match) return undefined;
+  const val = Number(match[1]);
+  return Number.isFinite(val) && val > 5 && val < 90 ? Number(val.toFixed(2)) : undefined;
+}
+
+async function fetchVietnamAndGlobalMacroPulse(now: number): Promise<VietnamLiveMacroPulse | undefined> {
+  const [teIndRes, teBondRes, multplRes] = await Promise.allSettled([
+    fetchTextWithTimeout('https://tradingeconomics.com/vietnam/indicators', {
+      timeoutMs: 6_500,
+      retries: 0,
+      userAgent: 'Mozilla/5.0',
+    }),
+    fetchTextWithTimeout('https://tradingeconomics.com/vietnam/government-bond-yield', {
+      timeoutMs: 6_500,
+      retries: 0,
+      userAgent: 'Mozilla/5.0',
+    }),
+    fetchTextWithTimeout('https://www.multpl.com/s-p-500-pe-ratio', {
+      timeoutMs: 6_500,
+      retries: 0,
+      userAgent: 'Mozilla/5.0',
+    }),
+  ]);
+
+  const indHtml = teIndRes.status === 'fulfilled' ? teIndRes.value.text : '';
+  const bondHtml = teBondRes.status === 'fulfilled' ? teBondRes.value.text : '';
+  const multplHtml = multplRes.status === 'fulfilled' ? multplRes.value.text : '';
+
+  const vnParsed = parseTradingEconomicsVietnamHtml(indHtml, bondHtml);
+  const sp500PeRatio = parseMultplSp500PeHtml(multplHtml);
+
+  const combined: VietnamLiveMacroPulse = {
+    ...vnParsed,
+    ...(sp500PeRatio !== undefined ? { sp500PeRatio } : {}),
+    updatedAt: now,
+  };
+
+  return Object.keys(combined).length > 1 ? combined : undefined;
+}
+
 export interface FredSeriesTarget {
   id: string;
   label: string;
@@ -1068,7 +1164,7 @@ async function fetchIndicesAndCommodities(now: number): Promise<MarketQuote[]> {
 export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): Promise<MarketSnapshot> {
   const now = Date.now();
 
-  const [cryptoRes, fgRes, fxRes, marketQuotesRes, vnValRes, vn30Res, fredRes] = await Promise.allSettled([
+  const [cryptoRes, fgRes, fxRes, marketQuotesRes, vnValRes, vnPulseRes, vn30Res, fredRes] = await Promise.allSettled([
     fetchCryptoQuotes(now),
     fetchJsonWithTimeout<FearGreedPayload>(FEAR_GREED_URL, {
       timeoutMs: 8_000,
@@ -1082,6 +1178,7 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
     }).then((d) => normalizeErApiFx(d, now)),
     fetchIndicesAndCommodities(now),
     fetchSimplizeVnIndexValuation(),
+    fetchVietnamAndGlobalMacroPulse(now),
     fetchVn30Leaders(now),
     fetchFredMacroMetrics(),
   ]);
@@ -1168,6 +1265,11 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
       ? fredRes.value
       : (previous?.fred ?? []);
 
+  const vnMacroPulse =
+    vnPulseRes.status === 'fulfilled' && vnPulseRes.value
+      ? { ...(previous?.vnMacroPulse ?? {}), ...vnPulseRes.value }
+      : previous?.vnMacroPulse;
+
   if (quotes.length === 0 && crypto.length === 0) {
     throw new Error('All market, FX, and crypto upstream endpoints failed');
   }
@@ -1180,6 +1282,7 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
     vnGold,
     vn30,
     fred,
+    ...(vnMacroPulse ? { vnMacroPulse } : {}),
     updatedAt: now,
   };
 }
