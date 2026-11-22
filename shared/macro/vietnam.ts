@@ -26,7 +26,7 @@ export function buildVietnamMacroHealth(
 
   const hasLivePmi = pulse?.manufacturingPmi !== undefined;
   const pmi = pulse?.manufacturingPmi;
-  const manf = vn.manufacturingGrowthPct ?? gdp * 1.25;
+  const manf = vn.manufacturingGrowthPct ?? undefined;
   const manfBenchmark = 8.0;
 
   // CRITICAL ECONOMETRIC ALIGNMENT:
@@ -52,9 +52,10 @@ export function buildVietnamMacroHealth(
       ? Number((cpiForTargetComparison - vn.cpiPrevPct).toFixed(2))
       : undefined;
 
-  const fdi = vn.fdiPctGdp ?? 4.0;
-  const exportsGdp = vn.exportsPctGdp ?? 85.0;
-  const unemp = vn.unemploymentPct ?? 2.0;
+  // World Bank gaps stay undefined: a missing indicator is omitted, never replaced by an invented value.
+  const fdi = vn.fdiPctGdp ?? undefined;
+  const exportsGdp = vn.exportsPctGdp ?? undefined;
+  const unemp = vn.unemploymentPct ?? undefined;
   const currentAccount = vn.currentAccountPctGdp;
   const cabYear = vn.currentAccountYear ?? vn.gdpGrowthYear ?? undefined;
   const isCabStalePriorYear =
@@ -69,7 +70,12 @@ export function buildVietnamMacroHealth(
   const erp = computeVietnamEquityRiskPremium(vniQuote?.peRatio, vn10y ?? 5.2);
   const yearLabel = vn.gdpGrowthYear ? `${vn.gdpGrowthYear}` : 'Mới nhất';
 
-  const manfZ = hasLivePmi && pmi !== undefined ? (pmi - 50.0) / 2.2 : (manf - manfBenchmark) / 2.2;
+  const manfZ =
+    hasLivePmi && pmi !== undefined
+      ? (pmi - 50.0) / 2.2
+      : manf !== undefined
+        ? (manf - manfBenchmark) / 2.2
+        : 0;
   const growthZ = Number(
     Math.max(-3, Math.min(3, ((gdp - gdpBenchmark) / 1.2) * 0.6 + manfZ * 0.4)).toFixed(2),
   );
@@ -89,7 +95,7 @@ export function buildVietnamMacroHealth(
   );
   const quad = classifyMacroQuadrant(growthZ, inflationZ);
 
-  const growthMetrics: MacroPillarMetric[] = [
+  const growthMetricsRaw: Array<MacroPillarMetric | null> = [
     {
       id: 'vn-gdp',
       name: pulse?.quarterlyGdpPct !== undefined ? 'Tăng trưởng GDP thực (Quý YoY)' : 'Tăng trưởng GDP thực',
@@ -121,7 +127,9 @@ export function buildVietnamMacroHealth(
         periodLabel: 'Live PMI',
         status: pmi >= 50.5 ? 'good' : pmi >= 48.5 ? 'watch' : 'warn',
       }
-      : {
+      : manf === undefined
+        ? null
+        : {
         id: 'vn-manf',
         name: 'CN Chế biến · Chế tạo (Proxy PMI)',
         actual: Number(manf.toFixed(2)),
@@ -145,7 +153,9 @@ export function buildVietnamMacroHealth(
         trendLabel:
           ytdTradeB !== undefined
             ? `Lũy kế ${pulse?.ytdCpiMonths ? `${pulse.ytdCpiMonths}T` : 'năm'}: ${ytdTradeB >= 0 ? '+' : ''}${ytdTradeB.toFixed(2)}B$ (${ytdTradeB < 0 ? 'nhập siêu máy móc/NL' : 'xuất siêu'})`
-            : `Độ mở XK: ${exportsGdp.toFixed(0)}% GDP`,
+            : exportsGdp !== undefined
+              ? `Độ mở XK: ${exportsGdp.toFixed(0)}% GDP`
+              : undefined,
         periodLabel: 'Tháng mới nhất',
         status:
           pulse.tradeBalanceBillionUsd >= 1.5 && (ytdTradeB === undefined || ytdTradeB >= -5)
@@ -154,7 +164,9 @@ export function buildVietnamMacroHealth(
               ? 'watch'
               : 'warn',
       }
-      : {
+      : exportsGdp === undefined
+        ? null
+        : {
         id: 'vn-exp',
         name: 'Độ mở Xuất khẩu / GDP',
         actual: Number(exportsGdp.toFixed(1)),
@@ -166,6 +178,7 @@ export function buildVietnamMacroHealth(
         status: exportsGdp >= 75 ? 'good' : 'watch',
       },
   ];
+  const growthMetrics = growthMetricsRaw.filter((m): m is MacroPillarMetric => m !== null);
 
   const cpiMetricLabel = hasYtdAvgCpi
     ? `CPI Bình quân ${pulse?.ytdCpiMonths ? `${pulse.ytdCpiMonths}T` : 'Lũy kế'} (Chỉ tiêu QH)`
@@ -296,17 +309,19 @@ export function buildVietnamMacroHealth(
     }
   }
 
-  monetaryMetrics.push({
-    id: 'vn-fdi',
-    name: 'Vốn FDI thực hiện ròng / GDP',
-    actual: Number(fdi.toFixed(2)),
-    unit: '% GDP',
-    benchmarkLabel: 'Ngưỡng thu hút tốt',
-    benchmarkValue: 3.5,
-    deltaVsBenchmark: Number((fdi - 3.5).toFixed(2)),
-    periodLabel: yearLabel,
-    status: fdi >= 3.5 ? 'good' : fdi >= 2.2 ? 'watch' : 'warn',
-  });
+  if (fdi !== undefined) {
+    monetaryMetrics.push({
+      id: 'vn-fdi',
+      name: 'Vốn FDI thực hiện ròng / GDP',
+      actual: Number(fdi.toFixed(2)),
+      unit: '% GDP',
+      benchmarkLabel: 'Ngưỡng thu hút tốt',
+      benchmarkValue: 3.5,
+      deltaVsBenchmark: Number((fdi - 3.5).toFixed(2)),
+      periodLabel: yearLabel,
+      status: fdi >= 3.5 ? 'good' : fdi >= 2.2 ? 'watch' : 'warn',
+    });
+  }
 
   if (creditPctGdp !== null && creditPctGdp !== undefined) {
     monetaryMetrics.push({
@@ -320,7 +335,7 @@ export function buildVietnamMacroHealth(
       periodLabel: yearLabel,
       status: creditPctGdp <= 125 ? 'good' : creditPctGdp <= 138 ? 'watch' : 'warn',
     });
-  } else {
+  } else if (unemp !== undefined) {
     monetaryMetrics.push({
       id: 'vn-uem',
       name: 'Tỷ lệ Thất nghiệp chung',
@@ -352,20 +367,16 @@ export function buildVietnamMacroHealth(
   // Smooth continuous pillar scoring centered on true pass/fail economic inflection thresholds
   const growthScore = weightedMean([
     { score: smoothFactorScore(gdp, 5.0, 2.2, false), weight: 0.5 },
-    {
-      score:
-        hasLivePmi && pmi !== undefined
-          ? smoothFactorScore(pmi, 49.5, 2.6, false)
-          : smoothFactorScore(manf, 5.8, 3.2, false),
-      weight: 0.3,
-    },
-    {
-      score:
-        pulse?.tradeBalanceBillionUsd !== undefined
-          ? smoothFactorScore(pulse.tradeBalanceBillionUsd, 0.2, 3.5, false)
-          : smoothFactorScore(exportsGdp, 60, 22, false),
-      weight: 0.2,
-    },
+    ...(hasLivePmi && pmi !== undefined
+      ? [{ score: smoothFactorScore(pmi, 49.5, 2.6, false), weight: 0.3 }]
+      : manf !== undefined
+        ? [{ score: smoothFactorScore(manf, 5.8, 3.2, false), weight: 0.3 }]
+        : []),
+    ...(pulse?.tradeBalanceBillionUsd !== undefined
+      ? [{ score: smoothFactorScore(pulse.tradeBalanceBillionUsd, 0.2, 3.5, false), weight: 0.2 }]
+      : exportsGdp !== undefined
+        ? [{ score: smoothFactorScore(exportsGdp, 60, 22, false), weight: 0.2 }]
+        : []),
   ]);
 
   const inflationScore = weightedMean([
@@ -385,8 +396,8 @@ export function buildVietnamMacroHealth(
       : currentAccount;
 
   const monetaryScore = weightedMean([
-    { score: smoothFactorScore(fdi, 2.3, 1.4, false), weight: 0.3 },
-    { score: smoothFactorScore(unemp, 2.8, 1.0, true), weight: 0.2 },
+    ...(fdi !== undefined ? [{ score: smoothFactorScore(fdi, 2.3, 1.4, false), weight: 0.3 }] : []),
+    ...(unemp !== undefined ? [{ score: smoothFactorScore(unemp, 2.8, 1.0, true), weight: 0.2 }] : []),
     ...(effectiveCabForScore !== null && effectiveCabForScore !== undefined
       ? [{ score: smoothFactorScore(effectiveCabForScore, 0.5, 3.2, false), weight: isCabStalePriorYear ? 0.15 : 0.25 }]
       : []),
@@ -397,11 +408,14 @@ export function buildVietnamMacroHealth(
     growthScore * 0.42 + inflationScore * 0.3 + monetaryScore * 0.28,
   );
 
-  const pmiHealthy = hasLivePmi && pmi !== undefined ? pmi >= 50.0 : manf >= 6.5;
+  // Unknown manufacturing data is neutral (growthBeat is then decided by GDP alone).
+  const pmiHealthy =
+    hasLivePmi && pmi !== undefined ? pmi >= 50.0 : manf !== undefined ? manf >= 6.5 : true;
   const classified = classifyRegime({
     growthBeat: gdp >= gdpBenchmark - 0.3 && pmiHealthy,
     inflationContained: cpiForTargetComparison <= cpiCeiling,
-    leadingWeakening: hasLivePmi && pmi !== undefined ? pmi < 49.0 : manf < 5.0,
+    leadingWeakening:
+      hasLivePmi && pmi !== undefined ? pmi < 49.0 : manf !== undefined ? manf < 5.0 : gdp < 4.0,
   });
 
   const warningFlags: EconomyHealthReport['warningFlags'] = [];
@@ -415,7 +429,7 @@ export function buildVietnamMacroHealth(
         : '';
     warningFlags.push({
       severity: 'good',
-      text: `Động lực sản xuất thực rất khỏe: GDP +${gdp.toFixed(2)}%${hasLivePmi && pmi !== undefined ? `, PMI Sản xuất đạt ${pmi.toFixed(1)} điểm` : `, Chế biến chế tạo +${manf.toFixed(1)}%`
+      text: `Động lực sản xuất thực rất khỏe: GDP +${gdp.toFixed(2)}%${hasLivePmi && pmi !== undefined ? `, PMI Sản xuất đạt ${pmi.toFixed(1)} điểm` : manf !== undefined ? `, Chế biến chế tạo +${manf.toFixed(1)}%` : ''
         }${tradeContext}.`,
     });
   }

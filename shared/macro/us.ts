@@ -162,37 +162,49 @@ export function buildUsGlobalMacroHealth(
   );
   const quad = classifyMacroQuadrant(growthZ, inflationZ);
 
+  // Only score series that actually exist: a missing series must not be replaced by an invented value.
   const growthScore = weightedMean([
-    { score: smoothFactorScore(gdpVal, 1.4, 1.5, false), weight: 0.38 },
+    ...(gdp ? [{ score: smoothFactorScore(gdpVal, 1.4, 1.5, false), weight: 0.38 }] : []),
     ...(retail ? [{ score: smoothFactorScore(retailVal, 2.2, 2.6, false), weight: 0.24 }] : []),
-    { score: smoothFactorScore(indVal, 0.4, 1.8, false), weight: 0.22 },
-    { score: smoothFactorScore(orderVal, 0.5, 4.5, false), weight: 0.16 },
+    ...(indpro ? [{ score: smoothFactorScore(indVal, 0.4, 1.8, false), weight: 0.22 }] : []),
+    ...(neworder ? [{ score: smoothFactorScore(orderVal, 0.5, 4.5, false), weight: 0.16 }] : []),
   ]);
 
   const inflationScore = weightedMean([
-    { score: smoothFactorScore(pceVal, 2.8, 0.9, true), weight: 0.42 },
-    { score: smoothFactorScore(cpiVal, 3.0, 1.0, true), weight: 0.26 },
-    { score: smoothFactorScore(ppiVal, 3.4, 2.0, true), weight: 0.18 },
+    ...(corePce || cpi ? [{ score: smoothFactorScore(pceVal, 2.8, 0.9, true), weight: 0.42 }] : []),
+    ...(cpi ? [{ score: smoothFactorScore(cpiVal, 3.0, 1.0, true), weight: 0.26 }] : []),
+    ...(ppi ? [{ score: smoothFactorScore(ppiVal, 3.4, 2.0, true), weight: 0.18 }] : []),
     ...(forwardInflMetric
       ? [{ score: smoothFactorScore(fwdVal, 2.45, 0.4, true), weight: 0.14 }]
       : []),
   ]);
 
   const monetaryScore = weightedMean([
-    { score: smoothFactorScore(fedVal, 4.2, 1.3, true), weight: 0.3 },
-    { score: smoothFactorScore(unrateVal, 4.6, 0.85, true), weight: 0.35 },
-    { score: smoothFactorScore(curveVal, 0.0, 0.5, false), weight: 0.35 },
+    ...(fedfunds ? [{ score: smoothFactorScore(fedVal, 4.2, 1.3, true), weight: 0.3 }] : []),
+    ...(unrate ? [{ score: smoothFactorScore(unrateVal, 4.6, 0.85, true), weight: 0.35 }] : []),
+    ...(spread10y2y ? [{ score: smoothFactorScore(curveVal, 0.0, 0.5, false), weight: 0.35 }] : []),
   ]);
 
   const compositeScore = clampScore(
     growthScore * 0.4 + inflationScore * 0.32 + monetaryScore * 0.28,
   );
 
-  const growthBeat = gdpVal >= 2.0 && indVal >= 0 && (!retail || retailVal >= 1.5);
-  const inflationContained = pceVal <= 2.8 && cpiVal <= 2.9 && ppiVal <= 3.8;
+  // No data for a pillar means "unknown", never "good": require at least one real series.
+  const hasGrowthData = Boolean(gdp || retail || indpro || neworder);
+  const hasInflationData = Boolean(corePce || cpi || ppi);
+  const growthBeat =
+    hasGrowthData &&
+    (!gdp || gdpVal >= 2.0) &&
+    (!indpro || indVal >= 0) &&
+    (!retail || retailVal >= 1.5);
+  const inflationContained =
+    hasInflationData &&
+    (!(corePce || cpi) || pceVal <= 2.8) &&
+    (!cpi || cpiVal <= 2.9) &&
+    (!ppi || ppiVal <= 3.8);
   const leadingWeakening =
     (neworder?.trendSlope !== undefined && neworder.trendSlope < -2.0 && orderVal < 0) ||
-    curveVal < 0;
+    (spread10y2y !== undefined && curveVal < 0);
 
   const classified = classifyRegime({
     growthBeat,
@@ -202,13 +214,13 @@ export function buildUsGlobalMacroHealth(
 
   const warningFlags: EconomyHealthReport['warningFlags'] = [];
 
-  if (curveVal < 0) {
+  if (spread10y2y && curveVal < 0) {
     warningFlags.push({
       severity: 'critical',
       text: `Đường cong lợi suất 10Y–2Y đảo ngược (${curveVal.toFixed(2)}%): Tín hiệu lịch sử cảnh báo sớm suy thoái kinh tế Mỹ${recessionProb12m !== undefined ? ` (Xác suất suy thoái 12T NY Fed: ${recessionProb12m}%)` : ''
         }.`,
     });
-  } else {
+  } else if (spread10y2y) {
     const probClause =
       recessionProb12m !== undefined
         ? recessionProb12m < 20
