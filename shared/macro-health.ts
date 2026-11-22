@@ -90,12 +90,60 @@ export function normalCdf(x: number): number {
 }
 
 /**
- * Federal Reserve Bank of New York (Estrella & Mishkin) Probit 12-Month US Recession Probability
- * derived from the 10-Year minus 3-Month Treasury Yield Spread (in percentage points).
+ * Official New York Fed (`prob_rec.pdf` / Estrella & Trubin 2006) Bond-Equivalent 10Y–3M Spread:
+ * Converts the 3-Month Secondary-Market T-Bill discount rate (`TB3MS`, 360-day basis) into a
+ * 365-day Bond-Equivalent Yield `BEY_3M = (365 * r) / (360 - 0.91 * r)` before subtracting from
+ * Monthly Average 10-Year Constant Maturity (`GS10`).
+ * Example (Oct 2026): GS10 = 5.13%, TB3MS = 4.05% -> BEY_3M = 4.14872% -> Spread = +0.98128% -> Prob = 12.4%.
+ */
+export function computeNyFedBondEquivalentSpread(gs10Pct: number, tb3msDiscountPct: number): number {
+  const denom = 360 - 0.91 * tb3msDiscountPct;
+  const bey3m = denom > 0 ? (365 * tb3msDiscountPct) / denom : tb3msDiscountPct;
+  return Number((gs10Pct - bey3m).toFixed(5));
+}
+
+/**
+ * Federal Reserve Bank of New York (Estrella & Mishkin / Estrella & Trubin) Probit 12-Month US Recession Probability
+ * derived from the Monthly-Average 10-Year minus Bond-Equivalent 3-Month Treasury Spread (α = -0.5333, β = -0.6330).
  */
 export function computeNyFedRecessionProb12m(spread10y3mPct: number): number {
   const prob = normalCdf(-0.5333 - 0.633 * spread10y3mPct) * 100;
   return Number(Math.max(0.5, Math.min(99.5, prob)).toFixed(1));
+}
+
+function resolveNyFedSpreadAndProb(byId: ReadonlyMap<string, FredMacroMetric>): {
+  spreadPct?: number;
+  prob12m?: number;
+  isMonthlyOfficial: boolean;
+} {
+  const gs10 = byId.get('GS10');
+  const tb3ms = byId.get('TB3MS');
+  if (gs10 !== undefined && tb3ms !== undefined) {
+    const spreadPct = computeNyFedBondEquivalentSpread(gs10.value, tb3ms.value);
+    return {
+      spreadPct,
+      prob12m: computeNyFedRecessionProb12m(spreadPct),
+      isMonthlyOfficial: true,
+    };
+  }
+  const t10y3m = byId.get('T10Y3M');
+  if (t10y3m !== undefined) {
+    const spreadPct = t10y3m.avg3m ?? t10y3m.value;
+    return {
+      spreadPct,
+      prob12m: computeNyFedRecessionProb12m(spreadPct),
+      isMonthlyOfficial: false,
+    };
+  }
+  const t10y2y = byId.get('T10Y2Y');
+  if (t10y2y !== undefined) {
+    return {
+      spreadPct: t10y2y.value,
+      prob12m: computeNyFedRecessionProb12m(t10y2y.value),
+      isMonthlyOfficial: false,
+    };
+  }
+  return { isMonthlyOfficial: false };
 }
 
 /**
@@ -801,9 +849,8 @@ export function buildVietnamMacroHealth(
         : '';
     warningFlags.push({
       severity: 'good',
-      text: `Động lực sản xuất thực rất khỏe: GDP +${gdp.toFixed(2)}%${
-        hasLivePmi && pmi !== undefined ? `, PMI Sản xuất đạt ${pmi.toFixed(1)} điểm` : `, Chế biến chế tạo +${manf.toFixed(1)}%`
-      }${tradeContext}.`,
+      text: `Động lực sản xuất thực rất khỏe: GDP +${gdp.toFixed(2)}%${hasLivePmi && pmi !== undefined ? `, PMI Sản xuất đạt ${pmi.toFixed(1)} điểm` : `, Chế biến chế tạo +${manf.toFixed(1)}%`
+        }${tradeContext}.`,
     });
   }
 
@@ -828,9 +875,8 @@ export function buildVietnamMacroHealth(
     warningFlags.push({
       severity: isMildOvershoot ? 'warn' : 'critical',
       text: hasYtdAvgCpi
-        ? `Theo dõi lạm phát: CPI bình quân ${pulse?.ytdCpiMonths ? `${pulse.ytdCpiMonths} tháng ` : ''}(${cpiForTargetComparison.toFixed(2)}%) vượt ${isMildOvershoot ? 'nhẹ' : ''} mốc ${cpiCeiling}% cả năm của Quốc hội${
-            detailParts.length > 0 ? ` (${detailParts.join('; ')})` : ''
-          }.`
+        ? `Theo dõi lạm phát: CPI bình quân ${pulse?.ytdCpiMonths ? `${pulse.ytdCpiMonths} tháng ` : ''}(${cpiForTargetComparison.toFixed(2)}%) vượt ${isMildOvershoot ? 'nhẹ' : ''} mốc ${cpiCeiling}% cả năm của Quốc hội${detailParts.length > 0 ? ` (${detailParts.join('; ')})` : ''
+        }.`
         : `Theo dõi lạm phát: CPI (${cpiForTargetComparison.toFixed(2)}%) cao hơn mốc tham chiếu ${cpiCeiling}% (lưu ý chỉ tiêu Quốc hội 4.5% tính trên bình quân cả năm).`,
     });
   }
@@ -1023,12 +1069,8 @@ export function buildUsGlobalMacroHealth(
   const fedVal = fedfunds?.value ?? 3.25;
   const unrateVal = unrate?.value ?? 4.1;
   const curveVal = spread10y2y?.value ?? 0.25;
-  const recessionProb12m =
-    spread10y3m !== undefined
-      ? computeNyFedRecessionProb12m(spread10y3m.value)
-      : spread10y2y !== undefined
-        ? computeNyFedRecessionProb12m(spread10y2y.value)
-        : undefined;
+  const nyFed = resolveNyFedSpreadAndProb(byId);
+  const recessionProb12m = nyFed.prob12m;
 
   // Blend structural target gap Z with actual rolling 12-period empirical Z-Score from FRED
   const blendZ = (structural: number, empirical?: number) =>
@@ -1107,12 +1149,15 @@ export function buildUsGlobalMacroHealth(
         }.`,
     });
   } else {
+    const probClause =
+      recessionProb12m !== undefined
+        ? recessionProb12m < 20
+          ? ` · Xác suất suy thoái 12T (NY Fed 10Y–3M) ở mức thấp (${recessionProb12m}%)`
+          : ` · Xác suất suy thoái 12T (NY Fed 10Y–3M): ${recessionProb12m}%`
+        : ': Chưa xuất hiện tín hiệu đảo ngược suy thoái';
     warningFlags.push({
       severity: recessionProb12m !== undefined && recessionProb12m >= 35 ? 'warn' : 'good',
-      text: `Đường cong lợi suất 10Y–2Y dương (+${curveVal.toFixed(2)}%)${recessionProb12m !== undefined
-        ? ` · Xác suất suy thoái 12T (NY Fed 10Y–3M): ${recessionProb12m}%`
-        : ': Chưa xuất hiện tín hiệu đảo ngược suy thoái'
-        }.`,
+      text: `Đường cong lợi suất 10Y–2Y dương (+${curveVal.toFixed(2)}%)${probClause}.`,
     });
   }
 
@@ -1127,13 +1172,15 @@ export function buildUsGlobalMacroHealth(
   if (corePce && corePce.value > 2.6) {
     const anchoredNote =
       forwardInflMetric && forwardInflMetric.value <= 2.45
-        ? ` (kỳ vọng trái phiếu ngày neo ở ${forwardInflMetric.value.toFixed(2)}%)`
+        ? ` (lạm phát hòa vốn trái phiếu neo ở ${forwardInflMetric.value.toFixed(2)}%)`
         : forwardInflMetric && forwardInflMetric.value >= 2.65
-          ? ` kèm kỳ vọng dài hạn dâng lên ${forwardInflMetric.value.toFixed(2)}%`
+          ? ` kèm lạm phát hòa vốn trái phiếu dâng lên ${forwardInflMetric.value.toFixed(2)}%`
           : '';
+    const fedStanceClause =
+      polyMacro?.bias === 'hawkish_hike' ? 'Fed tiếp tục thắt chặt lãi suất' : 'Fed thận trọng lãi suất';
     warningFlags.push({
       severity: 'warn',
-      text: `Thước đo FOMC Core PCE (+${corePce.value.toFixed(2)}%) cao hơn mục tiêu 2.0%${anchoredNote} — Fed thận trọng lãi suất.`,
+      text: `Thước đo FOMC Core PCE (+${corePce.value.toFixed(2)}%) cao hơn mục tiêu 2.0%${anchoredNote} — ${fedStanceClause}.`,
     });
   } else if (ppi && cpi && ppi.value - cpi.value >= 1.0) {
     warningFlags.push({
@@ -1167,7 +1214,7 @@ export function buildUsGlobalMacroHealth(
 
   const pillars: MacroPillarGroup[] = [
     { id: 'growth', title: '1. TĂNG TRƯỞNG · BÁN LẺ & SẢN XUẤT', score: growthScore, metrics: growthMetrics },
-    { id: 'inflation', title: '2. CORE PCE · CPI & KỲ VỌNG LẠM PHÁT NGÀY', score: inflationScore, metrics: inflationMetrics },
+    { id: 'inflation', title: '2. CORE PCE · CPI & LẠM PHÁT HÒA VỐN TRÁI PHIẾU', score: inflationScore, metrics: inflationMetrics },
     { id: 'monetary', title: '3. LÃI SUẤT FED · VIỆC LÀM & ĐỊNH GIÁ ERP MỸ', score: monetaryScore, metrics: monetaryMetrics },
   ];
 
@@ -1628,10 +1675,12 @@ export function evaluateInvestmentCompass(
     });
   }
 
-  // 7. NY Fed 12-Month Recession Probability (10Y-3M Probit)
+  // 7. NY Fed 12-Month Recession Probability (Official Monthly GS10 - Bond-Equivalent TB3MS Probit, fallback T10Y3M)
+  const nyFedCompass = resolveNyFedSpreadAndProb(fredById);
   const recessionProb12m =
-    t10y3m !== undefined ? computeNyFedRecessionProb12m(t10y3m.value) : undefined;
-  if (t10y3m && recessionProb12m !== undefined) {
+    nyFedCompass.isMonthlyOfficial || t10y3m !== undefined ? nyFedCompass.prob12m : undefined;
+  const nyFedSpreadUsed = nyFedCompass.spreadPct;
+  if (recessionProb12m !== undefined && nyFedSpreadUsed !== undefined) {
     f2CreditRecession.push({
       score: smoothFactorScore(recessionProb12m, 32.0, 14.0, true),
       weight: 0.22,
@@ -1642,7 +1691,7 @@ export function evaluateInvestmentCompass(
       label: 'Xác suất Suy thoái NY Fed',
       category: 'recession_watch',
       valueDisplay: `${recessionProb12m.toFixed(1)}%`,
-      subtext: `Spread 10Y–3M: ${t10y3m.value >= 0 ? '+' : ''}${t10y3m.value.toFixed(2)}% (12T tới)`,
+      subtext: `Spread 10Y–3M${nyFedCompass.isMonthlyOfficial ? ' (BQ tháng)' : ''}: ${nyFedSpreadUsed >= 0 ? '+' : ''}${nyFedSpreadUsed.toFixed(2)}%`,
       signalBadge:
         recessionProb12m >= 45
           ? 'RỦI RO SUY THOÁI CAO'

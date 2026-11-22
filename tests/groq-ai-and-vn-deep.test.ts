@@ -12,6 +12,7 @@ import {
   classifyMacroQuadrant,
   computeDynamicPortfolioAllocation,
   computeFedNetLiquidity,
+  computeNyFedBondEquivalentSpread,
   computeNyFedRecessionProb12m,
   computeVietnamEquityRiskPremium,
   computeVn30MarketBreadth,
@@ -1085,5 +1086,46 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
         (f) => f.text.includes('năm 2025') && f.text.includes('(-12.07B$)') && f.text.includes('~0.3% GDP'),
       ),
     ).toBe(true);
+  });
+
+  it('reproduces official NY Fed monthly bond-equivalent 10Y-3M recession probability (12.4%), breakeven terminology, and Dec 9 FOMC schedule', () => {
+    const spreadOct2026 = computeNyFedBondEquivalentSpread(5.13, 4.05);
+    expect(spreadOct2026).toBe(0.98128);
+    expect(computeNyFedRecessionProb12m(spreadOct2026)).toBe(12.4);
+
+    const usHealth = evaluateMacroHealth({
+      quotes: [],
+      crypto: [],
+      fearGreed: null,
+      macro: [],
+      fred: [
+        { id: 'GS10', label: 'GS10', subtitle: 'GS10', value: 5.13, change: 0, unit: '%', date: '2026-10-01', sparkline: [5.13] },
+        { id: 'TB3MS', label: 'TB3MS', subtitle: 'TB3MS', value: 4.05, change: 0, unit: '%', date: '2026-10-01', sparkline: [4.05] },
+        { id: 'T10Y3M', label: 'T10Y3M', subtitle: 'T10Y3M', value: 0.6, change: -0.1, unit: '%', date: '2026-11-20', sparkline: [0.6] },
+        { id: 'T10Y2Y', label: 'T10Y2Y', subtitle: 'Độ dốc 10Y-2Y', value: 0.29, change: 0.01, unit: '%', date: '2026-11-20', sparkline: [0.29] },
+        { id: 'DGS10', label: 'US 10Y', subtitle: 'US 10Y', value: 5.04, change: 0, unit: '%', date: '2026-11-19', sparkline: [5.04] },
+        { id: 'PCEPILFE', label: 'Core PCE', subtitle: 'Core PCE', value: 3.12, change: 0.1, unit: '%', date: '2026-09-01', sparkline: [3.12] },
+        { id: 'T5YIFR', label: '5Y5Y Breakeven', subtitle: 'Lạm phát Hòa vốn Kỳ hạn 5Y5Y', value: 2.12, change: 0, unit: '%', date: '2026-11-20', sparkline: [2.12] },
+      ],
+      vnMacroPulse: { sp500PeRatio: 23.55, updatedAt: 1 },
+      updatedAt: 1,
+    });
+
+    expect(usHealth.us?.recessionProb12m).toBe(12.4);
+    expect(usHealth.us?.pillars[1].title).toBe('2. CORE PCE · CPI & LẠM PHÁT HÒA VỐN TRÁI PHIẾU');
+    expect(
+      usHealth.us?.warningFlags.some((f) => f.text.includes('ở mức thấp (12.4%)')),
+    ).toBe(true);
+    expect(
+      usHealth.us?.warningFlags.some((f) => f.text.includes('lạm phát hòa vốn trái phiếu neo ở 2.12%')),
+    ).toBe(true);
+    expect(
+      usHealth.us?.warningFlags.some((f) => f.text.includes('kỳ vọng trái phiếu ngày')),
+    ).toBe(false);
+
+    const cal = buildMarketCatalystCalendar(Date.UTC(2026, 10, 22, 12, 0, 0));
+    const fomc = cal.find((e) => e.category === 'fomc');
+    expect(fomc?.dateIso).toBe('2026-12-09');
+    expect(fomc?.dateLabel).toBe('09/12');
   });
 });

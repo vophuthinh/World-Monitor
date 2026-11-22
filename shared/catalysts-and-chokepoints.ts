@@ -6,7 +6,7 @@ import type {
   PredictionItem,
 } from './types';
 
-// Official Federal Reserve FOMC rate decision dates (2026–2027)
+// Official Federal Reserve FOMC rate decision dates (2026–2027, per federalreserve.gov)
 const FOMC_DECISION_DATES = [
   '2026-01-28',
   '2026-03-18',
@@ -15,15 +15,14 @@ const FOMC_DECISION_DATES = [
   '2026-07-29',
   '2026-09-16',
   '2026-10-28',
-  '2026-12-16',
+  '2026-12-09',
   '2027-01-27',
   '2027-03-17',
-  '2027-05-05',
-  '2027-06-16',
+  '2027-04-28',
+  '2027-06-09',
   '2027-07-28',
   '2027-09-15',
-  '2027-11-03',
-  '2027-12-15',
+  '2027-11-17',
 ] as const;
 
 function toUtcDateStartMs(year: number, month0: number, day: number): number {
