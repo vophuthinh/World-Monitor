@@ -81,6 +81,9 @@ export interface WorldBankExtraRawBundle {
   exportsRaw?: unknown;
   fdiRaw?: unknown;
   unemploymentRaw?: unknown;
+  currentAccountRaw?: unknown;
+  creditRaw?: unknown;
+  realInterestRaw?: unknown;
 }
 
 export function normalizeWorldBankIndicators(
@@ -96,6 +99,9 @@ export function normalizeWorldBankIndicators(
   const expMap = pickLatestAndPrevByCountry(extra.exportsRaw);
   const fdiMap = pickLatestAndPrevByCountry(extra.fdiRaw);
   const uemMap = pickLatestAndPrevByCountry(extra.unemploymentRaw);
+  const cabMap = pickLatestAndPrevByCountry(extra.currentAccountRaw);
+  const creditMap = pickLatestAndPrevByCountry(extra.creditRaw);
+  const rirMap = pickLatestAndPrevByCountry(extra.realInterestRaw);
 
   const pick = (m: Map<string, CountryHistoryPoint>, iso3: string, iso2: string) =>
     m.get(iso3) ?? m.get(iso2);
@@ -108,6 +114,9 @@ export function normalizeWorldBankIndicators(
     const exp = pick(expMap, econ.iso3, econ.iso2);
     const fdi = pick(fdiMap, econ.iso3, econ.iso2);
     const uem = pick(uemMap, econ.iso3, econ.iso2);
+    const cab = pick(cabMap, econ.iso3, econ.iso2);
+    const credit = pick(creditMap, econ.iso3, econ.iso2);
+    const rir = pick(rirMap, econ.iso3, econ.iso2);
 
     return {
       countryCode: econ.iso3,
@@ -126,6 +135,9 @@ export function normalizeWorldBankIndicators(
       exportsPctGdp: exp ? Number(exp.value.toFixed(1)) : null,
       fdiPctGdp: fdi ? Number(fdi.value.toFixed(2)) : null,
       unemploymentPct: uem ? Number(uem.value.toFixed(2)) : null,
+      currentAccountPctGdp: cab ? Number(cab.value.toFixed(2)) : null,
+      creditPctGdp: credit ? Number(credit.value.toFixed(1)) : null,
+      realInterestRatePct: rir ? Number(rir.value.toFixed(2)) : null,
     };
   });
 }
@@ -142,21 +154,28 @@ async function fetchIndicator(indicatorCode: string): Promise<unknown> {
 }
 
 export async function fetchWorldBankMacro(): Promise<MacroCountryIndicator[]> {
-  const [growthRes, currentRes, cpiRes, manfRes, expRes, fdiRes, uemRes] = await Promise.all([
-    fetchIndicator('NY.GDP.MKTP.KD.ZG'),
-    fetchIndicator('NY.GDP.MKTP.CD'),
-    fetchIndicator('FP.CPI.TOTL.ZG'),
-    fetchIndicator('NV.IND.MANF.KD.ZG').catch(() => null),
-    fetchIndicator('NE.EXP.GNFS.ZS').catch(() => null),
-    fetchIndicator('BX.KLT.DINV.WD.GD.ZS').catch(() => null),
-    fetchIndicator('SL.UEM.TOTL.ZS').catch(() => null),
-  ]);
+  const [growthRes, currentRes, cpiRes, manfRes, expRes, fdiRes, uemRes, cabRes, creditRes, rirRes] =
+    await Promise.all([
+      fetchIndicator('NY.GDP.MKTP.KD.ZG'),
+      fetchIndicator('NY.GDP.MKTP.CD'),
+      fetchIndicator('FP.CPI.TOTL.ZG'),
+      fetchIndicator('NV.IND.MANF.KD.ZG').catch(() => null),
+      fetchIndicator('NE.EXP.GNFS.ZS').catch(() => null),
+      fetchIndicator('BX.KLT.DINV.WD.GD.ZS').catch(() => null),
+      fetchIndicator('SL.UEM.TOTL.ZS').catch(() => null),
+      fetchIndicator('BN.CAB.XOKA.GD.ZS').catch(() => null),
+      fetchIndicator('FS.AST.PRVT.GD.ZS').catch(() => null),
+      fetchIndicator('FR.INR.RINR').catch(() => null),
+    ]);
 
   const normalized = normalizeWorldBankIndicators(growthRes, currentRes, cpiRes, {
     manufacturingRaw: manfRes,
     exportsRaw: expRes,
     fdiRaw: fdiRes,
     unemploymentRaw: uemRes,
+    currentAccountRaw: cabRes,
+    creditRaw: creditRes,
+    realInterestRaw: rirRes,
   });
   const populatedCount = normalized.filter(
     (row) => row.gdpGrowthPct !== null || row.gdpCurrentUsd !== null || row.cpiInflationPct !== null,

@@ -208,6 +208,55 @@ export interface YahooChartPayload {
   };
 }
 
+export function computeTechnicalIndicators(closes: readonly number[]): {
+  ma50?: number;
+  ma200?: number;
+  rsi14?: number;
+} {
+  const clean = closes.filter((v) => typeof v === 'number' && Number.isFinite(v) && v > 0);
+  if (clean.length < 15) return {};
+
+  const ma50 =
+    clean.length >= 50
+      ? Number((clean.slice(-50).reduce((s, v) => s + v, 0) / 50).toFixed(2))
+      : undefined;
+  const ma200 =
+    clean.length >= 200
+      ? Number((clean.slice(-200).reduce((s, v) => s + v, 0) / 200).toFixed(2))
+      : undefined;
+
+  let avgGain = 0;
+  let avgLoss = 0;
+  const start = Math.max(1, clean.length - 60);
+  const firstEnd = Math.min(clean.length, start + 14);
+  const initPeriod = Math.max(1, firstEnd - start);
+
+  for (let i = start; i < firstEnd; i++) {
+    const diff = clean[i] - clean[i - 1];
+    if (diff >= 0) avgGain += diff;
+    else avgLoss += -diff;
+  }
+  avgGain /= initPeriod;
+  avgLoss /= initPeriod;
+
+  for (let i = firstEnd; i < clean.length; i++) {
+    const diff = clean[i] - clean[i - 1];
+    const gain = diff > 0 ? diff : 0;
+    const loss = diff < 0 ? -diff : 0;
+    avgGain = (avgGain * 13 + gain) / 14;
+    avgLoss = (avgLoss * 13 + loss) / 14;
+  }
+
+  const rsi14 =
+    avgLoss <= 1e-9 ? 100 : Number((100 - 100 / (1 + avgGain / avgLoss)).toFixed(1));
+
+  return {
+    ...(ma50 !== undefined ? { ma50 } : {}),
+    ...(ma200 !== undefined ? { ma200 } : {}),
+    rsi14,
+  };
+}
+
 export function normalizeYahooChartQuote(
   displaySymbol: string,
   name: string,
@@ -233,6 +282,7 @@ export function normalizeYahooChartQuote(
   );
   const changePct =
     Number.isFinite(prev) && prev > 0 ? ((price - prev) / prev) * 100 : 0;
+  const tech = computeTechnicalIndicators(closes);
 
   return {
     symbol: displaySymbol,
@@ -242,6 +292,7 @@ export function normalizeYahooChartQuote(
     changePercent24h: Number(changePct.toFixed(2)),
     unit,
     sparkline: closes.length >= 2 ? closes.slice(-10).map((v) => Number(v.toFixed(2))) : undefined,
+    ...tech,
     updatedAt: now,
     source: 'Yahoo Finance Chart v8',
   };
@@ -468,6 +519,16 @@ const FRED_SERIES_TARGETS: readonly FredSeriesTarget[] = [
     benchmarkValue: 2.1,
   },
   {
+    id: 'RSAFS',
+    label: 'Retail Sales YoY',
+    subtitle: 'Doanh số Bán lẻ Mỹ (68% GDP · YoY)',
+    unit: '%',
+    unitsParam: 'pc1',
+    pillar: 'growth',
+    benchmarkLabel: 'Cầu tiêu dùng',
+    benchmarkValue: 3.5,
+  },
+  {
     id: 'INDPRO',
     label: 'Industrial Prod YoY',
     subtitle: 'Sản xuất Công nghiệp (YoY)',
@@ -485,6 +546,16 @@ const FRED_SERIES_TARGETS: readonly FredSeriesTarget[] = [
     unitsParam: 'pc1',
     pillar: 'growth',
     benchmarkLabel: 'Ngưỡng mở rộng',
+    benchmarkValue: 2.0,
+  },
+  {
+    id: 'PCEPILFE',
+    label: 'Core PCE YoY',
+    subtitle: 'Lạm phát Lõi Core PCE (Thước đo FOMC)',
+    unit: '%',
+    unitsParam: 'pc1',
+    pillar: 'inflation',
+    benchmarkLabel: 'Mục tiêu FOMC',
     benchmarkValue: 2.0,
   },
   {
@@ -517,7 +588,28 @@ const FRED_SERIES_TARGETS: readonly FredSeriesTarget[] = [
     benchmarkValue: 4.2,
   },
 
-  // Forward-Looking Leading Investment Indicators (3–9 Month Horizon)
+  // Forward-Looking Quant v2.0 Indicators (Net Liquidity · NY Fed Probit · Stress · Credit)
+  {
+    id: 'WALCL',
+    label: 'Fed Total Assets',
+    subtitle: 'Tổng Tài sản Fed (WALCL · Triệu USD)',
+    unit: 'M$',
+    pillar: 'leading',
+  },
+  {
+    id: 'WTREGEN',
+    label: 'Treasury TGA',
+    subtitle: 'Tài khoản Kho bạc Mỹ TGA (Triệu USD)',
+    unit: 'M$',
+    pillar: 'leading',
+  },
+  {
+    id: 'RRPONTSYD',
+    label: 'Overnight RRP',
+    subtitle: 'Reverse Repo Qua đêm Fed (Tỷ USD)',
+    unit: 'B$',
+    pillar: 'leading',
+  },
   {
     id: 'M2SL',
     label: 'US M2 Money YoY',
@@ -529,22 +621,21 @@ const FRED_SERIES_TARGETS: readonly FredSeriesTarget[] = [
     benchmarkValue: 4.0,
   },
   {
-    id: 'WALCL',
-    label: 'Fed Assets YoY',
-    subtitle: 'Bảng Cân đối Kế toán Fed (QE/QT)',
-    unit: '%',
-    unitsParam: 'pc1',
-    pillar: 'leading',
-    benchmarkLabel: 'Ngưỡng mở rộng',
-    benchmarkValue: 0.0,
-  },
-  {
     id: 'NFCI',
     label: 'Chicago Fed NFCI',
     subtitle: 'Chỉ số Điều kiện Tài chính (<0 Nới lỏng)',
     unit: 'idx',
     pillar: 'leading',
     benchmarkLabel: 'Ngưỡng thắt chặt',
+    benchmarkValue: 0.0,
+  },
+  {
+    id: 'STLFSI4',
+    label: 'St. Louis Stress',
+    subtitle: 'Chỉ số Căng thẳng Tài chính (18 biến)',
+    unit: 'idx',
+    pillar: 'leading',
+    benchmarkLabel: 'Mức trung bình',
     benchmarkValue: 0.0,
   },
   {
@@ -564,6 +655,15 @@ const FRED_SERIES_TARGETS: readonly FredSeriesTarget[] = [
     pillar: 'leading',
     benchmarkLabel: 'Trung tính thực',
     benchmarkValue: 1.8,
+  },
+  {
+    id: 'T10Y3M',
+    label: '10Y–3M Spread',
+    subtitle: 'Độ dốc 10Y–3M (Mô hình Suy thoái NY Fed)',
+    unit: '%',
+    pillar: 'leading',
+    benchmarkLabel: 'Ngưỡng dương',
+    benchmarkValue: 0.0,
   },
   {
     id: 'SAHMREALTIME',
@@ -618,7 +718,9 @@ export function normalizeFredObservationSeries(
   // FRED sort_order=desc returns newest first
   const latest = valid[0];
   const prev = valid.length >= 2 ? valid[1] : latest;
+  const prev4 = valid.length >= 5 ? valid[4] : valid[valid.length - 1];
   const change = Number((latest.num - prev.num).toFixed(2));
+  const delta4p = prev4 ? Number((latest.num - prev4.num).toFixed(2)) : 0;
   const chronological = valid
     .slice(0, 10)
     .reverse()
@@ -626,19 +728,34 @@ export function normalizeFredObservationSeries(
 
   const slice3 = valid.slice(0, Math.min(3, valid.length));
   const slice12 = valid.slice(0, Math.min(12, valid.length));
+  const mean12Raw = slice12.reduce((s, x) => s + x.num, 0) / slice12.length;
   const avg3m = Number((slice3.reduce((s, x) => s + x.num, 0) / slice3.length).toFixed(2));
-  const avg12m = Number((slice12.reduce((s, x) => s + x.num, 0) / slice12.length).toFixed(2));
+  const avg12m = Number(mean12Raw.toFixed(2));
   const trendSlope = Number((avg3m - avg12m).toFixed(2));
 
+  const variance12 =
+    slice12.length >= 4
+      ? slice12.reduce((acc, x) => acc + (x.num - mean12Raw) ** 2, 0) / slice12.length
+      : 0;
+  const std12 = Math.sqrt(variance12);
+  const zScore =
+    slice12.length >= 4 && std12 > 1e-6
+      ? Number(Math.max(-3.5, Math.min(3.5, (latest.num - mean12Raw) / std12)).toFixed(2))
+      : undefined;
+
   let alertBadge: string | undefined;
-  if (target.id === 'T10Y2Y' && latest.num < 0) {
+  if ((target.id === 'T10Y2Y' || target.id === 'T10Y3M') && latest.num < 0) {
     alertBadge = 'ĐẢO NGƯỢC (CẢNH BÁO SUY THOÁI)';
   } else if (target.id === 'VIXCLS' && latest.num >= 25) {
     alertBadge = 'BIẾN ĐỘNG CAO';
+  } else if (target.id === 'PCEPILFE' && latest.num >= 2.8) {
+    alertBadge = 'VƯỢT MỤC TIÊU FOMC 2%';
   } else if (target.id === 'CPIAUCSL' && latest.num >= 3.5) {
     alertBadge = 'VƯỢT MỤC TIÊU FED 2%';
   } else if (target.id === 'PPIFIS' && latest.num >= 4.5) {
     alertBadge = 'CHI PHÍ ĐẦU VÀO TĂNG';
+  } else if (target.id === 'STLFSI4' && latest.num >= 0.5) {
+    alertBadge = 'STRESS TÀI CHÍNH CAO';
   }
 
   return {
@@ -647,6 +764,8 @@ export function normalizeFredObservationSeries(
     subtitle: target.subtitle,
     value: Number(latest.num.toFixed(2)),
     change,
+    delta4p,
+    ...(zScore !== undefined ? { zScore } : {}),
     unit: target.unit,
     date: latest.date,
     pillar: target.pillar,
@@ -665,9 +784,9 @@ async function fetchFredMacroMetrics(): Promise<FredMacroMetric[]> {
   if (!apiKey) return [];
 
   const out: FredMacroMetric[] = [];
-  // Fetch in smooth batches of 7 to avoid upstream burst throttling
-  for (let i = 0; i < FRED_SERIES_TARGETS.length; i += 7) {
-    const batch = FRED_SERIES_TARGETS.slice(i, i + 7);
+  // Fetch in smooth batches of 9 to avoid upstream burst throttling
+  for (let i = 0; i < FRED_SERIES_TARGETS.length; i += 9) {
+    const batch = FRED_SERIES_TARGETS.slice(i, i + 9);
     const results = await Promise.allSettled(
       batch.map(async (target) => {
         const unitsPart = target.unitsParam ? `&units=${target.unitsParam}` : '';
@@ -712,10 +831,10 @@ const YAHOO_TARGETS: readonly YahooTarget[] = [
 ];
 
 async function fetchVietnamIndexQuote(now: number): Promise<MarketQuote | null> {
-  // Primary: VNDirect DChart daily feed for HOSE VNINDEX
+  // Primary: VNDirect DChart daily feed for HOSE VNINDEX (~350d window -> >=220 bars for MA50/MA200/RSI14)
   try {
     const toSec = Math.floor(now / 1000);
-    const fromSec = toSec - 16 * 86_400;
+    const fromSec = toSec - 350 * 86_400;
     const vndUrl = `https://dchart-api.vndirect.com.vn/dchart/history?resolution=D&symbol=VNINDEX&from=${fromSec}&to=${toSec}`;
     const dchart = await fetchJsonWithTimeout<{ c?: number[]; s?: string }>(vndUrl, {
       timeoutMs: 7_500,
@@ -728,6 +847,7 @@ async function fetchVietnamIndexQuote(now: number): Promise<MarketQuote | null> 
       const close = closes[closes.length - 1];
       const prevClose = closes.length >= 2 ? closes[closes.length - 2] : close;
       const changePct = prevClose > 0 ? ((close - prevClose) / prevClose) * 100 : 0;
+      const tech = computeTechnicalIndicators(closes);
       return {
         symbol: 'VN-Index',
         name: 'VN-Index (HOSE Việt Nam)',
@@ -736,6 +856,7 @@ async function fetchVietnamIndexQuote(now: number): Promise<MarketQuote | null> 
         changePercent24h: Number(changePct.toFixed(2)),
         unit: 'pts',
         sparkline: closes.slice(-10).map((c) => Number(c.toFixed(2))),
+        ...tech,
         updatedAt: now,
         source: 'HOSE / VNDirect Feed',
       };
@@ -760,10 +881,12 @@ async function fetchVietnamIndexQuote(now: number): Promise<MarketQuote | null> 
       const prevCols = lines.length >= 2 ? lines[lines.length - 2].split(',') : latestCols;
       const close = Number(latestCols[4]);
       const prevClose = Number(prevCols[4]);
-      const sparkline = lines
-        .slice(-10)
+      const allCloses = lines
+        .slice(-260)
         .map((l) => Number(l.split(',')[4]))
         .filter((v) => Number.isFinite(v) && v > 100);
+      const sparkline = allCloses.slice(-10);
+      const tech = computeTechnicalIndicators(allCloses);
       if (Number.isFinite(close) && close > 100) {
         const changePct =
           Number.isFinite(prevClose) && prevClose > 0 ? ((close - prevClose) / prevClose) * 100 : 0;
@@ -775,6 +898,7 @@ async function fetchVietnamIndexQuote(now: number): Promise<MarketQuote | null> 
           changePercent24h: Number(changePct.toFixed(2)),
           unit: 'pts',
           sparkline: sparkline.length >= 2 ? sparkline : undefined,
+          ...tech,
           updatedAt: now,
           source: 'HOSE / Stooq Feed',
         };
@@ -785,11 +909,11 @@ async function fetchVietnamIndexQuote(now: number): Promise<MarketQuote | null> 
   }
 
   try {
-    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/VNM?interval=1d&range=5d';
+    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/VNM?interval=1d&range=1y';
     const payload = await fetchJsonWithTimeout<YahooChartPayload>(url, {
       timeoutMs: 8_000,
       retries: 0,
-      userAgent: DEFAULT_BROWSER_UA,
+      userAgent: 'Mozilla/5.0',
     });
     return normalizeYahooChartQuote('VNM ETF', 'VanEck Vietnam ETF', 'index', payload, 'USD', now);
   } catch {
@@ -814,7 +938,10 @@ async function fetchIndicesAndCommodities(now: number): Promise<MarketQuote[]> {
     const pairResults = await Promise.allSettled(
       pair.map(async (target, idx) => {
         const host = idx % 2 === 0 ? 'query1.finance.yahoo.com' : 'query2.finance.yahoo.com';
-        const url = `https://${host}/v8/finance/chart/${encodeURIComponent(target.yahooSymbol)}?interval=1d&range=7d`;
+        // Pull 1y daily bars for S&P 500 & SOX Semi to compute exact MA50 / MA200 / RSI-14
+        const range =
+          target.yahooSymbol === '^GSPC' || target.yahooSymbol === '^SOX' ? '1y' : '7d';
+        const url = `https://${host}/v8/finance/chart/${encodeURIComponent(target.yahooSymbol)}?interval=1d&range=${range}`;
         const payload = await fetchJsonWithTimeout<YahooChartPayload>(url, {
           timeoutMs: 9_000,
           retries: 1,

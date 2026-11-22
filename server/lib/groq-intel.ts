@@ -238,16 +238,27 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now()):
     const health = evaluateMacroHealth({ ...markets, macro: wbMacro });
     if (health.vn || health.us) {
       const parts = [
-        health.vn ? `Việt Nam: ${health.vn.compositeScore}/100 (${health.vn.regimeLabel})` : '',
-        health.us ? `Mỹ/Toàn cầu: ${health.us.compositeScore}/100 (${health.us.regimeLabel})` : '',
+        health.vn
+          ? `Việt Nam: ${health.vn.compositeScore}/100 (${health.vn.regimeLabel}${health.vn.quadrantLabel ? ` · ${health.vn.quadrantLabel}` : ''})`
+          : '',
+        health.us
+          ? `Mỹ/Toàn cầu: ${health.us.compositeScore}/100 (${health.us.regimeLabel}${health.us.quadrantLabel ? ` · ${health.us.quadrantLabel}` : ''}${
+              health.us.recessionProb12m !== undefined ? ` · XS Suy thoái NY Fed ${health.us.recessionProb12m}%` : ''
+            })`
+          : '',
       ].filter(Boolean);
       lines.push(`[CHẨN ĐOÁN SỨC KHỎE VĨ MÔ] ${parts.join(' | ')}`);
     }
 
     const compass = evaluateInvestmentCompass({ ...markets, macro: wbMacro });
     if (compass) {
+      const netLiqPart =
+        compass.netLiquidityBillions !== undefined
+          ? ` | Fed Net Liquidity: $${(compass.netLiquidityBillions / 1000).toFixed(2)}T (${compass.netLiquidityDelta4wBillions && compass.netLiquidityDelta4wBillions >= 0 ? '+' : ''}${compass.netLiquidityDelta4wBillions ?? 0}B$ 4T)`
+          : '';
+      const dualPart = compass.dualConfirmationLabel ? ` | ${compass.dualConfirmationLabel}` : '';
       lines.push(
-        `[LA BÀN ĐẦU TƯ 3-9 THÁNG] ${compass.stanceLabel} (${compass.riskAppetiteScore}/100). Ưu tiên: ${compass.favoredAssets.join('; ')}`,
+        `[LA BÀN ĐẦU TƯ & CHỈ BÁO] ${compass.stanceLabel} (${compass.riskAppetiteScore}/100)${netLiqPart}${dualPart}. Ưu tiên: ${compass.favoredAssets.join('; ')}`,
       );
     }
 

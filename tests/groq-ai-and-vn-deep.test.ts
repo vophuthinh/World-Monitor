@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateInvestmentCompass, evaluateMacroHealth } from '../shared/macro-health';
+import {
+  classifyMacroQuadrant,
+  computeFedNetLiquidity,
+  computeNyFedRecessionProb12m,
+  evaluateInvestmentCompass,
+  evaluateMacroHealth,
+} from '../shared/macro-health';
 import { SnapshotStore } from '../server/cache/snapshot-store';
 import {
+  computeTechnicalIndicators,
   computeWorldGoldLuongMillionVnd,
   normalizeFredObservationSeries,
   normalizeMihongGoldPrices,
@@ -508,5 +515,116 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     expect(compass?.signals.length).toBe(8);
     expect(compass?.favoredAssets.length).toBeGreaterThanOrEqual(2);
     expect(compass?.avoidAssets.some((a) => a.includes('SJC'))).toBe(true);
+  });
+
+  it('computes Quant v2.0 metrics: Fed Net Liquidity, NY Fed Probit Recession Prob, 4-Quadrant Z-Score, World Bank Buffers & MA200 Dual Confirmation', () => {
+    // 1. NY Fed Probit 12M Recession Probability (Estrella-Mishkin formula)
+    const probPositiveCurve = computeNyFedRecessionProb12m(0.6);
+    const probInvertedCurve = computeNyFedRecessionProb12m(-1.1);
+    expect(probPositiveCurve).toBeGreaterThan(15);
+    expect(probPositiveCurve).toBeLessThan(22);
+    expect(probInvertedCurve).toBeGreaterThan(55);
+
+    // 2. Institutional Fed Net Liquidity: (WALCL - WTREGEN)/1000 - RRPONTSYD
+    const netLiq = computeFedNetLiquidity({
+      walclMillions: 6_741_452,
+      wtregenMillions: 916_613,
+      rrpBillions: 0.4,
+      walclDelta4pMillions: 28_000,
+      wtregenDelta4pMillions: -22_000,
+      rrpDelta4pBillions: -5,
+    });
+    expect(netLiq).not.toBeNull();
+    expect(netLiq?.netLiquidityBillions).toBeCloseTo(5824.4, 1);
+    expect(netLiq?.delta4wBillions).toBeCloseTo(55.0, 1);
+
+    // 3. 4-Quadrant GIP Matrix
+    expect(classifyMacroQuadrant(0.8, -0.4).quadrant).toBe('Q1_GOLDILOCKS');
+    expect(classifyMacroQuadrant(0.9, 0.7).quadrant).toBe('Q2_REFLATION');
+    expect(classifyMacroQuadrant(-0.8, 0.9).quadrant).toBe('Q3_STAGFLATION');
+    expect(classifyMacroQuadrant(-0.6, -0.5).quadrant).toBe('Q4_DEFLATION');
+
+    // 4. Rolling 12-period Z-Score on FRED series
+    const pceSeries = normalizeFredObservationSeries(
+      {
+        id: 'PCEPILFE',
+        label: 'Core PCE YoY',
+        subtitle: 'Lạm phát Lõi Core PCE (Thước đo FOMC)',
+        unit: '%',
+        pillar: 'inflation',
+        benchmarkValue: 2.0,
+      },
+      {
+        observations: [
+          { date: '2026-10-01', value: '3.12' },
+          { date: '2026-09-01', value: '2.95' },
+          { date: '2026-08-01', value: '2.82' },
+          { date: '2026-07-01', value: '2.75' },
+          { date: '2026-06-01', value: '2.68' },
+          { date: '2026-05-01', value: '2.64' },
+        ],
+      },
+    );
+    expect(pceSeries?.zScore).toBeDefined();
+    expect(pceSeries?.zScore).toBeGreaterThan(1.0);
+    expect(pceSeries?.alertBadge).toContain('FOMC');
+
+    // 5. Technical Indicators (MA50 / MA200 / RSI-14) + Dual Confirmation Gate
+    const uptrendCloses = Array.from({ length: 220 }, (_, i) => 1450 + i * 1.1 + (i % 3 === 0 ? 4 : -1));
+    const tech = computeTechnicalIndicators(uptrendCloses);
+    expect(tech.ma50).toBeDefined();
+    expect(tech.ma200).toBeDefined();
+    expect(tech.rsi14).toBeGreaterThan(55);
+
+    const dualCompass = evaluateInvestmentCompass({
+      quotes: [
+        {
+          symbol: 'VN-Index',
+          name: 'VN-Index',
+          group: 'index',
+          price: 1510, // Below MA200 (1600) -> triggers divergence gate!
+          changePercent24h: -0.8,
+          ma50: 1545,
+          ma200: 1600,
+          rsi14: 39.5,
+          updatedAt: 1700000000000,
+          source: 'HOSE',
+        },
+        {
+          symbol: 'S&P 500',
+          name: 'S&P 500',
+          group: 'index',
+          price: 6910,
+          changePercent24h: 0.4,
+          ma50: 6780,
+          ma200: 6420,
+          rsi14: 61.2,
+          updatedAt: 1700000000000,
+          source: 'Yahoo',
+        },
+      ],
+      crypto: [],
+      fearGreed: null,
+      macro: [],
+      fred: [
+        { id: 'WALCL', label: 'WALCL', subtitle: 'WALCL', value: 6_741_452, change: 1000, delta4p: 25_000, unit: 'M$', date: '2026-11-18', pillar: 'leading', sparkline: [] },
+        { id: 'WTREGEN', label: 'TGA', subtitle: 'TGA', value: 916_613, change: -500, delta4p: -15_000, unit: 'M$', date: '2026-11-18', pillar: 'leading', sparkline: [] },
+        { id: 'RRPONTSYD', label: 'RRP', subtitle: 'RRP', value: 0.4, change: 0, delta4p: 0, unit: 'B$', date: '2026-11-20', pillar: 'leading', sparkline: [] },
+        { id: 'M2SL', label: 'M2', subtitle: 'M2', value: 5.2, change: 0.2, unit: '%', date: '2026-10-01', pillar: 'leading', sparkline: [] },
+        { id: 'NFCI', label: 'NFCI', subtitle: 'NFCI', value: -0.45, change: -0.02, unit: 'idx', date: '2026-11-13', pillar: 'leading', sparkline: [] },
+        { id: 'STLFSI4', label: 'Stress', subtitle: 'Stress', value: -0.62, change: -0.05, unit: 'idx', date: '2026-11-13', pillar: 'leading', sparkline: [] },
+        { id: 'BAMLH0A0HYM2', label: 'HY', subtitle: 'HY', value: 3.1, change: -0.05, unit: '%', date: '2026-11-19', pillar: 'leading', sparkline: [] },
+        { id: 'T10Y3M', label: '10Y3M', subtitle: '10Y3M', value: 0.6, change: 0.02, unit: '%', date: '2026-11-20', pillar: 'leading', sparkline: [] },
+      ],
+      updatedAt: 1700000000000,
+    });
+
+    expect(dualCompass).not.toBeNull();
+    expect(dualCompass?.netLiquidityBillions).toBeCloseTo(5824.4, 1);
+    expect(dualCompass?.recessionProb12m).toBeCloseTo(probPositiveCurve, 1);
+    expect(dualCompass?.dualConfirmation).toBe('macro_bull_trend_weak');
+    // Dual confirmation blocks aggressive 'risk_on' when VN-Index is below MA200!
+    expect(dualCompass?.stance).not.toBe('risk_on');
+    expect(dualCompass?.avoidAssets.some((a) => a.includes('MA200'))).toBe(true);
   });
 });

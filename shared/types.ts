@@ -141,6 +141,9 @@ export interface MarketQuote {
   changePercent24h: number;
   unit?: string;
   sparkline?: number[];
+  ma50?: number;
+  ma200?: number;
+  rsi14?: number;
   updatedAt: number;
   source: string;
 }
@@ -177,6 +180,8 @@ export interface FredMacroMetric {
   subtitle: string;
   value: number;
   change: number;
+  delta4p?: number;
+  zScore?: number;
   unit: string;
   date: string;
   pillar?: 'growth' | 'inflation' | 'monetary' | 'market' | 'leading';
@@ -223,6 +228,9 @@ export interface MacroCountryIndicator {
   exportsPctGdp?: number | null;
   fdiPctGdp?: number | null;
   unemploymentPct?: number | null;
+  currentAccountPctGdp?: number | null;
+  creditPctGdp?: number | null;
+  realInterestRatePct?: number | null;
 }
 
 export type EconomicRegime =
@@ -230,6 +238,12 @@ export type EconomicRegime =
   | 'overheating'
   | 'early_slowdown'
   | 'stagflation_risk';
+
+export type MacroQuadrant =
+  | 'Q1_GOLDILOCKS'
+  | 'Q2_REFLATION'
+  | 'Q3_STAGFLATION'
+  | 'Q4_DEFLATION';
 
 export interface MacroPillarMetric {
   id: string;
@@ -239,6 +253,7 @@ export interface MacroPillarMetric {
   benchmarkLabel: string;
   benchmarkValue: number;
   deltaVsBenchmark: number;
+  zScore?: number;
   trendSlope?: number;
   trendLabel?: string;
   periodLabel: string;
@@ -260,6 +275,11 @@ export interface EconomyHealthReport {
   regime: EconomicRegime;
   regimeLabel: string;
   regimeSummary: string;
+  quadrant?: MacroQuadrant;
+  quadrantLabel?: string;
+  growthZ?: number;
+  inflationZ?: number;
+  recessionProb12m?: number;
   pillars: MacroPillarGroup[];
   warningFlags: Array<{
     severity: 'critical' | 'warn' | 'good';
@@ -276,7 +296,7 @@ export type InvestmentStance =
 export interface LeadingCompassSignal {
   id: string;
   label: string;
-  category: 'liquidity' | 'credit_rates' | 'cycle_tech' | 'recession_watch';
+  category: 'liquidity' | 'credit_rates' | 'cycle_tech' | 'recession_watch' | 'market_trend';
   valueDisplay: string;
   subtext: string;
   signalBadge: string;
@@ -288,6 +308,11 @@ export interface InvestmentCompassReport {
   stance: InvestmentStance;
   stanceLabel: string;
   summary: string;
+  netLiquidityBillions?: number;
+  netLiquidityDelta4wBillions?: number;
+  recessionProb12m?: number;
+  dualConfirmation?: 'confirmed_bull' | 'macro_bull_trend_weak' | 'macro_weak_trend_bull' | 'confirmed_bear';
+  dualConfirmationLabel?: string;
   favoredAssets: string[];
   watchAssets: string[];
   avoidAssets: string[];

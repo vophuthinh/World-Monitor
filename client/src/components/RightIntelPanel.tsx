@@ -534,6 +534,14 @@ export const RightIntelPanel = memo(function RightIntelPanel({
     () => markets.quotes.find((q) => q.symbol === 'SOX Semi')?.price,
     [markets.quotes],
   );
+  const vniPrice = useMemo(
+    () => markets.quotes.find((q) => q.symbol === 'VN-Index')?.price,
+    [markets.quotes],
+  );
+  const spxPrice = useMemo(
+    () => markets.quotes.find((q) => q.symbol === 'S&P 500')?.price,
+    [markets.quotes],
+  );
 
   // Only compute heavy macro & compass diagnostics when the Markets tab is active,
   // and ignore 1.5s BTC/ETH ticks so streaming prices never re-run macro math!
@@ -545,7 +553,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
   const investmentCompass = useMemo(
     () => (activeTab === 'markets' ? evaluateInvestmentCompass(markets) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeTab, markets.fred, markets.vnGold, usdVndPrice, copperPrice, soxPrice],
+    [activeTab, markets.fred, markets.vnGold, usdVndPrice, copperPrice, soxPrice, vniPrice, spxPrice],
   );
   const activeMacroReport =
     macroRegion === 'VN'
@@ -2919,7 +2927,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                 </div>
               </div>
 
-              {/* Composite Score + Automatic Economic Regime Badge */}
+              {/* Composite Score + Automatic Economic Regime Badge + 4-Quadrant GIP Matrix */}
               <div className="mt-2 rounded border border-slate-800/95 bg-[#070d18] p-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <div>
@@ -2938,6 +2946,19 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                       >
                         {activeMacroReport.regimeLabel}
                       </span>
+                      {activeMacroReport.recessionProb12m !== undefined && (
+                        <span
+                          className={`inline-flex items-center rounded border px-1.5 py-0.5 font-mono text-[9.5px] font-semibold tabular-nums ${
+                            activeMacroReport.recessionProb12m >= 40
+                              ? 'border-rose-500/45 bg-rose-500/15 text-rose-200'
+                              : activeMacroReport.recessionProb12m >= 28
+                                ? 'border-amber-500/45 bg-amber-500/15 text-amber-200'
+                                : 'border-cyan-500/40 bg-cyan-500/10 text-cyan-200'
+                          }`}
+                        >
+                          XS Suy thoái 12T: {activeMacroReport.recessionProb12m.toFixed(1)}%
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="shrink-0 text-right font-mono tabular-nums">
@@ -2948,6 +2969,70 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                     <div className="mt-0.5 text-[9px] text-slate-400">ĐIỂM SỨC KHỎE</div>
                   </div>
                 </div>
+
+                {activeMacroReport.quadrant && (
+                  <div className="mt-2 rounded border border-slate-800/90 bg-[#0b1322] p-1.5 font-mono">
+                    <div className="mb-1 flex items-center justify-between text-[9px] text-slate-400">
+                      <span className="font-semibold text-sky-300">MA TRẬN 4 PHA VĨ MÔ (GIP / ALL-WEATHER)</span>
+                      <span className="tabular-nums text-slate-300">
+                        Growth Z {activeMacroReport.growthZ !== undefined && activeMacroReport.growthZ >= 0 ? '+' : ''}
+                        {activeMacroReport.growthZ?.toFixed(2) ?? '0.00'}σ · Infl Z{' '}
+                        {activeMacroReport.inflationZ !== undefined && activeMacroReport.inflationZ >= 0 ? '+' : ''}
+                        {activeMacroReport.inflationZ?.toFixed(2) ?? '0.00'}σ
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-[9px]">
+                      {(
+                        [
+                          {
+                            id: 'Q1_GOLDILOCKS',
+                            short: 'Q1 · GOLDILOCKS',
+                            desc: 'Tăng trưởng ↑ · Lạm phát ↓',
+                            activeCls: 'border-emerald-400/70 bg-emerald-500/20 text-emerald-200',
+                          },
+                          {
+                            id: 'Q2_REFLATION',
+                            short: 'Q2 · REFLATION / NÓNG',
+                            desc: 'Tăng trưởng ↑ · Lạm phát ↑',
+                            activeCls: 'border-amber-400/70 bg-amber-500/20 text-amber-200',
+                          },
+                          {
+                            id: 'Q4_DEFLATION',
+                            short: 'Q4 · GIẢM TỐC',
+                            desc: 'Tăng trưởng ↓ · Lạm phát ↓',
+                            activeCls: 'border-sky-400/65 bg-sky-500/20 text-sky-200',
+                          },
+                          {
+                            id: 'Q3_STAGFLATION',
+                            short: 'Q3 · ĐÌNH LẠM',
+                            desc: 'Tăng trưởng ↓ · Lạm phát ↑',
+                            activeCls: 'border-rose-400/70 bg-rose-500/22 text-rose-200',
+                          },
+                        ] as const
+                      ).map((q) => {
+                        const isCurrent = activeMacroReport.quadrant === q.id;
+                        return (
+                          <div
+                            key={q.id}
+                            className={`rounded border px-1.5 py-1 transition ${
+                              isCurrent
+                                ? `${q.activeCls} font-bold shadow-sm`
+                                : 'border-slate-800/80 bg-[#070d17] text-slate-500'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span>{q.short}</span>
+                              {isCurrent && <span className="text-[8px]">● HIỆN TẠI</span>}
+                            </div>
+                            <div className={`text-[8.5px] ${isCurrent ? 'opacity-95' : 'text-slate-600'}`}>
+                              {q.desc}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
                   <div
@@ -3097,7 +3182,25 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                   >
                     {investmentCompass.stanceLabel}
                   </span>
+                  {investmentCompass.netLiquidityBillions !== undefined && (
+                    <span className="rounded border border-cyan-500/40 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[9.5px] font-semibold text-cyan-200 tabular-nums">
+                      Fed Liq: ${(investmentCompass.netLiquidityBillions / 1000).toFixed(2)}T
+                    </span>
+                  )}
                 </div>
+                {investmentCompass.dualConfirmationLabel && (
+                  <div
+                    className={`mt-1.5 rounded border px-2 py-1 font-mono text-[9.5px] font-semibold ${
+                      investmentCompass.dualConfirmation === 'confirmed_bull'
+                        ? 'border-emerald-500/40 bg-emerald-950/30 text-emerald-300'
+                        : investmentCompass.dualConfirmation === 'confirmed_bear'
+                          ? 'border-rose-500/45 bg-rose-950/35 text-rose-200'
+                          : 'border-amber-500/40 bg-amber-950/30 text-amber-200'
+                    }`}
+                  >
+                    ⚡ {investmentCompass.dualConfirmationLabel}
+                  </div>
+                )}
                 <p className="mt-1.5 text-[11px] leading-snug text-slate-300">
                   {investmentCompass.summary}
                 </p>
