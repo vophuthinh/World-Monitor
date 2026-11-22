@@ -597,40 +597,18 @@ export async function summarizeSinglePolicyItemWithAi(input: {
   };
 }
 
-async function maybeEnrichTopDecreesWithFreeAi(items: PolicyLegalItem[]): Promise<{
+function attachCachedOnDemandAiSummaries(items: PolicyLegalItem[]): {
   items: PolicyLegalItem[];
   aiEnabled: boolean;
-}> {
+} {
   const geminiKey = process.env.GEMINI_API_KEY?.trim();
   const groqKey = process.env.GROQ_API_KEY?.trim();
-  if (!geminiKey && !groqKey) {
-    return { items, aiEnabled: false };
-  }
+  const aiEnabled = Boolean(geminiKey || groqKey);
 
-  // Prioritize the top newest visible items first + top official docCode items so the top of the tab always shows AI 3-bullet summaries immediately!
-  const topVisible = items.slice(0, 5);
-  const topCoded = items.filter((i) => i.docCode).slice(0, 4);
-  const candidateMap = new Map<string, PolicyLegalItem>();
-  for (const doc of [...topVisible, ...topCoded]) {
-    if (!aiSummaryCache.has(doc.id) && candidateMap.size < 6) {
-      candidateMap.set(doc.id, doc);
-    }
-  }
-
-  await Promise.allSettled(
-    [...candidateMap.values()].map((doc) =>
-      summarizeSinglePolicyItemWithAi({
-        id: doc.id,
-        title: doc.title,
-        docCode: doc.docCode,
-        sector: doc.sector,
-        source: doc.source,
-      }),
-    ),
-  );
-
+  // Never auto-summarize in the background to conserve API quota.
+  // Only attach 3-bullet AI summaries for documents explicitly requested by the user via /api/policy-summarize.
   return {
-    aiEnabled: true,
+    aiEnabled,
     items: items.map((item) => {
       const cached = aiSummaryCache.get(item.id);
       return cached ? { ...item, highlights: cached, aiSummarized: true } : item;
@@ -713,7 +691,7 @@ export async function fetchVietnamPolicyLegal(): Promise<PolicyLegalSnapshot> {
     .sort((a, b) => b.publishedAt - a.publishedAt)
     .slice(0, 160);
 
-  const enriched = await maybeEnrichTopDecreesWithFreeAi(sorted);
+  const enriched = attachCachedOnDemandAiSummaries(sorted);
 
   return {
     items: enriched.items,

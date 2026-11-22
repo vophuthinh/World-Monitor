@@ -182,6 +182,20 @@ export function createApp(
         sector: body.sector,
         source: body.source,
       });
+
+      const currentPolicy = store.get<PolicyLegalSnapshot>('policy-legal');
+      if (currentPolicy) {
+        const updatedPolicy: PolicyLegalSnapshot = {
+          ...currentPolicy,
+          items: currentPolicy.items.map((item) =>
+            item.id === summary.id
+              ? { ...item, highlights: summary.highlights, aiSummarized: true }
+              : item,
+          ),
+        };
+        store.set('policy-legal', updatedPolicy, 12 * 3_600_000, updatedPolicy.items.length);
+      }
+
       return c.json(summary);
     } catch (err) {
       return c.json(

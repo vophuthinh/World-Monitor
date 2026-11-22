@@ -2228,38 +2228,34 @@ export const RightIntelPanel = memo(function RightIntelPanel({
       {activeTab === 'policy' && (
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="space-y-2 border-b border-slate-800/90 p-2.5">
-            <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-amber-500/30 bg-[#0d1524] px-2.5 py-1.5 font-mono text-[9.5px]">
-              <div className="flex items-center gap-1.5">
-                <span className="inline-flex items-center gap-1 font-semibold text-amber-300">
+            <div className="flex items-center justify-between gap-2 rounded border border-amber-500/30 bg-[#0d1524] px-2.5 py-1.5 font-mono text-[9.5px]">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span className="inline-flex shrink-0 items-center gap-1 font-semibold text-amber-300">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
                   POLICY &amp; LEGAL RADAR
                 </span>
-                <span className="text-slate-400">
+                <span className="truncate text-slate-400">
                   {policyLegal?.activeSourceCount ?? 18} nguồn Chính phủ · Bộ KH&amp;CN · Bộ tứ NQ
                 </span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setLegalFilter((prev) => (prev === 'ai_only' ? 'all' : 'ai_only'))
-                  }
-                  title="Bấm để lọc xem ngay các văn bản đã được AI tóm tắt 3 ý trọng tâm"
-                  className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-semibold transition ${
-                    legalFilter === 'ai_only'
-                      ? 'border-emerald-400 bg-emerald-500/30 text-emerald-100'
-                      : policyLegal?.aiSummaryEnabled
-                        ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
-                        : 'border-amber-500/35 bg-amber-500/15 text-amber-200'
-                  }`}
-                >
-                  <Sparkle size={10} weight="fill" />
-                  <span>
-                    {policyLegal?.aiSummaryEnabled
-                      ? `AI TÓM TẮT 3 Ý (${aiSummarizedPolicyCount})`
-                      : 'REGEX + TRÍCH YẾU'}
-                  </span>
-                </button>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {(aiSummarizedPolicyCount > 0 || legalFilter === 'ai_only') && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setLegalFilter((prev) => (prev === 'ai_only' ? 'all' : 'ai_only'))
+                    }
+                    title="Lọc các văn bản bạn đã bấm tóm tắt AI"
+                    className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-semibold transition ${
+                      legalFilter === 'ai_only'
+                        ? 'border-emerald-400 bg-emerald-500/30 text-emerald-100'
+                        : 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
+                    }`}
+                  >
+                    <Sparkle size={10} weight="fill" />
+                    <span>Đã tóm tắt ({aiSummarizedPolicyCount})</span>
+                  </button>
+                )}
                 {onForceRefresh && (
                   <button
                     type="button"
@@ -2378,7 +2374,6 @@ export const RightIntelPanel = memo(function RightIntelPanel({
               <>
                 {filteredPolicy.slice(0, visibleLimit).map((doc) => {
                   const aiBullets = onDemandPolicyAi[doc.id] ?? (doc.aiSummarized ? doc.highlights : null);
-                  const bulletsToRender = aiBullets ?? doc.highlights;
                   const isSummarizing = policyAiLoadingIds.has(doc.id);
 
                   return (
@@ -2414,28 +2409,16 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                       {doc.title}
                     </a>
 
-                    {bulletsToRender.length > 0 && (
-                      <div
-                        className={`mt-1.5 rounded border px-2.5 py-1.5 text-[10.5px] leading-snug ${
-                          aiBullets
-                            ? 'border-emerald-500/35 bg-[#091622] text-slate-200'
-                            : 'border-slate-800/80 bg-[#0d1524]/90 text-slate-300'
-                        }`}
-                      >
-                        {aiBullets && (
-                          <div className="mb-1 flex items-center gap-1 font-mono text-[9px] font-bold tracking-wider text-emerald-300">
-                            <Sparkle size={10} weight="fill" />
-                            <span>AI TÓM TẮT 3 Ý TRỌNG TÂM</span>
-                          </div>
-                        )}
+                    {aiBullets && aiBullets.length > 0 && (
+                      <div className="mt-1.5 rounded border border-emerald-500/35 bg-[#091622] px-2.5 py-1.5 text-[10.5px] leading-snug text-slate-200">
+                        <div className="mb-1 flex items-center gap-1 font-mono text-[9px] font-bold tracking-wider text-emerald-300">
+                          <Sparkle size={10} weight="fill" />
+                          <span>AI TÓM TẮT 3 Ý TRỌNG TÂM</span>
+                        </div>
                         <ul className="space-y-0.5">
-                          {bulletsToRender.map((bullet, idx) => (
+                          {aiBullets.map((bullet, idx) => (
                             <li key={idx} className="flex items-start gap-1.5">
-                              <span
-                                className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
-                                  aiBullets ? 'bg-emerald-400' : 'bg-amber-400'
-                                }`}
-                              />
+                              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
                               <span>{renderInlineMarkdown(bullet)}</span>
                             </li>
                           ))}
