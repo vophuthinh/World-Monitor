@@ -531,7 +531,8 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
 
     expect(compass).not.toBeNull();
     expect(compass?.stance).toBe('selective_growth');
-    expect(compass?.riskAppetiteScore).toBeGreaterThan(70);
+    // Valuation/trend/FX pillars have no data here and now use a neutral prior (52), not a bullish one.
+    expect(compass?.riskAppetiteScore).toBeGreaterThan(65);
     expect(compass?.signals.length).toBe(8);
     expect(compass?.favoredAssets.length).toBeGreaterThanOrEqual(2);
     expect(compass?.avoidAssets.some((a) => a.includes('SJC'))).toBe(true);

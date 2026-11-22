@@ -152,8 +152,17 @@ export function computeFedNetLiquidity(params: {
   if (walclMillions === undefined || !Number.isFinite(walclMillions) || walclMillions < 500_000) {
     return null;
   }
-  const tgaM = wtregenMillions ?? 0;
-  const rrpB = rrpBillions ?? 0;
+  // A missing TGA or RRP would silently overstate liquidity (treating it as 0), so refuse to compute.
+  if (
+    wtregenMillions === undefined ||
+    !Number.isFinite(wtregenMillions) ||
+    rrpBillions === undefined ||
+    !Number.isFinite(rrpBillions)
+  ) {
+    return null;
+  }
+  const tgaM = wtregenMillions;
+  const rrpB = rrpBillions;
   const netLiquidityBillions = Number(((walclMillions - tgaM) / 1000 - rrpB).toFixed(1));
   const delta4wBillions = Number(
     (
@@ -191,20 +200,17 @@ export function computeVn30MarketBreadth(vn30: readonly Vn30StockQuote[] | undef
   medianRsi14?: number;
 } | null {
   if (!vn30 || vn30.length === 0) return null;
-  const withMa = vn30.filter((s) => s.ma50 !== undefined || s.ma200 !== undefined);
-  if (withMa.length < 4) return null;
+  const ma50Pool = vn30.filter((s) => s.ma50 !== undefined);
+  const ma200Pool = vn30.filter((s) => s.ma200 !== undefined);
+  // Both averages need a real sample: never report 0% for "no data" or reuse MA50 as MA200.
+  if (ma50Pool.length < 4 || ma200Pool.length < 4) return null;
 
-  const ma50Pool = withMa.filter((s) => s.ma50 !== undefined);
-  const ma200Pool = withMa.filter((s) => s.ma200 !== undefined);
-
-  const aboveMa50Pct =
-    ma50Pool.length > 0
-      ? Math.round((ma50Pool.filter((s) => s.priceThousandVnd >= (s.ma50 ?? 0)).length / ma50Pool.length) * 100)
-      : 0;
-  const aboveMa200Pct =
-    ma200Pool.length > 0
-      ? Math.round((ma200Pool.filter((s) => s.priceThousandVnd >= (s.ma200 ?? 0)).length / ma200Pool.length) * 100)
-      : aboveMa50Pct;
+  const aboveMa50Pct = Math.round(
+    (ma50Pool.filter((s) => s.priceThousandVnd >= (s.ma50 ?? 0)).length / ma50Pool.length) * 100,
+  );
+  const aboveMa200Pct = Math.round(
+    (ma200Pool.filter((s) => s.priceThousandVnd >= (s.ma200 ?? 0)).length / ma200Pool.length) * 100,
+  );
 
   const rsis = vn30
     .map((s) => s.rsi14)
@@ -214,7 +220,7 @@ export function computeVn30MarketBreadth(vn30: readonly Vn30StockQuote[] | undef
     rsis.length > 0 ? Number(rsis[Math.floor(rsis.length / 2)].toFixed(0)) : undefined;
 
   return {
-    sampleCount: withMa.length,
+    sampleCount: Math.min(ma50Pool.length, ma200Pool.length),
     aboveMa50Pct,
     aboveMa200Pct,
     ...(medianRsi14 !== undefined ? { medianRsi14 } : {}),
@@ -277,7 +283,8 @@ export function extractPolymarketMacroInsight(
       fedActionLabel = `Chỉ ${prob}% cược hạ lãi`;
     }
   } else if (/\b(no\s+fed\s+rate\s+cuts?|0\s*\(0\s*bps\))\b/i.test(`${topFed.title} ${rawOutcome}`)) {
-    bias = prob >= 65 ? 'hawkish_hike' : 'neutral_hold';
+    // "No cuts" means rates stay put (higher for longer), not that the Fed hikes.
+    bias = 'neutral_hold';
     fedActionLabel = `${prob}% Không hạ lãi`;
   } else if (/\b(no change|unchanged|pause)\b/i.test(rawOutcome)) {
     bias = 'neutral_hold';

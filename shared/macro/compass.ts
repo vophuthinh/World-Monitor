@@ -154,9 +154,12 @@ export function computeDynamicPortfolioAllocation(params: {
   equities = Math.max(15, Math.min(78, Math.round(equities)));
   gold = Math.max(8, Math.min(28, Math.round(gold)));
   crypto = Math.max(0, Math.min(12, Math.round(crypto)));
-  cashBonds = Math.max(10, 100 - equities - gold - crypto);
-  const diff = 100 - (equities + cashBonds + gold + crypto);
-  cashBonds += diff;
+  cashBonds = 100 - equities - gold - crypto;
+  if (cashBonds < 10) {
+    // Keep the 10% cash/bond floor by trimming equities, so the weights still sum to exactly 100.
+    equities -= 10 - cashBonds;
+    cashBonds = 10;
+  }
 
   return [
     {
@@ -725,11 +728,15 @@ export function evaluateInvestmentCompass(
   }
 
   // Compute the 5 Orthogonal Continuous Factor Pillars with Bayesian shrinkage (0..100 each)
-  const liquidityScore = shrunkPillarScore(f1Liquidity, 62);
-  const creditScore = shrunkPillarScore(f2CreditRecession, 64);
-  const valuationScore = shrunkPillarScore(f3ValuationErp, 60);
-  const trendScore = shrunkPillarScore(f4TrendBreadth, 62);
-  const fxVolScore = shrunkPillarScore(f5FxVolatility, 60);
+  // Neutral prior (52 = smoothFactorScore centre): a pillar with no data must never read as bullish.
+  const NEUTRAL_PRIOR = 52;
+  const liquidityScore = shrunkPillarScore(f1Liquidity, NEUTRAL_PRIOR);
+  const creditScore = shrunkPillarScore(f2CreditRecession, NEUTRAL_PRIOR);
+  const valuationScore = shrunkPillarScore(f3ValuationErp, NEUTRAL_PRIOR);
+  const trendScore = shrunkPillarScore(f4TrendBreadth, NEUTRAL_PRIOR);
+  const fxVolScore = shrunkPillarScore(f5FxVolatility, NEUTRAL_PRIOR);
+  const hasMacroCoreData =
+    f1Liquidity.length + f2CreditRecession.length + f3ValuationErp.length > 0;
 
   const factorPillars: CompassFactorPillar[] = [
     { id: 'liquidity', label: 'Thanh khoản Fed & M2', weightPct: 25, score: liquidityScore },
@@ -756,7 +763,7 @@ export function evaluateInvestmentCompass(
   const trendBullish =
     (!vniTrend || vniTrend.aboveMa200) && (!spxTrend || spxTrend.aboveMa200);
 
-  if (hasTrendFilter) {
+  if (hasTrendFilter && hasMacroCoreData) {
     const macroBullish = macroCoreScore >= 56;
     if (macroBullish && trendBullish) {
       dualConfirmation = 'confirmed_bull';

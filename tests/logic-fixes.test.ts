@@ -133,3 +133,90 @@ describe('Vietnam macro health with missing World Bank indicators', () => {
     expect(ids).toContain('vn-gdp');
   });
 });
+
+describe('macro helper edge cases', () => {
+  it('computeFedNetLiquidity returns null when TGA or RRP is missing instead of overstating liquidity', async () => {
+    const { computeFedNetLiquidity } = await import('../shared/macro-health');
+    expect(computeFedNetLiquidity({ walclMillions: 6_700_000 })).toBeNull();
+    expect(computeFedNetLiquidity({ walclMillions: 6_700_000, wtregenMillions: 800_000 })).toBeNull();
+    const full = computeFedNetLiquidity({ walclMillions: 6_700_000, wtregenMillions: 800_000, rrpBillions: 200 });
+    expect(full?.netLiquidityBillions).toBe(5_700);
+  });
+
+  it('computeVn30MarketBreadth does not report 0% or reuse MA50 as MA200 when a moving average is missing', async () => {
+    const { computeVn30MarketBreadth } = await import('../shared/macro-health');
+    const stock = (i: number, extra: Record<string, number>) =>
+      ({ symbol: `S${i}`, name: `S${i}`, priceThousandVnd: 100, changePercent24h: 0, updatedAt: 1, source: 't', ...extra }) as never;
+    const onlyMa200 = Array.from({ length: 6 }, (_, i) => stock(i, { ma200: 90 }));
+    const onlyMa50 = Array.from({ length: 6 }, (_, i) => stock(i, { ma50: 90 }));
+    expect(computeVn30MarketBreadth(onlyMa200)).toBeNull();
+    expect(computeVn30MarketBreadth(onlyMa50)).toBeNull();
+    const both = Array.from({ length: 6 }, (_, i) => stock(i, { ma50: 90, ma200: 110 }));
+    expect(computeVn30MarketBreadth(both)).toMatchObject({ aboveMa50Pct: 100, aboveMa200Pct: 0 });
+  });
+
+  it('treats a "no Fed rate cuts" market as neutral, not as a hike', async () => {
+    const { extractPolymarketMacroInsight } = await import('../shared/macro-health');
+    const p = {
+      id: 'p1',
+      title: 'No Fed rate cuts in 2026?',
+      outcomeLabel: 'Yes',
+      yesPercent: 80,
+      volumeUsd: 5_000_000,
+    } as never;
+    expect(extractPolymarketMacroInsight([p])?.bias).toBe('neutral_hold');
+  });
+});
+
+describe('computeDynamicPortfolioAllocation', () => {
+  it('always keeps cash/bonds >= 10%, weights non-negative integers summing to exactly 100', async () => {
+    const { computeDynamicPortfolioAllocation } = await import('../shared/macro-health');
+    const stances = ['defensive_recession', 'cautious', 'selective_growth', 'risk_on'] as const;
+    const duals = [undefined, 'confirmed_bull', 'macro_bull_trend_weak'] as const;
+    for (const stance of stances)
+      for (const dualConfirmation of duals)
+        for (const vnErpPct of [undefined, 0.1, 2, 4.5])
+          for (const highInflationPressure of [false, true])
+            for (const liquidityExpanding of [false, true]) {
+              const w = computeDynamicPortfolioAllocation({
+                stance,
+                riskAppetiteScore: 85,
+                vnErpPct,
+                dualConfirmation,
+                capitulationSignal: false,
+                highInflationPressure,
+                liquidityExpanding,
+              });
+              const label = JSON.stringify({ stance, dualConfirmation, vnErpPct, highInflationPressure, liquidityExpanding });
+              expect(w.reduce((a, s) => a + s.weightPct, 0), label).toBe(100);
+              for (const s of w) {
+                expect(Number.isInteger(s.weightPct), label).toBe(true);
+                expect(s.weightPct, label).toBeGreaterThanOrEqual(0);
+              }
+              expect(w.find((s) => s.id === 'cash_bonds')?.weightPct, label).toBeGreaterThanOrEqual(10);
+            }
+  });
+});
+
+describe('Investment compass without macro data', () => {
+  it('cannot claim a macro-confirmed bull when liquidity, credit and valuation have no data', async () => {
+    const { evaluateInvestmentCompass } = await import('../shared/macro-health');
+    const q = (symbol: string, price: number, ma200: number) => ({
+      symbol, name: symbol, group: 'index', price, changePercent24h: 0, updatedAt: 1, source: 't', ma200, ma50: ma200 * 0.98,
+    });
+    const report = evaluateInvestmentCompass({
+      quotes: [q('VN-Index', 1700, 1500), q('S&P 500', 6000, 5500)],
+      crypto: [],
+      fearGreed: null,
+      macro: [],
+      fred: [{ id: 'FEDFUNDS', label: 'f', subtitle: 'f', value: 4, change: 0, unit: '%', date: 'x', sparkline: [4] }],
+      updatedAt: 1,
+    } as never, []);
+    expect(report).not.toBeNull();
+    expect(report?.dualConfirmation).toBeUndefined();
+    const pillar = (id: string) => report?.factorPillars?.find((p) => p.id === id)?.score;
+    for (const id of ['liquidity', 'credit_recession', 'valuation_erp']) {
+      expect(pillar(id), id).toBeLessThanOrEqual(52);
+    }
+  });
+});
