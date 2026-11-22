@@ -2530,8 +2530,8 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                   <span className="rounded border border-cyan-400/55 bg-cyan-500/20 px-1.5 py-0.5 font-mono text-[10.5px] font-bold text-cyan-200">
                     HPT · UPCoM
                   </span>
-                  <h2 className="truncate font-mono text-[10.5px] font-semibold tracking-wider text-slate-100">
-                    TIN HỌC HPT · MST 0301447436
+                  <h2 className="truncate text-xs font-semibold tracking-wide text-slate-100">
+                    Tin về HPT
                   </h2>
                 </div>
 
@@ -2599,7 +2599,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
 
                   <div className="text-right text-[9px]">
                     <div className="font-semibold text-emerald-300">
-                      {hptIntel.aiSentimentEnabled ? '🤖 AI LỌC ĐỘC LẬP (KHÔNG HPT.VN)' : 'NGUỒN ĐỘC LẬP'}
+                      {hptIntel.aiSentimentEnabled ? '🤖 AI PHÂN TÍCH TÍN HIỆU' : 'TỔNG HỢP ĐA NGUỒN'}
                     </div>
                     <div className="mt-0.5 text-slate-400 tabular-nums">
                       🟢 {hptSentimentStats.pos} · ⚪ {hptSentimentStats.neu} · 🔴 {hptSentimentStats.neg}

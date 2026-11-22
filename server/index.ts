@@ -247,7 +247,7 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
 
   scheduler.registerCollector<HptCompanyIntelSnapshot>({
     id: 'hpt-intel',
-    label: 'Doanh nghiệp HPT (HNX/UBCK + Đấu thầu 0301447436 + Simplize + Báo CNTT/Bing)',
+    label: 'Tin về HPT (HNX/UBCK + Đấu thầu + Simplize + Báo CNTT)',
     intervalMs: 240_000,
     retainMs: 12 * 3_600_000,
     countItems: (snap) => snap.items.length + (snap.stock ? 1 : 0),
