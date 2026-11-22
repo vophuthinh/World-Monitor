@@ -136,15 +136,16 @@ export function buildUsGlobalMacroHealth(
   const blendZ = (structural: number, empirical?: number) =>
     empirical !== undefined ? structural * 0.6 + empirical * 0.4 : structural;
 
+  // A missing series contributes 0 (neutral) to the z-scores, never a z derived from an invented value.
   const growthZ = Number(
     Math.max(
       -3,
       Math.min(
         3,
-        blendZ((gdpVal - 2.1) / 1.0, gdp?.zScore) * 0.4 +
-        blendZ((retailVal - 3.5) / 2.2, retail?.zScore) * 0.25 +
-        blendZ((indVal - 1.5) / 1.5, indpro?.zScore) * 0.2 +
-        blendZ((orderVal - 2.0) / 3.5, neworder?.zScore) * 0.15,
+        (gdp ? blendZ((gdpVal - 2.1) / 1.0, gdp.zScore) * 0.4 : 0) +
+        (retail ? blendZ((retailVal - 3.5) / 2.2, retail.zScore) * 0.25 : 0) +
+        (indpro ? blendZ((indVal - 1.5) / 1.5, indpro.zScore) * 0.2 : 0) +
+        (neworder ? blendZ((orderVal - 2.0) / 3.5, neworder.zScore) * 0.15 : 0),
       ),
     ).toFixed(2),
   );
@@ -153,10 +154,10 @@ export function buildUsGlobalMacroHealth(
       -3,
       Math.min(
         3,
-        blendZ((pceVal - 2.2) / 0.6, corePce?.zScore) * 0.42 +
-        blendZ((cpiVal - 2.3) / 0.7, cpi?.zScore) * 0.25 +
-        blendZ((ppiVal - 2.5) / 1.2, ppi?.zScore) * 0.18 +
-        blendZ((fwdVal - 2.25) / 0.35, forwardInflMetric?.zScore) * 0.15,
+        (corePce || cpi ? blendZ((pceVal - 2.2) / 0.6, corePce?.zScore) * 0.42 : 0) +
+        (cpi ? blendZ((cpiVal - 2.3) / 0.7, cpi.zScore) * 0.25 : 0) +
+        (ppi ? blendZ((ppiVal - 2.5) / 1.2, ppi.zScore) * 0.18 : 0) +
+        (forwardInflMetric ? blendZ((fwdVal - 2.25) / 0.35, forwardInflMetric.zScore) * 0.15 : 0),
       ),
     ).toFixed(2),
   );

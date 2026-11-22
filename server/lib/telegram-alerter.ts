@@ -19,7 +19,8 @@ function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 /**
@@ -35,11 +36,15 @@ export class TelegramAlertEngine {
     seenIds: [],
   };
   private initializedBaseline = false;
+  private evaluating = false;
 
   constructor(cacheDir: string, credentialsOverride?: TelegramCredentialsOverride) {
     this.filePath = resolve(cacheDir, 'telegram-alerts.json');
     this.credentialsOverride = credentialsOverride;
     this.loadFromDisk();
+    // A persisted seen list means we already know what was announced: items published while the
+    // server was down must alert. Only a first-ever run needs the silent baseline.
+    this.initializedBaseline = this.state.seenIds.length > 0;
   }
 
   private loadFromDisk(): void {
@@ -124,6 +129,18 @@ export class TelegramAlertEngine {
 
   async evaluateCollectorUpdate(collectorId: string, store: SnapshotStore): Promise<void> {
     if (collectorId !== 'hpt-intel') return;
+    // Passes can overlap (manual refresh while a send is in flight); a second pass would
+    // re-send items that the first one has not marked as seen yet.
+    if (this.evaluating) return;
+    this.evaluating = true;
+    try {
+      await this.evaluateHptUpdate(store);
+    } finally {
+      this.evaluating = false;
+    }
+  }
+
+  private async evaluateHptUpdate(store: SnapshotStore): Promise<void> {
 
     const now = Date.now();
     const hpt = store.get<HptCompanyIntelSnapshot>('hpt-intel', now);

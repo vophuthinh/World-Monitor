@@ -167,10 +167,10 @@ export function normalizeDigitrafficVessels(
           ? Math.round(cog) % 360
           : 0;
 
-    const cogRaw = item.properties?.cog;
-    const headingKnown =
-      (Number.isFinite(rawHeading) && rawHeading >= 0 && rawHeading < 360) ||
-      (cogRaw !== undefined && cogRaw !== null && Number.isFinite(cog) && cog >= 0 && cog < 360);
+    // `cog` defaults to 0 above, so judge from the raw properties: absent or 511/360 means unknown.
+    const isCompassValue = (v: unknown): boolean =>
+      v !== undefined && v !== null && Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) < 360;
+    const headingKnown = isCompassValue(item.properties?.heading) || isCompassValue(item.properties?.cog);
 
     const ts = Number(item.properties?.timestampExternal) || now;
     if (now - ts > 30 * 60_000) continue;
@@ -309,6 +309,15 @@ export function parseAisStreamMessage(
           ? Math.round(cog) % 360
           : prevHeading;
 
+    // AIS uses TrueHeading 511 and Cog 360 for "not available"; keep a previously known heading
+    // only when this report carries neither field.
+    const isCompassValue = (v: unknown): boolean =>
+      v !== undefined && v !== null && Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) < 360;
+    const headingKnown =
+      isCompassValue(pos?.TrueHeading) ||
+      isCompassValue(pos?.Cog) ||
+      (pos?.TrueHeading === undefined && pos?.Cog === undefined && existingVessel?.meta.headingKnown === true);
+
     const flag = classifyMmsiCountry(mmsi);
     const { category, roleLabel, severity } = classifyVesselRole(shipName, effectiveType);
     const speedKt = Number.isFinite(sog) ? Number(sog.toFixed(1)) : 0;
@@ -333,6 +342,7 @@ export function parseAisStreamMessage(
         roleLabel,
         speedKt,
         headingDeg: heading,
+        headingKnown,
         destination: destination ?? null,
         onGround: speedKt < 0.5,
         corridor:
