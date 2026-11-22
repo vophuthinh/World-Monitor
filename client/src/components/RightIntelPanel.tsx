@@ -3037,7 +3037,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
               <div className="flex items-center justify-between gap-2">
                 <h2 className="flex items-center gap-1.5 font-mono text-[11px] font-bold tracking-wider text-emerald-300">
                   <Target size={14} weight="fill" className="text-emerald-400" />
-                  <span>LA BÀN ĐẦU TƯ &amp; CHỈ BÁO DẪN DẮT (3–9 THÁNG)</span>
+                  <span>LA BÀN ĐẦU TƯ &amp; CHỈ BÁO</span>
                 </h2>
                 <span className="shrink-0 rounded border border-emerald-500/45 bg-emerald-500/15 px-1.5 py-0.5 font-mono text-[10px] font-bold text-emerald-200 tabular-nums">
                   Khẩu vị: {investmentCompass.riskAppetiteScore}/100

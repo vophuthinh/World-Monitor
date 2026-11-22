@@ -190,36 +190,40 @@ export function WindyWeatherWindow({ open, onClose }: { open: boolean; onClose: 
 
   return (
     <div className="pointer-events-auto w-[420px] max-w-[92vw] overflow-hidden rounded-md border border-sky-500/45 bg-[#080d16]/96 shadow-2xl backdrop-blur-md sm:w-[480px]">
-      <div className="flex flex-wrap items-center justify-between gap-1 border-b border-slate-800 px-2.5 py-1.5">
-        <div className="flex items-center gap-1.5">
-          <Wind size={14} className="text-sky-400" weight="bold" />
-          <span className="font-mono text-[10.5px] font-bold text-sky-200">
-            WINDY · DÒNG GIÓ &amp; BÃO BIỂN ĐÔNG
-          </span>
+      <div className="border-b border-slate-800 px-2.5 py-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <Wind size={14} className="text-sky-400" weight="bold" />
+            <span className="font-mono text-[10.5px] font-bold text-sky-200">
+              WINDY · DÒNG GIÓ &amp; BÃO BIỂN ĐÔNG
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Đóng bản đồ gió Windy"
+            className="inline-flex items-center gap-1 rounded border border-rose-500/45 bg-rose-500/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-rose-100 transition hover:bg-rose-500/35"
+          >
+            <span>Đóng</span>
+            <X size={12} weight="bold" />
+          </button>
         </div>
-        <div className="flex items-center gap-1">
+
+        <div className="mt-1.5 grid grid-cols-4 gap-1">
           {WINDY_OVERLAYS.map((ov) => (
             <button
               key={ov.id}
               type="button"
               onClick={() => setOverlay(ov.id)}
-              className={`rounded px-1.5 py-0.5 font-mono text-[9.5px] font-semibold transition ${
+              className={`rounded py-0.5 text-center font-mono text-[9.5px] font-semibold transition ${
                 overlay === ov.id
-                  ? 'border border-sky-400/50 bg-sky-500/25 text-sky-100'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'border border-sky-400/55 bg-sky-500/25 text-sky-100'
+                  : 'border border-slate-800 bg-slate-900/90 text-slate-400 hover:text-slate-200'
               }`}
             >
               {ov.label}
             </button>
           ))}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Đóng bản đồ gió Windy"
-            className="ml-1 rounded p-0.5 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-          >
-            <X size={13} />
-          </button>
         </div>
       </div>
 
