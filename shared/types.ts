@@ -40,6 +40,7 @@ export type CollectorId =
   | 'rss-news'
   | 'tech-cyber'
   | 'policy-legal'
+  | 'hpt-intel'
   | 'ai-sitrep';
 
 export interface GeoPointFeature {
@@ -273,6 +274,52 @@ export interface AiAskResponse {
   answeredAt: number;
 }
 
+export type HptItemCategory =
+  | 'exchange_filing' // HNX / UBCKNN / HĐQT / Cổ tức / BCTC
+  | 'shareholder_ir' // hpt.vn/co-dong
+  | 'tech_activity' // hpt.vn/tin-tuc (AI, An ninh mạng, Đối tác)
+  | 'press_social'; // Báo chí, F319/F247/Voz, MXH công khai
+
+export type HptSentiment = 'positive' | 'negative' | 'neutral';
+
+export interface HptCompanyItem {
+  id: string;
+  title: string;
+  category: HptItemCategory;
+  badge: string; // e.g. 'NGHỊ QUYẾT HĐQT', 'CỔ TỨC', 'UBCKNN / HNX', 'CỔ ĐÔNG HPT', 'HPT TECH', 'BÁO CHÍ / DIỄN ĐÀN'
+  source: string;
+  publishedAt: number;
+  dateLabel?: string;
+  url: string;
+  pdfUrl?: string;
+  sentiment: HptSentiment;
+  aiSummary?: string;
+  aiVerified?: boolean;
+}
+
+export interface HptStockSnapshot {
+  symbol: 'HPT';
+  exchange: 'UPCoM · HNX';
+  companyName: string;
+  priceThousandVnd: number;
+  changePercent: number;
+  volume: number;
+  highThousandVnd?: number;
+  lowThousandVnd?: number;
+  sparkline: number[];
+  hqLat: number;
+  hqLon: number;
+  updatedAt: number;
+}
+
+export interface HptCompanyIntelSnapshot {
+  stock: HptStockSnapshot | null;
+  items: HptCompanyItem[];
+  sourceCount: number;
+  aiSentimentEnabled: boolean;
+  updatedAt: number;
+}
+
 export type PredictionCategory = 'geopolitics' | 'finance' | 'crypto_tech';
 
 export interface PredictionItem {
@@ -502,6 +549,7 @@ export interface BootstrapResponse {
   policyLegal?: PolicyLegalSnapshot;
   googleTrends?: GoogleTrendsSnapshot;
   vietnamEnv?: VietnamEnvSnapshot;
+  hptIntel?: HptCompanyIntelSnapshot;
   aiSitrep?: AiSitrepSnapshot;
 }
 

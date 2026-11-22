@@ -5,6 +5,7 @@ import type {
   AiSitrepSnapshot,
   GeoPointFeature,
   GoogleTrendsSnapshot,
+  HptCompanyIntelSnapshot,
   MarketSnapshot,
   NewsItem,
   PolicyLegalSnapshot,
@@ -151,6 +152,7 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now()):
   const techCyber = store.get<TechCyberSnapshot>('tech-cyber', now);
   const news = store.get<NewsItem[]>('rss-news', now) ?? [];
   const vnEnv = store.get<VietnamEnvSnapshot>('vietnam-env', now);
+  const hptIntel = store.get<HptCompanyIntelSnapshot>('hpt-intel', now);
 
   const postures = computeTheaterPostures({
     military,
@@ -279,6 +281,18 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now()):
         .map((d) => `${d.docCode ? `[${d.docCode}] ` : ''}${d.title} (${d.source})`)
         .join(' | ')}`,
     );
+  }
+
+  if (hptIntel && (hptIntel.stock || hptIntel.items.length > 0)) {
+    const st = hptIntel.stock;
+    const stockStr = st
+      ? `Cổ phiếu HPT (UPCoM): ${st.priceThousandVnd.toFixed(2)} nghìn ₫ (${st.changePercent >= 0 ? '+' : ''}${st.changePercent.toFixed(2)}%, KL ${st.volume}). `
+      : '';
+    const topHptNews = hptIntel.items
+      .slice(0, 4)
+      .map((i) => `[${i.badge} · ${i.sentiment.toUpperCase()}] ${i.title}`)
+      .join(' | ');
+    lines.push(`[CÔNG TY CP DỊCH VỤ CÔNG NGHỆ TIN HỌC HPT (MÃ HPT)] ${stockStr}${topHptNews}`);
   }
 
   if (techCyber && techCyber.items.length > 0) {

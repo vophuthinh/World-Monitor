@@ -265,6 +265,7 @@ export function App() {
               techCyber={data?.techCyber}
               policyLegal={data?.policyLegal}
               vietnamEnv={data?.vietnamEnv}
+              hptIntel={data?.hptIntel}
               aiSitrep={data?.aiSitrep}
               military={filteredData.military}
               vessels={filteredData.vessels}
@@ -303,6 +304,9 @@ export function App() {
               news={filteredData.news}
               techCyber={data?.techCyber}
               policyLegal={data?.policyLegal}
+              vietnamEnv={data?.vietnamEnv}
+              hptIntel={data?.hptIntel}
+              aiSitrep={data?.aiSitrep}
               military={filteredData.military}
               vessels={filteredData.vessels}
               earthquakes={filteredData.earthquakes}

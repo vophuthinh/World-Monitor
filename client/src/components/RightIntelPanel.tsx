@@ -44,6 +44,9 @@ import type {
   GeoPointFeature,
   GoogleTrendGeo,
   GoogleTrendsSnapshot,
+  HptCompanyIntelSnapshot,
+  HptItemCategory,
+  HptSentiment,
   IocLookupResult,
   LegalDocType,
   MarketSnapshot,
@@ -71,6 +74,7 @@ interface RightIntelPanelProps {
   techCyber?: TechCyberSnapshot;
   policyLegal?: PolicyLegalSnapshot;
   vietnamEnv?: VietnamEnvSnapshot;
+  hptIntel?: HptCompanyIntelSnapshot;
   aiSitrep?: AiSitrepSnapshot;
   military: GeoPointFeature[];
   vessels: GeoPointFeature[];
@@ -238,6 +242,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
   techCyber,
   policyLegal,
   vietnamEnv,
+  hptIntel,
   aiSitrep,
   military,
   vessels,
@@ -264,6 +269,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
   const [legalFilter, setLegalFilter] = useState<'all' | 'most' | LegalDocType>('all');
   const [legalPillar, setLegalPillar] = useState<'57' | '59' | '66' | '68' | null>(null);
   const [legalQuery, setLegalQuery] = useState('');
+  const [hptFilter, setHptFilter] = useState<'all' | 'filings' | HptItemCategory>('all');
   const [translateVi, setTranslateVi] = useState<boolean>(true);
   const [visibleLimit, setVisibleLimit] = useState<number>(40);
 
@@ -465,6 +471,35 @@ export const RightIntelPanel = memo(function RightIntelPanel({
     () => news.filter((n) => n.source.startsWith('BBC ')).length,
     [news],
   );
+
+  const financeNewsCount = useMemo(
+    () => news.filter((n) => n.category === 'finance').length,
+    [news],
+  );
+
+  const filteredHptItems = useMemo(() => {
+    const list = hptIntel?.items ?? [];
+    if (hptFilter === 'all') return list;
+    if (hptFilter === 'filings') {
+      return list.filter(
+        (i) => i.category === 'exchange_filing' || i.category === 'shareholder_ir',
+      );
+    }
+    return list.filter((i) => i.category === hptFilter);
+  }, [hptIntel?.items, hptFilter]);
+
+  const hptSentimentStats = useMemo(() => {
+    const list = hptIntel?.items ?? [];
+    let pos = 0;
+    let neg = 0;
+    let neu = 0;
+    for (const it of list) {
+      if (it.sentiment === 'positive') pos += 1;
+      else if (it.sentiment === 'negative') neg += 1;
+      else neu += 1;
+    }
+    return { pos, neg, neu, total: list.length };
+  }, [hptIntel?.items]);
 
   const top5HotPolymarket = useMemo(
     () => selectTopHotPolymarket(predictions, 5),
@@ -766,6 +801,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
               {[
                 'Tình hình Biển Đông & Gió Hoàng Sa?',
                 'Giá vàng SJC, USD/VND & VN30?',
+                'Tin cổ tức & cổ phiếu HPT?',
                 'Tóm tắt NQ 57 & Bộ KH&CN mới?',
               ].map((chip) => (
                 <button
@@ -1949,7 +1985,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                   { id: 'osint_live', label: '⚡ Live OSINT' },
                   { id: 'vietnam', label: 'Việt Nam' },
                   { id: 'world', label: 'Thế giới & Quốc phòng' },
-                  { id: 'finance', label: 'Tài chính' },
+                  { id: 'finance', label: `💹 Kinh tế & Tài chính (${financeNewsCount})` },
                 ] as const
               ).map((cat) => (
                 <button
@@ -2433,6 +2469,209 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                     </div>
                   );
                 })}
+              </div>
+            </section>
+          )}
+
+          {/* FireAnt-Style Corporate Intelligence Radar: HPT (UPCoM · HNX / UBCKNN + hpt.vn + Press/Forums/Social + Groq Sentiment) */}
+          {hptIntel && (hptIntel.stock || hptIntel.items.length > 0) && (
+            <section className="rounded border border-cyan-500/35 bg-[#0a1322] p-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <span className="rounded border border-cyan-400/55 bg-cyan-500/20 px-1.5 py-0.5 font-mono text-[10.5px] font-bold text-cyan-200">
+                    HPT · UPCoM
+                  </span>
+                  <h2 className="truncate font-mono text-[10.5px] font-semibold tracking-wider text-slate-100">
+                    CÔNG NGHỆ TIN HỌC HPT
+                  </h2>
+                </div>
+
+                <div className="flex shrink-0 items-center gap-1">
+                  {hptIntel.stock && (
+                    <button
+                      type="button"
+                      onClick={() => onFlyToLocation(hptIntel.stock!.hqLat, hptIntel.stock!.hqLon, 12.5)}
+                      title="Bay tới Trụ sở HPT tại Khu Công nghệ cao TP.HCM (SHTP)"
+                      className="inline-flex items-center gap-0.5 rounded border border-cyan-500/35 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[9px] text-cyan-300 hover:bg-cyan-500/20"
+                    >
+                      <Crosshair size={10} />
+                      SHTP
+                    </button>
+                  )}
+                  {onForceRefresh && (
+                    <button
+                      type="button"
+                      onClick={() => onForceRefresh('hpt-intel')}
+                      title="Quét mới Công bố thông tin HNX/UBCKNN & Tin tức HPT"
+                      className="inline-flex items-center rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-slate-300 hover:border-cyan-400/50 hover:text-cyan-200"
+                    >
+                      <ArrowsClockwise
+                        size={10}
+                        className={refreshingIds?.has('hpt-intel') ? 'animate-spin text-cyan-300' : ''}
+                      />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* HPT Live Stock Ticker Strip + AI Sentiment Summary */}
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded border border-slate-800/90 bg-[#0d1729] px-2.5 py-1.5 font-mono">
+                {hptIntel.stock ? (
+                  <div className="flex items-center gap-2.5">
+                    <div>
+                      <div className="flex items-baseline gap-1.5 tabular-nums">
+                        <span className="text-sm font-bold text-slate-100">
+                          {(hptIntel.stock.priceThousandVnd * 1000).toLocaleString('en-US')}₫
+                        </span>
+                        <span
+                          className={`text-[10.5px] font-semibold ${
+                            hptIntel.stock.changePercent >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                          }`}
+                        >
+                          {hptIntel.stock.changePercent >= 0 ? '+' : ''}
+                          {hptIntel.stock.changePercent.toFixed(2)}%
+                        </span>
+                      </div>
+                      <div className="text-[9px] text-slate-400 tabular-nums">
+                        KL: {(hptIntel.stock.volume * 100).toLocaleString('en-US')} cp · Sàn HNX/UPCoM
+                      </div>
+                    </div>
+                    <MiniSparkline
+                      values={hptIntel.stock.sparkline}
+                      positive={hptIntel.stock.changePercent >= 0}
+                    />
+                  </div>
+                ) : (
+                  <span className="text-[10px] text-slate-400">Mã HPT (UPCoM)</span>
+                )}
+
+                <div className="text-right text-[9px]">
+                  <div className="font-semibold text-emerald-300">
+                    {hptIntel.aiSentimentEnabled ? '🤖 AI LỌC NHIỄU & SẮC THÁI' : 'LỌC NGỮ CẢNH HPT'}
+                  </div>
+                  <div className="mt-0.5 text-slate-400 tabular-nums">
+                    🟢 {hptSentimentStats.pos} · ⚪ {hptSentimentStats.neu} · 🔴 {hptSentimentStats.neg}
+                  </div>
+                </div>
+              </div>
+
+              {/* FireAnt-Style Category Filter Pills */}
+              <div className="mt-2 flex flex-wrap gap-1">
+                {(
+                  [
+                    { id: 'all', label: `Tất cả (${hptIntel.items.length})` },
+                    { id: 'filings', label: '📜 Công bố HNX/UBCK & Cổ đông' },
+                    { id: 'tech_activity', label: '🔬 Hoạt động Công nghệ' },
+                    { id: 'press_social', label: '🌐 Báo chí · F319 · MXH' },
+                  ] as const
+                ).map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setHptFilter(tab.id)}
+                    className={`rounded border px-2 py-0.5 text-[10px] font-medium transition ${
+                      hptFilter === tab.id
+                        ? 'border-cyan-400/55 bg-cyan-500/20 text-cyan-200'
+                        : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* FireAnt-Style Disclosure & News Stream */}
+              <div className="mt-2 max-h-[340px] divide-y divide-slate-800/80 overflow-y-auto rounded border border-slate-800/95 bg-[#080f1c]">
+                {filteredHptItems.length === 0 ? (
+                  <div className="py-5 text-center text-xs text-slate-400">
+                    Chưa có tin khớp phân nhóm này.
+                  </div>
+                ) : (
+                  filteredHptItems.slice(0, 24).map((item) => {
+                    const sentBadge: Record<HptSentiment, { text: string; cls: string }> = {
+                      positive: {
+                        text: 'TÍCH CỰC',
+                        cls: 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300',
+                      },
+                      neutral: {
+                        text: 'TRUNG LẬP',
+                        cls: 'border-slate-700 bg-slate-800/90 text-slate-300',
+                      },
+                      negative: {
+                        text: 'TIÊU CỰC',
+                        cls: 'border-rose-500/45 bg-rose-500/15 text-rose-300',
+                      },
+                    };
+                    const sb = sentBadge[item.sentiment];
+                    return (
+                      <article key={item.id} className="px-2.5 py-2 transition hover:bg-[#0f1a2e]">
+                        <div className="flex flex-wrap items-center justify-between gap-1 font-mono text-[9px]">
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span
+                              className={`rounded border px-1.5 py-0.1 font-bold ${
+                                item.category === 'exchange_filing'
+                                  ? 'border-amber-400/50 bg-amber-500/18 text-amber-200'
+                                  : item.category === 'shareholder_ir'
+                                    ? 'border-cyan-500/45 bg-cyan-500/15 text-cyan-200'
+                                    : item.category === 'tech_activity'
+                                      ? 'border-violet-500/45 bg-violet-500/15 text-violet-200'
+                                      : 'border-slate-700 bg-slate-800 text-slate-300'
+                              }`}
+                            >
+                              {item.badge}
+                            </span>
+                            <span className={`rounded border px-1 py-0.1 font-semibold ${sb.cls}`}>
+                              {sb.text}
+                            </span>
+                          </div>
+                          <span className="text-slate-500 tabular-nums">
+                            {item.dateLabel ?? formatRelativeTime(item.publishedAt)}
+                          </span>
+                        </div>
+
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-1 block text-xs font-medium leading-snug text-slate-100 hover:text-cyan-300"
+                        >
+                          {item.title}
+                        </a>
+
+                        {item.aiSummary && (
+                          <p className="mt-1 rounded border border-slate-800/80 bg-[#0b1424] px-2 py-1 text-[10.5px] leading-snug text-emerald-200/90">
+                            🤖 {item.aiSummary}
+                          </p>
+                        )}
+
+                        <div className="mt-1.5 flex items-center justify-between gap-2 font-mono text-[9.5px]">
+                          <span className="truncate text-slate-400">{item.source}</span>
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            {item.pdfUrl && (
+                              <a
+                                href={item.pdfUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-0.5 rounded border border-rose-500/45 bg-rose-600/20 px-1.5 py-0.2 font-semibold text-rose-200 hover:bg-rose-600/35"
+                              >
+                                <FilePdf size={11} weight="fill" />
+                                PDF gốc
+                              </a>
+                            )}
+                            <a
+                              href={item.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-0.5 text-slate-400 hover:text-cyan-200"
+                            >
+                              Chi tiết <ArrowSquareOut size={10} />
+                            </a>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })
+                )}
               </div>
             </section>
           )}

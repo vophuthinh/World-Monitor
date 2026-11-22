@@ -7,6 +7,7 @@ import type {
   AiSitrepSnapshot,
   GeoPointFeature,
   GoogleTrendsSnapshot,
+  HptCompanyIntelSnapshot,
   MarketSnapshot,
   NewsItem,
   PolicyLegalSnapshot,
@@ -21,6 +22,7 @@ import { fetchCyberThreats } from './collectors/cyber-threats';
 import { fetchEarthquakes } from './collectors/earthquakes';
 import { fetchGeopoliticsGdelt } from './collectors/geopolitics-gdelt';
 import { fetchGoogleTrendsRealtime } from './collectors/google-trends';
+import { fetchHptCompanyIntelligence } from './collectors/hpt-company-intel';
 import { fetchWorldBankMacro } from './collectors/macro-worldbank';
 import { MaritimeVesselStreamManager } from './collectors/maritime-vessels';
 import { fetchMarketsAndCrypto } from './collectors/markets-crypto';
@@ -241,6 +243,15 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
     retainMs: 12 * 3_600_000,
     countItems: (snap) => snap.items.length,
     fetcher: () => fetchVietnamPolicyLegal(),
+  });
+
+  scheduler.registerCollector<HptCompanyIntelSnapshot>({
+    id: 'hpt-intel',
+    label: 'Doanh nghiệp HPT (UPCoM · HNX/UBCKNN + hpt.vn + Báo chí/MXH)',
+    intervalMs: 240_000,
+    retainMs: 12 * 3_600_000,
+    countItems: (snap) => snap.items.length + (snap.stock ? 1 : 0),
+    fetcher: (prev) => fetchHptCompanyIntelligence(prev),
   });
 
   scheduler.registerCollector<AiSitrepSnapshot>({

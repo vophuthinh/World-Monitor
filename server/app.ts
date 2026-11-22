@@ -7,6 +7,7 @@ import type {
   BootstrapResponse,
   GeoPointFeature,
   GoogleTrendsSnapshot,
+  HptCompanyIntelSnapshot,
   LiveFastResponse,
   MacroCountryIndicator,
   MarketSnapshot,
@@ -211,6 +212,7 @@ export function createApp(
       policyLegal: store.get<PolicyLegalSnapshot>('policy-legal', now) ?? undefined,
       googleTrends: store.get<GoogleTrendsSnapshot>('google-trends', now) ?? undefined,
       vietnamEnv: store.get<VietnamEnvSnapshot>('vietnam-env', now) ?? undefined,
+      hptIntel: store.get<HptCompanyIntelSnapshot>('hpt-intel', now) ?? undefined,
       aiSitrep: store.get<AiSitrepSnapshot>('ai-sitrep', now) ?? undefined,
     };
 

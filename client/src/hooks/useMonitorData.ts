@@ -707,6 +707,20 @@ export function useMonitorData() {
       }
     }
 
+    for (const hpt of data.hptIntel?.items ?? []) {
+      if (`hpt ${hpt.title} ${hpt.badge} ${hpt.source}`.toLowerCase().includes(q)) {
+        hits.push({
+          id: `hpt:${hpt.id}`,
+          kind: 'news',
+          badge: `HPT · ${hpt.badge}`,
+          title: hpt.title,
+          subtitle: `${hpt.source} · ${hpt.dateLabel ?? ''}`,
+          url: hpt.pdfUrl ?? hpt.url,
+        });
+        if (hits.length >= 38) break;
+      }
+    }
+
     for (const trend of [
       ...(data.googleTrends?.vn ?? []),
       ...(data.googleTrends?.global ?? []),

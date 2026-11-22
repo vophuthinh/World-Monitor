@@ -2,7 +2,7 @@ import { XMLParser } from 'fast-xml-parser';
 import { selectTopHotPolymarket } from '@shared/intelligence';
 import type { NewsCategory, NewsItem, PredictionCategory, PredictionItem } from '@shared/types';
 import { DEFAULT_BROWSER_UA, NAMED_APP_UA, fetchJsonWithTimeout, fetchTextWithTimeout } from '../lib/http';
-import { globalViTranslator } from '../lib/translator';
+import { globalViTranslator, isLikelyVietnamese } from '../lib/translator';
 
 export { selectTopHotPolymarket };
 
@@ -420,9 +420,17 @@ export function parseRssFeedXml(
   const channelItems = parsed?.rss?.channel?.item ?? parsed?.feed?.entry ?? [];
   const list = Array.isArray(channelItems) ? channelItems : channelItems ? [channelItems] : [];
 
+  const isGoogleSiteFeed =
+    sourceName.startsWith('Google News') ||
+    sourceName === 'VnEconomy Kinh tế' ||
+    sourceName === 'Yahoo Finance';
+
   const out: NewsItem[] = [];
   for (const entry of list.slice(0, 12)) {
-    const title = cleanText(entry?.title);
+    let title = cleanText(entry?.title);
+    if (isGoogleSiteFeed) {
+      title = title.replace(/\s+-\s+[^-]{2,40}$/, '').trim();
+    }
     const url = extractLink(entry?.link) || cleanText(entry?.guid);
     if (!title || !url || !url.startsWith('http')) continue;
 
@@ -435,7 +443,7 @@ export function parseRssFeedXml(
     out.push({
       id: `${sourceName}:${url}`,
       title,
-      titleVi: category === 'vietnam' ? title : undefined,
+      titleVi: category === 'vietnam' || isLikelyVietnamese(title) ? title : undefined,
       source: sourceName,
       category,
       streamSource: 'rss',
@@ -506,9 +514,31 @@ export const CURATED_RSS_FEEDS: readonly FeedDefinition[] = [
     url: 'https://news.google.com/rss/search?q=%22South+China+Sea%22+OR+%22Strait+of+Hormuz%22+OR+%22Taiwan+Strait%22+when:1d&hl=en-US&gl=US&ceid=US:en',
   },
 
-  // Tài chính, Phố Wall & Năng lượng Quốc tế
+  // Kinh tế, Tài chính & Chứng khoán Việt Nam (CafeF, VnEconomy, Vietstock)
+  { name: 'CafeF Chứng khoán', category: 'finance', url: 'https://cafef.vn/thi-truong-chung-khoan.rss' },
+  { name: 'CafeF Tài chính – NH', category: 'finance', url: 'https://cafef.vn/tai-chinh-ngan-hang.rss' },
+  { name: 'CafeF Doanh nghiệp', category: 'finance', url: 'https://cafef.vn/doanh-nghiep.rss' },
+  { name: 'CafeF Vĩ mô – Đầu tư', category: 'finance', url: 'https://cafef.vn/vi-mo-dau-tu.rss' },
+  {
+    name: 'VnEconomy Kinh tế',
+    category: 'finance',
+    url: 'https://news.google.com/rss/search?q=site:vneconomy.vn+when:3d&hl=vi&gl=VN&ceid=VN:vi',
+  },
+  { name: 'Vietstock Cổ phiếu', category: 'finance', url: 'https://vietstock.vn/830/chung-khoan/co-phieu.rss' },
+  { name: 'Vietstock Doanh nghiệp', category: 'finance', url: 'https://vietstock.vn/737/doanh-nghiep/hoat-dong-kinh-doanh.rss' },
+  { name: 'Vietstock Tài chính', category: 'finance', url: 'https://vietstock.vn/734/tai-chinh.rss' },
+
+  // Tài chính, Kinh tế, Phố Wall & Năng lượng Quốc tế (CNBC Finance, Yahoo Finance, MarketWatch)
+  { name: 'CNBC Finance', category: 'finance', url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664' },
+  { name: 'CNBC Economy', category: 'finance', url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=20910258' },
   { name: 'CNBC Markets', category: 'finance', url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114' },
+  {
+    name: 'Yahoo Finance',
+    category: 'finance',
+    url: 'https://news.google.com/rss/search?q=site:finance.yahoo.com+when:1d&hl=en-US&gl=US&ceid=US:en',
+  },
   { name: 'MarketWatch', category: 'finance', url: 'https://feeds.content.dowjones.io/public/rss/mw_topstories' },
+  { name: 'MarketWatch Realtime', category: 'finance', url: 'https://feeds.content.dowjones.io/public/rss/mw_realtimeheadlines' },
   { name: 'OilPrice Energy', category: 'finance', url: 'https://oilprice.com/rss/main' },
 ];
 
@@ -543,6 +573,6 @@ export async function fetchCuratedRssNews(): Promise<NewsItem[]> {
     throw new Error('All curated RSS feeds failed or timed out');
   }
 
-  const sorted = merged.sort((a, b) => b.publishedAt - a.publishedAt).slice(0, 110);
+  const sorted = merged.sort((a, b) => b.publishedAt - a.publishedAt).slice(0, 165);
   return globalViTranslator.enrichNewsItems(sorted);
 }
