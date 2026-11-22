@@ -93,7 +93,8 @@ export const LayerControlDock = memo(function LayerControlDock({
   onToggleWindy,
   aisStreamConfigured,
 }: LayerControlDockProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  // Start collapsed below Tailwind `lg` so the dock does not cover half of a phone map.
+  const [collapsed, setCollapsed] = useState(() => !window.matchMedia('(min-width: 1024px)').matches);
 
   const totalCount = LAYER_META.length;
   const enabledCount = Object.values(activeLayers).filter(Boolean).length;
