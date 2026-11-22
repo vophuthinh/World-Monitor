@@ -818,7 +818,7 @@ async function fetchIndicesAndCommodities(now: number): Promise<MarketQuote[]> {
         const payload = await fetchJsonWithTimeout<YahooChartPayload>(url, {
           timeoutMs: 9_000,
           retries: 1,
-          userAgent: DEFAULT_BROWSER_UA,
+          userAgent: 'Mozilla/5.0',
         });
         return normalizeYahooChartQuote(
           target.displaySymbol,
