@@ -215,10 +215,18 @@ export function normalizeGdacsEvents(payload: GdacsPayload, now = Date.now()): G
   return out;
 }
 
-export function parseNasaFirmsCsv(csvText: string, now = Date.now(), maxHotspots = 38): GeoPointFeature[] {
+export function parseNasaFirmsCsv(
+  csvText: string,
+  now = Date.now(),
+  maxHotspots = 38,
+  regionLabel = 'ĐNÁ',
+): GeoPointFeature[] {
   if (!csvText) return [];
   const lines = csvText.trim().split(/\r?\n/);
   if (lines.length < 2) return [];
+
+  const header = lines[0].toLowerCase();
+  const isViirs = header.includes('bright_ti4') || header.includes('instrument');
 
   const cellBest = new Map<string, { feat: GeoPointFeature; frp: number }>();
 
@@ -230,42 +238,62 @@ export function parseNasaFirmsCsv(csvText: string, now = Date.now(), maxHotspots
     const brightness = Number(cols[2]);
     const acqDate = cols[5]?.trim() ?? '';
     const acqTime = cols[6]?.trim().padStart(4, '0') ?? '0000';
-    const satellite = cols[7]?.trim() || 'MODIS';
-    const confidence = Number(cols[8]);
-    const frp = Number(cols[11]);
+    const satellite = cols[7]?.trim() || (isViirs ? 'N20' : 'MODIS');
+    const instrument = isViirs ? (cols[8]?.trim() || 'VIIRS') : 'MODIS';
+
+    let confidencePct = 0;
+    let frp = 0;
+    if (isViirs) {
+      const confCode = (cols[9]?.trim() ?? '').toLowerCase();
+      confidencePct =
+        confCode === 'h'
+          ? 92
+          : confCode === 'n'
+            ? 75
+            : confCode === 'l'
+              ? 35
+              : Number(confCode) || 70;
+      frp = Number(cols[12]);
+    } else {
+      confidencePct = Number(cols[8]);
+      frp = Number(cols[11]);
+    }
 
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-    if ((Number.isFinite(confidence) ? confidence : 0) < 72 && (Number.isFinite(frp) ? frp : 0) < 25) {
+    const minFrp = isViirs ? 12 : 25;
+    if (confidencePct < 70 && (Number.isFinite(frp) ? frp : 0) < minFrp) {
       continue;
     }
 
-    // Deduplicate dense 1km satellite fire pixels into 0.25° (~27km) regional clusters
+    // Deduplicate dense 375m/1km satellite fire pixels into 0.25° (~27km) regional clusters
     const gridKey = `${Math.round(lat * 4) / 4}:${Math.round(lon * 4) / 4}`;
     const parsedTs = acqDate
       ? Date.parse(`${acqDate}T${acqTime.slice(0, 2)}:${acqTime.slice(2, 4)}:00Z`)
       : now;
     const validTs = Number.isFinite(parsedTs) ? parsedTs : now;
     const frpVal = Number.isFinite(frp) ? Math.round(frp * 10) / 10 : 10;
-    const severity: SeverityLevel = frpVal >= 120 ? 'critical' : frpVal >= 40 ? 'high' : 'medium';
+    const severity: SeverityLevel = frpVal >= 90 ? 'critical' : frpVal >= 25 ? 'high' : 'medium';
 
     const candidate: GeoPointFeature = {
       id: `firms:${gridKey}`,
       layer: 'natural',
-      title: `Điểm nhiệt Vệ tinh ĐNÁ (${frpVal} MW FRP)`,
-      subtitle: `NASA FIRMS ${satellite} · Độ tin cậy ${confidence}% · Độ sáng ${Math.round(brightness)}K`,
+      title: `Điểm nhiệt Vệ tinh ${regionLabel} (${frpVal} MW FRP)`,
+      subtitle: `NASA FIRMS ${instrument} (${satellite}) · Độ tin cậy ${confidencePct}% · Độ sáng ${Math.round(brightness)}K`,
       category: 'wildfires',
       severity,
       lat,
       lon,
       timestamp: validTs,
-      source: 'NASA FIRMS Satellite (ASEAN 24h)',
+      source: isViirs ? 'NASA FIRMS VIIRS 375m NRT' : 'NASA FIRMS MODIS (24h)',
       url: 'https://firms.modaps.eosdis.nasa.gov/map/',
       magnitude: frpVal,
       meta: {
-        provider: 'NASA FIRMS MODIS',
-        fireRadiativePowerMW: frpVal,
-        confidencePct: Number.isFinite(confidence) ? confidence : null,
+        provider: isViirs ? 'NASA FIRMS VIIRS 375m' : 'NASA FIRMS MODIS',
+        instrument,
         satellite,
+        fireRadiativePowerMW: frpVal,
+        confidencePct,
+        region: regionLabel,
       },
     };
 
@@ -279,6 +307,39 @@ export function parseNasaFirmsCsv(csvText: string, now = Date.now(), maxHotspots
     .sort((a, b) => b.frp - a.frp)
     .slice(0, maxHotspots)
     .map((x) => x.feat);
+}
+
+async function fetchNasaFirmsHotspots(now: number): Promise<GeoPointFeature[]> {
+  const firmsKey = process.env.NASA_FIRMS_API_KEY?.trim();
+  if (firmsKey) {
+    try {
+      const seaUrl = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${encodeURIComponent(firmsKey)}/VIIRS_NOAA20_NRT/92,0,126,25/2`;
+      const conflictUrl = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${encodeURIComponent(firmsKey)}/VIIRS_NOAA20_NRT/28,12,58,52/1`;
+
+      const [seaRes, confRes] = await Promise.allSettled([
+        fetchTextWithTimeout(seaUrl, { timeoutMs: 10_000, retries: 0, userAgent: NAMED_APP_UA }),
+        fetchTextWithTimeout(conflictUrl, { timeoutMs: 10_000, retries: 0, userAgent: NAMED_APP_UA }),
+      ]);
+
+      const merged: GeoPointFeature[] = [];
+      if (seaRes.status === 'fulfilled') {
+        merged.push(...parseNasaFirmsCsv(seaRes.value.text, now, 32, 'ĐNÁ / Biển Đông'));
+      }
+      if (confRes.status === 'fulfilled') {
+        merged.push(...parseNasaFirmsCsv(confRes.value.text, now, 22, 'Đông Âu / Trung Đông'));
+      }
+      if (merged.length > 0) return merged;
+    } catch {
+      // Fall back to public MODIS 24h CSV
+    }
+  }
+
+  const res = await fetchTextWithTimeout(NASA_FIRMS_SEA_MODIS_URL, {
+    timeoutMs: 9_000,
+    retries: 0,
+    userAgent: NAMED_APP_UA,
+  });
+  return parseNasaFirmsCsv(res.text, now, 36, 'ĐNÁ');
 }
 
 export async function fetchNaturalEvents(): Promise<GeoPointFeature[]> {
@@ -295,11 +356,7 @@ export async function fetchNaturalEvents(): Promise<GeoPointFeature[]> {
       // Named application UA avoids GDACS F5 HTML challenge
       userAgent: NAMED_APP_UA,
     }).then((data) => normalizeGdacsEvents(data, now)),
-    fetchTextWithTimeout(NASA_FIRMS_SEA_MODIS_URL, {
-      timeoutMs: 9_000,
-      retries: 0,
-      userAgent: NAMED_APP_UA,
-    }).then((res) => parseNasaFirmsCsv(res.text, now, 36)),
+    fetchNasaFirmsHotspots(now),
   ]);
 
   if (eonetRes.status === 'rejected' && gdacsRes.status === 'rejected' && firmsRes.status === 'rejected') {

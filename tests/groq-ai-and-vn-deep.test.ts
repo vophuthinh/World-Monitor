@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { SnapshotStore } from '../server/cache/snapshot-store';
+import { normalizeAcledEvents } from '../server/collectors/geopolitics-gdelt';
 import {
   computeWorldGoldLuongMillionVnd,
+  normalizeFredObservationSeries,
   normalizeMihongGoldPrices,
   normalizeVn30DchartQuote,
   normalizeYahooChartQuote,
 } from '../server/collectors/markets-crypto';
+import { parseNasaFirmsCsv } from '../server/collectors/natural-events';
 import {
   normalizeAdsbGpsJammingZone,
   normalizeRipeBgpCountryAnomaly,
@@ -232,5 +235,61 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     expect(bgpFeature?.layer).toBe('gpsOutages');
     expect(bgpFeature?.category).toBe('bgp_outage');
     expect(bgpFeature?.severity).toBe('high');
+  });
+
+  it('normalizes FRED Federal Reserve series, 375m VIIRS NASA FIRMS CSV, and ACLED OAuth conflict events', () => {
+    const fredMetric = normalizeFredObservationSeries(
+      {
+        id: 'T10Y2Y',
+        label: '10Y–2Y Spread',
+        subtitle: 'Độ dốc Đường cong Lợi suất Mỹ',
+        unit: '%',
+      },
+      {
+        observations: [
+          { date: '2026-11-20', value: '.' },
+          { date: '2026-11-19', value: '-0.18' },
+          { date: '2026-11-18', value: '-0.12' },
+          { date: '2026-11-17', value: '-0.05' },
+        ],
+      },
+    );
+    expect(fredMetric).not.toBeNull();
+    expect(fredMetric?.value).toBe(-0.18);
+    expect(fredMetric?.alertBadge).toContain('ĐẢO NGƯỢC');
+    expect(fredMetric?.sparkline).toEqual([-0.05, -0.12, -0.18]);
+
+    const viirsCsv = [
+      'latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight',
+      '14.521,108.112,348.5,0.39,0.36,2026-11-22,0615,N20,VIIRS,h,2.0NRT,294.1,52.4,D',
+      '11.220,106.510,332.1,0.42,0.38,2026-11-22,0618,N20,VIIRS,n,2.0NRT,288.2,29.8,D',
+    ].join('\n');
+    const viirsPoints = parseNasaFirmsCsv(viirsCsv, 1700000000000, 10, 'ĐNÁ / Biển Đông');
+    expect(viirsPoints.length).toBe(2);
+    expect(viirsPoints[0].meta.instrument).toBe('VIIRS');
+    expect(viirsPoints[0].magnitude).toBe(52.4);
+    expect(viirsPoints[0].severity).toBe('high');
+
+    const acledPoints = normalizeAcledEvents({
+      data: [
+        {
+          event_id_cnty: 'MMR9912',
+          event_date: '2026-11-21',
+          event_type: 'Explosions/Remote violence',
+          sub_event_type: 'Air/drone strike',
+          actor1: 'Military Forces of Myanmar',
+          country: 'Myanmar',
+          location: 'Lashio',
+          latitude: '22.935',
+          longitude: '97.749',
+          fatalities: '4',
+          notes: 'Airstrike reported near Lashio township.',
+        },
+      ],
+    });
+    expect(acledPoints.length).toBe(1);
+    expect(acledPoints[0].layer).toBe('geopolitics');
+    expect(acledPoints[0].severity).toBe('critical');
+    expect(acledPoints[0].source).toContain('ACLED');
   });
 });

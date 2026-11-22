@@ -169,6 +169,18 @@ export interface Vn30StockQuote {
   updatedAt: number;
 }
 
+export interface FredMacroMetric {
+  id: string;
+  label: string;
+  subtitle: string;
+  value: number;
+  change: number;
+  unit: string;
+  date: string;
+  alertBadge?: string;
+  sparkline: number[];
+}
+
 export interface CryptoQuote {
   id: string;
   symbol: string;
@@ -206,6 +218,7 @@ export interface MarketSnapshot {
   macro: MacroCountryIndicator[];
   vnGold?: VnGoldQuote[];
   vn30?: Vn30StockQuote[];
+  fred?: FredMacroMetric[];
   updatedAt: number;
 }
 

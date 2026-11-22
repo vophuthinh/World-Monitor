@@ -220,6 +220,16 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now()):
       lines.push(`[CỔ PHIẾU VN30] ${vn30Summary}`);
     }
 
+    if (markets.fred && markets.fred.length > 0) {
+      const fredSummary = markets.fred
+        .map(
+          (f) =>
+            `${f.label}: ${f.value}${f.unit === '%' ? '%' : ` ${f.unit}`} (${f.change >= 0 ? '+' : ''}${f.change})`,
+        )
+        .join(', ');
+      lines.push(`[LÃI SUẤT FED & TRÁI PHIẾU MỸ FRED] ${fredSummary}`);
+    }
+
     if (markets.crypto.length > 0) {
       const topCoins = markets.crypto
         .slice(0, 4)

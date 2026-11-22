@@ -1,6 +1,7 @@
 import type {
   CryptoQuote,
   FearGreedSnapshot,
+  FredMacroMetric,
   MarketQuote,
   MarketSnapshot,
   Vn30StockQuote,
@@ -420,6 +421,96 @@ async function fetchVn30Leaders(now: number): Promise<Vn30StockQuote[]> {
   return out;
 }
 
+export interface FredSeriesTarget {
+  id: string;
+  label: string;
+  subtitle: string;
+  unit: string;
+}
+
+const FRED_SERIES_TARGETS: readonly FredSeriesTarget[] = [
+  { id: 'FEDFUNDS', label: 'Fed Funds Rate', subtitle: 'Lãi suất Điều hành Fed', unit: '%' },
+  { id: 'DGS10', label: 'US 10Y Yield', subtitle: 'Lợi suất Trái phiếu Mỹ 10 năm', unit: '%' },
+  { id: 'DGS2', label: 'US 2Y Yield', subtitle: 'Lợi suất Trái phiếu Mỹ 2 năm', unit: '%' },
+  { id: 'T10Y2Y', label: '10Y–2Y Spread', subtitle: 'Độ dốc Đường cong Lợi suất', unit: '%' },
+  { id: 'VIXCLS', label: 'CBOE VIX', subtitle: 'Chỉ số Biến động Phố Wall', unit: 'pts' },
+  { id: 'DTWEXBGS', label: 'Broad USD (DXY)', subtitle: 'Chỉ số Sức mạnh Đồng USD', unit: 'idx' },
+];
+
+export interface FredObservationsPayload {
+  observations?: Array<{
+    date?: string;
+    value?: string;
+  }>;
+}
+
+export function normalizeFredObservationSeries(
+  target: FredSeriesTarget,
+  payload: FredObservationsPayload,
+): FredMacroMetric | null {
+  const valid = (payload?.observations ?? [])
+    .map((o) => ({
+      date: String(o.date ?? ''),
+      num: Number(o.value),
+    }))
+    .filter((o) => o.date && Number.isFinite(o.num));
+
+  if (valid.length === 0) return null;
+
+  // FRED sort_order=desc returns newest first
+  const latest = valid[0];
+  const prev = valid.length >= 2 ? valid[1] : latest;
+  const change = Number((latest.num - prev.num).toFixed(2));
+  const chronological = valid
+    .slice(0, 10)
+    .reverse()
+    .map((x) => Number(x.num.toFixed(2)));
+
+  let alertBadge: string | undefined;
+  if (target.id === 'T10Y2Y' && latest.num < 0) {
+    alertBadge = 'ĐẢO NGƯỢC (CẢNH BÁO SUY THOÁI)';
+  } else if (target.id === 'VIXCLS' && latest.num >= 25) {
+    alertBadge = 'BIẾN ĐỘNG CAO';
+  }
+
+  return {
+    id: target.id,
+    label: target.label,
+    subtitle: target.subtitle,
+    value: Number(latest.num.toFixed(2)),
+    change,
+    unit: target.unit,
+    date: latest.date,
+    alertBadge,
+    sparkline: chronological,
+  };
+}
+
+async function fetchFredMacroMetrics(): Promise<FredMacroMetric[]> {
+  const apiKey = process.env.FRED_API_KEY?.trim();
+  if (!apiKey) return [];
+
+  const results = await Promise.allSettled(
+    FRED_SERIES_TARGETS.map(async (target) => {
+      const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${encodeURIComponent(target.id)}&api_key=${encodeURIComponent(apiKey)}&file_type=json&sort_order=desc&limit=14`;
+      const payload = await fetchJsonWithTimeout<FredObservationsPayload>(url, {
+        timeoutMs: 7_500,
+        retries: 1,
+        userAgent: NAMED_APP_UA,
+      });
+      return normalizeFredObservationSeries(target, payload);
+    }),
+  );
+
+  const out: FredMacroMetric[] = [];
+  for (const r of results) {
+    if (r.status === 'fulfilled' && r.value) {
+      out.push(r.value);
+    }
+  }
+  return out;
+}
+
 interface YahooTarget {
   yahooSymbol: string;
   displaySymbol: string;
@@ -572,7 +663,7 @@ async function fetchIndicesAndCommodities(now: number): Promise<MarketQuote[]> {
 export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): Promise<MarketSnapshot> {
   const now = Date.now();
 
-  const [cryptoRes, fgRes, fxRes, marketQuotesRes, vn30Res] = await Promise.allSettled([
+  const [cryptoRes, fgRes, fxRes, marketQuotesRes, vn30Res, fredRes] = await Promise.allSettled([
     fetchCryptoQuotes(now),
     fetchJsonWithTimeout<FearGreedPayload>(FEAR_GREED_URL, {
       timeoutMs: 8_000,
@@ -586,6 +677,7 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
     }).then((d) => normalizeErApiFx(d, now)),
     fetchIndicesAndCommodities(now),
     fetchVn30Leaders(now),
+    fetchFredMacroMetrics(),
   ]);
 
   const crypto =
@@ -641,6 +733,11 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
       ? vn30Res.value
       : (previous?.vn30 ?? []);
 
+  const fred =
+    fredRes.status === 'fulfilled' && fredRes.value.length > 0
+      ? fredRes.value
+      : (previous?.fred ?? []);
+
   if (quotes.length === 0 && crypto.length === 0) {
     throw new Error('All market, FX, and crypto upstream endpoints failed');
   }
@@ -652,6 +749,7 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
     macro: previous?.macro ?? [],
     vnGold,
     vn30,
+    fred,
     updatedAt: now,
   };
 }

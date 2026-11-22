@@ -198,6 +198,7 @@ export function createApp(
         macro,
         vnGold: rawMarkets?.vnGold ?? [],
         vn30: rawMarkets?.vn30 ?? [],
+        fred: rawMarkets?.fred ?? [],
         updatedAt: rawMarkets?.updatedAt ?? now,
       },
       predictions: store.get<PredictionItem[]>('polymarket', now) ?? [],
