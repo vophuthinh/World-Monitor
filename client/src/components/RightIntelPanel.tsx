@@ -1,4 +1,4 @@
-import { type ReactNode, memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, memo, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import {
   ArrowsClockwise,
   ArrowSquareOut,
@@ -373,11 +373,15 @@ export const RightIntelPanel = memo(function RightIntelPanel({
   const [hptFilter, setHptFilter] = useState<'all' | 'filings' | HptItemCategory>('all');
   const [macroRegion, setMacroRegion] = useState<'VN' | 'US'>('VN');
   const [translateVi, setTranslateVi] = useState<boolean>(true);
-  const [visibleLimit, setVisibleLimit] = useState<number>(40);
+  const [visibleLimit, setVisibleLimit] = useState<number>(25);
+
+  const deferredNewsQuery = useDeferredValue(newsQuery);
+  const deferredTechQuery = useDeferredValue(techQuery);
+  const deferredLegalQuery = useDeferredValue(legalQuery);
 
   useEffect(() => {
-    setVisibleLimit(40);
-  }, [activeTab, newsFilter, newsQuery, techFilter, mitreFilter, techQuery, legalFilter, legalPillar, legalQuery]);
+    setVisibleLimit(25);
+  }, [activeTab, newsFilter, deferredNewsQuery, techFilter, mitreFilter, deferredTechQuery, legalFilter, legalPillar, deferredLegalQuery]);
 
   // Live IOC / IP / CVE Recon Scanner (Shodan InternetDB + NIST NVD 2.0)
   const [iocQuery, setIocQuery] = useState('');
@@ -518,8 +522,31 @@ export const RightIntelPanel = memo(function RightIntelPanel({
     () => markets.quotes.filter((q) => q.group !== 'fx'),
     [markets.quotes],
   );
-  const macroHealth = useMemo(() => evaluateMacroHealth(markets), [markets]);
-  const investmentCompass = useMemo(() => evaluateInvestmentCompass(markets), [markets]);
+  const usdVndPrice = useMemo(
+    () => markets.quotes.find((q) => q.symbol === 'USD/VND')?.price,
+    [markets.quotes],
+  );
+  const copperPrice = useMemo(
+    () => markets.quotes.find((q) => q.symbol === 'Copper')?.price,
+    [markets.quotes],
+  );
+  const soxPrice = useMemo(
+    () => markets.quotes.find((q) => q.symbol === 'SOX Semi')?.price,
+    [markets.quotes],
+  );
+
+  // Only compute heavy macro & compass diagnostics when the Markets tab is active,
+  // and ignore 1.5s BTC/ETH ticks so streaming prices never re-run macro math!
+  const macroHealth = useMemo(
+    () => (activeTab === 'markets' ? evaluateMacroHealth(markets) : { vn: null, us: null }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeTab, markets.macro, markets.fred, usdVndPrice],
+  );
+  const investmentCompass = useMemo(
+    () => (activeTab === 'markets' ? evaluateInvestmentCompass(markets) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeTab, markets.fred, markets.vnGold, usdVndPrice, copperPrice, soxPrice],
+  );
   const activeMacroReport =
     macroRegion === 'VN'
       ? macroHealth.vn ?? macroHealth.us
@@ -527,36 +554,43 @@ export const RightIntelPanel = memo(function RightIntelPanel({
 
   const techItems = techCyber?.items ?? [];
 
-  // Live Intelligence Analytics (WorldMonitor CII + Strategic Posture + 6 Intel Topics + Spikes)
+  // Gate Tab 1 (Live Intel) analytics so switching or scrolling in Tabs 2-5 costs zero extra CPU
+  const isIntelTab = activeTab === 'intel';
+
   const theaterPostures = useMemo(
-    () => computeTheaterPostures({ military, vessels, geopolitics, cyberThreats }),
-    [military, vessels, geopolitics, cyberThreats],
+    () => (isIntelTab ? computeTheaterPostures({ military, vessels, geopolitics, cyberThreats }) : []),
+    [isIntelTab, military, vessels, geopolitics, cyberThreats],
   );
 
   const globalThreat = useMemo(
     () =>
-      computeGlobalThreatLevel({
-        theaterPostures,
-        cyberCount: cyberThreats.length,
-        earthquakeMajorCount: earthquakes.filter((e) => (e.magnitude ?? 0) >= 5.0).length,
-        geopoliticsCriticalCount: geopolitics.filter((g) => g.severity === 'critical').length,
-      }),
-    [theaterPostures, cyberThreats.length, earthquakes, geopolitics],
+      isIntelTab
+        ? computeGlobalThreatLevel({
+            theaterPostures,
+            cyberCount: cyberThreats.length,
+            earthquakeMajorCount: earthquakes.filter((e) => (e.magnitude ?? 0) >= 5.0).length,
+            geopoliticsCriticalCount: geopolitics.filter((g) => g.severity === 'critical').length,
+          })
+        : { score: 0, defcon: 5 as const, label: 'NORMAL', summary: '' },
+    [isIntelTab, theaterPostures, cyberThreats.length, earthquakes, geopolitics],
   );
 
   const ciiScores = useMemo(
-    () => computeCountryInstabilityScores({ geopolitics, military, cyberThreats, news }),
-    [geopolitics, military, cyberThreats, news],
+    () => (isIntelTab ? computeCountryInstabilityScores({ geopolitics, military, cyberThreats, news }) : []),
+    [isIntelTab, geopolitics, military, cyberThreats, news],
   );
 
   const intelTopicBuckets = useMemo(
-    () => classifyLiveIntelTopics(news, techItems),
-    [news, techItems],
+    () =>
+      isIntelTab
+        ? classifyLiveIntelTopics(news, techItems)
+        : { cyber: [], military: [], maritime: [], nuclear: [], sanctions: [], intelligence: [] },
+    [isIntelTab, news, techItems],
   );
 
   const trendingSpikes = useMemo(
-    () => detectTrendingSpikes(news, techItems),
-    [news, techItems],
+    () => (isIntelTab ? detectTrendingSpikes(news, techItems) : []),
+    [isIntelTab, news, techItems],
   );
 
   const watchlistHitsMap = useMemo(() => {
@@ -564,6 +598,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
       string,
       Array<{ id: string; title: string; source: string; url: string; publishedAt: number }>
     >();
+    if (!isIntelTab) return out;
     for (const term of watchlistTerms) {
       const q = term.trim().toLowerCase();
       if (!q) continue;
@@ -604,7 +639,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
       out.set(term, matches.sort((a, b) => b.publishedAt - a.publishedAt).slice(0, 8));
     }
     return out;
-  }, [watchlistTerms, news, techItems, policyLegal?.items, translateVi]);
+  }, [isIntelTab, watchlistTerms, news, techItems, policyLegal?.items, translateVi]);
 
   const bbcCount = useMemo(
     () => news.filter((n) => n.source.startsWith('BBC ')).length,
@@ -654,7 +689,8 @@ export const RightIntelPanel = memo(function RightIntelPanel({
   }, [predictions]);
 
   const filteredNews = useMemo(() => {
-    const q = newsQuery.trim().toLowerCase();
+    if (activeTab !== 'news') return [];
+    const q = deferredNewsQuery.trim().toLowerCase();
     return news.filter((item) => {
       if (newsFilter === 'bbc') {
         if (!item.source.startsWith('BBC ')) return false;
@@ -671,7 +707,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
       }
       return true;
     });
-  }, [news, newsFilter, newsQuery]);
+  }, [activeTab, news, newsFilter, deferredNewsQuery]);
 
   const techCounts = useMemo(() => {
     let ai = 0;
@@ -694,17 +730,19 @@ export const RightIntelPanel = memo(function RightIntelPanel({
   const activeGhTrending = ghTrendingPeriod === 'daily' ? ghTrendingDaily : ghTrendingWeekly;
 
   const filteredGhTrending = useMemo(() => {
-    const q = techQuery.trim().toLowerCase();
+    if (activeTab !== 'techCyber') return [];
+    const q = deferredTechQuery.trim().toLowerCase();
     if (!q) return activeGhTrending;
     return activeGhTrending.filter((repo) =>
       `${repo.fullName} ${repo.description} ${repo.descriptionVi ?? ''} ${repo.language ?? ''}`
         .toLowerCase()
         .includes(q),
     );
-  }, [activeGhTrending, techQuery]);
+  }, [activeTab, activeGhTrending, deferredTechQuery]);
 
   const filteredTech = useMemo(() => {
-    const q = techQuery.trim().toLowerCase();
+    if (activeTab !== 'techCyber') return [];
+    const q = deferredTechQuery.trim().toLowerCase();
     return techItems.filter((item) => {
       if (techFilter !== 'all' && item.subCategory !== techFilter) return false;
       if (mitreFilter && !(item.mitreTtps ?? []).some((t) => t.id === mitreFilter)) return false;
@@ -718,7 +756,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
       }
       return true;
     });
-  }, [techItems, techFilter, mitreFilter, techQuery]);
+  }, [activeTab, techItems, techFilter, mitreFilter, deferredTechQuery]);
 
   const stablecoins = useMemo(
     () => markets.crypto.filter((c) => c.symbol === 'USDT' || c.symbol === 'USDC'),
@@ -751,7 +789,8 @@ export const RightIntelPanel = memo(function RightIntelPanel({
   );
 
   const filteredPolicy = useMemo(() => {
-    const q = legalQuery.trim().toLowerCase();
+    if (activeTab !== 'policy') return [];
+    const q = deferredLegalQuery.trim().toLowerCase();
     return policyItems.filter((doc) => {
       if (legalPillar && doc.pillarResolution !== legalPillar) return false;
       if (legalFilter === 'most') {
@@ -771,7 +810,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
       }
       return true;
     });
-  }, [policyItems, legalFilter, legalPillar, legalQuery, onDemandPolicyAi]);
+  }, [activeTab, policyItems, legalFilter, legalPillar, deferredLegalQuery, onDemandPolicyAi]);
 
   return (
     <aside className="flex h-full w-full flex-col border-l border-slate-800/95 bg-[#090e18] lg:w-[454px] xl:w-[494px] 2xl:w-[548px]">
@@ -2163,7 +2202,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                       return (
                         <article
                           key={repo.id}
-                          className="px-3 py-2.5 transition hover:bg-slate-900/65"
+                          className="perf-card px-3 py-2.5 transition hover:bg-slate-900/65"
                         >
                           <div className="flex items-center justify-between gap-2 font-mono text-[10.5px]">
                             <div className="flex min-w-0 items-center gap-1.5">
@@ -2260,7 +2299,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                   const headline = translateVi ? item.titleVi || item.title : item.title;
 
                   return (
-                    <article key={item.id} className="px-3 py-2.5 transition hover:bg-slate-900/65">
+                    <article key={item.id} className="perf-card px-3 py-2.5 transition hover:bg-slate-900/65">
                       <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
                         <div className="flex min-w-0 items-center gap-1.5">
                           <span className={`truncate rounded px-1.5 py-0.2 font-semibold ${techBadgeStyle(item)}`}>
@@ -2713,7 +2752,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                   const isSummarizing = policyAiLoadingIds.has(doc.id);
 
                   return (
-                  <article key={doc.id} className="px-3 py-2.5 transition hover:bg-slate-900/65">
+                  <article key={doc.id} className="perf-card px-3 py-2.5 transition hover:bg-slate-900/65">
                     <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
                       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                         <span className={`shrink-0 rounded px-1.5 py-0.2 font-bold ${legalBadgeStyle(doc)}`}>

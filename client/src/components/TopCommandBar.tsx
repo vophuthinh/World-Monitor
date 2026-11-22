@@ -102,7 +102,7 @@ const LiveClockLine = memo(function LiveClockLine() {
   );
 });
 
-export function TopCommandBar({
+export const TopCommandBar = memo(function TopCommandBar({
   isGlobe,
   onToggleGlobe,
   basemap,
@@ -596,4 +596,4 @@ export function TopCommandBar({
       </div>
     </header>
   );
-}
+});

@@ -211,16 +211,18 @@ export function createApp(
     const macro = store.get<MacroCountryIndicator[]>('macro-worldbank', now) ?? rawMarkets?.macro ?? [];
 
     const liveWsVessels = options.getLiveVessels?.();
-    const resolvedVessels =
+    const resolvedVessels = (
       liveWsVessels && liveWsVessels.length > 0
         ? liveWsVessels
-        : store.get<GeoPointFeature[]>('maritime-vessels', now) ?? [];
+        : store.get<GeoPointFeature[]>('maritime-vessels', now) ?? []
+    ).slice(0, 500);
 
     const liveUnifiedNews = options.getUnifiedNews?.();
-    const resolvedNews =
+    const resolvedNews = (
       liveUnifiedNews && liveUnifiedNews.length > 0
         ? liveUnifiedNews
-        : store.get<NewsItem[]>('rss-news', now) ?? [];
+        : store.get<NewsItem[]>('rss-news', now) ?? []
+    ).slice(0, 140);
 
     const payload: BootstrapResponse = {
       serverTime: now,

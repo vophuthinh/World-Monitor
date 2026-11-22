@@ -29,6 +29,8 @@ export default defineConfig({
       output: {
         manualChunks: {
           maplibre: ['maplibre-gl'],
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-icons': ['@phosphor-icons/react'],
         },
       },
     },

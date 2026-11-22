@@ -70,10 +70,10 @@ export class BinanceRealtimeStream {
     this.stopped = false;
     this.connect();
 
-    // Coalesce high-frequency exchange ticks into crisp 1-second pushes
+    // Coalesce high-frequency exchange ticks into smooth 1.5-second pushes
     this.flushTimer = setInterval(() => {
       this.flushTicks();
-    }, 1_000);
+    }, 1_500);
     if (typeof this.flushTimer.unref === 'function') {
       this.flushTimer.unref();
     }

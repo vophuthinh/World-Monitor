@@ -1328,7 +1328,8 @@ export const WorldMap = memo(function WorldMap({
         }
       }
 
-      if (state.activeLayers.vessels && state.vessels.length > 0) {
+      // Vessels move slowly (~10-18 kn), so updating WebGL buffers every 3s saves 67% GPU upload cost
+      if (tickStep % 2 === 0 && state.activeLayers.vessels && state.vessels.length > 0) {
         const vslSrc = map.getSource('vessels-src') as GeoJSONSource | undefined;
         if (vslSrc) {
           const advancedVessels = advanceDeadReckoning(state.vessels, now, 30, state.vesselsAnchorMs);
@@ -1336,14 +1337,14 @@ export const WorldMap = memo(function WorldMap({
         }
       }
 
-      // Update cyber packets only when cyberArcs layer is explicitly toggled ON (every 2s)
+      // Update cyber packets only when cyberArcs layer is explicitly toggled ON
       if (tickStep % 2 === 0 && state.activeLayers.cyberArcs && state.cyberArcs.length > 0) {
         const pktSrc = map.getSource('cyber-packets-src') as GeoJSONSource | undefined;
         if (pktSrc) {
           pktSrc.setData(cyberPacketsToFeatureCollection(advanceCyberArcPackets(state.cyberArcs, now)));
         }
       }
-    }, 1_000);
+    }, 1_500);
 
     return () => clearInterval(timer);
   }, [deadReckoning]);

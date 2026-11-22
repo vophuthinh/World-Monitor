@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { buildCyberAttackArcs } from '@shared/cyber-arcs';
 import type {
   BootstrapResponse,
@@ -93,10 +93,14 @@ export function useMonitorData() {
   const mountedRef = useRef(true);
   const alertsMutedRef = useRef(alertsMuted);
   alertsMutedRef.current = alertsMuted;
-  const flashTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-  const predFlashTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const flashResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const predFlashResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bootstrapDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bootstrapInFlightRef = useRef(false);
 
   const loadBootstrap = useCallback(async (silent = false) => {
+    if (silent && bootstrapInFlightRef.current) return null;
+    bootstrapInFlightRef.current = true;
     if (!silent) setLoading(true);
     try {
       const resp = await fetch('/api/bootstrap');
@@ -115,11 +119,21 @@ export function useMonitorData() {
       }
       return null;
     } finally {
+      bootstrapInFlightRef.current = false;
       if (mountedRef.current && !silent) {
         setLoading(false);
       }
     }
   }, []);
+
+  const scheduleCoalescedBootstrap = useCallback(() => {
+    if (bootstrapDebounceRef.current) return;
+    bootstrapDebounceRef.current = setTimeout(() => {
+      bootstrapDebounceRef.current = null;
+      if (typeof document !== 'undefined' && document.hidden) return;
+      void loadBootstrap(true);
+    }, 1_200);
+  }, [loadBootstrap]);
 
   const loadLiveFast = useCallback(async () => {
     try {
@@ -161,17 +175,19 @@ export function useMonitorData() {
   }, []);
 
   const applyPriceTicks = useCallback((ticks: LivePriceTick[], ts: number) => {
+    if (typeof document !== 'undefined' && document.hidden) return;
     const newDirections: Record<string, FlashDirection> = {};
 
     setData((prev) => {
       if (!prev) return prev;
       const tickMap = new Map(ticks.map((t) => [t.symbol, t]));
+      let anyChanged = false;
 
       const updatedCrypto = prev.markets.crypto.map((coin) => {
         const live = tickMap.get(coin.symbol);
-        if (!live) return coin;
-        if (live.price > coin.priceUsd) newDirections[coin.symbol] = 'up';
-        else if (live.price < coin.priceUsd) newDirections[coin.symbol] = 'down';
+        if (!live || live.price === coin.priceUsd) return coin;
+        anyChanged = true;
+        newDirections[coin.symbol] = live.price > coin.priceUsd ? 'up' : 'down';
         return {
           ...coin,
           priceUsd: live.price,
@@ -186,31 +202,21 @@ export function useMonitorData() {
         const idx = prev.markets.quotes.findIndex((q) => q.symbol === 'Gold');
         if (idx >= 0) {
           const prevGold = prev.markets.quotes[idx];
-          if (goldTick.price > prevGold.price) newDirections.Gold = 'up';
-          else if (goldTick.price < prevGold.price) newDirections.Gold = 'down';
-          updatedQuotes = [...prev.markets.quotes];
-          updatedQuotes[idx] = {
-            ...prevGold,
-            price: goldTick.price,
-            changePercent24h: goldTick.changePercent24h,
-            updatedAt: ts,
-          };
-        } else {
-          updatedQuotes = [
-            ...prev.markets.quotes,
-            {
-              symbol: 'Gold',
-              name: 'Vàng giao ngay (PAXG/USD Live)',
-              group: 'commodity',
+          if (goldTick.price !== prevGold.price) {
+            anyChanged = true;
+            newDirections.Gold = goldTick.price > prevGold.price ? 'up' : 'down';
+            updatedQuotes = [...prev.markets.quotes];
+            updatedQuotes[idx] = {
+              ...prevGold,
               price: goldTick.price,
               changePercent24h: goldTick.changePercent24h,
-              unit: 'USD/oz',
               updatedAt: ts,
-              source: 'Binance PAXG/USDT Realtime',
-            },
-          ];
+            };
+          }
         }
       }
+
+      if (!anyChanged) return prev;
 
       return {
         ...prev,
@@ -225,21 +231,14 @@ export function useMonitorData() {
 
     const changedSymbols = Object.keys(newDirections);
     if (changedSymbols.length > 0) {
+      setLiveTickCount((c) => c + 1);
       setPriceFlashes((prev) => ({ ...prev, ...newDirections }));
-      for (const sym of changedSymbols) {
-        const existingTimer = flashTimersRef.current.get(sym);
-        if (existingTimer) clearTimeout(existingTimer);
-        const timer = setTimeout(() => {
-          if (!mountedRef.current) return;
-          setPriceFlashes((curr) => {
-            const copy = { ...curr };
-            delete copy[sym];
-            return copy;
-          });
-          flashTimersRef.current.delete(sym);
-        }, 680);
-        flashTimersRef.current.set(sym, timer);
-      }
+      if (flashResetTimerRef.current) clearTimeout(flashResetTimerRef.current);
+      flashResetTimerRef.current = setTimeout(() => {
+        flashResetTimerRef.current = null;
+        if (!mountedRef.current) return;
+        setPriceFlashes({});
+      }, 650);
     }
   }, []);
 
@@ -270,7 +269,6 @@ export function useMonitorData() {
               prev ? { ...prev, aisStreamConfigured: ev.aisStreamConfigured } : prev,
             );
           } else if (ev.type === 'price_tick') {
-            setLiveTickCount((c) => c + 1);
             applyPriceTicks(ev.ticks, ev.ts);
           } else if (ev.type === 'military_update') {
             setMilitaryAnchorMs(Date.now());
@@ -301,20 +299,12 @@ export function useMonitorData() {
             if (changedIds.length > 0) {
               setLiveTickCount((c) => c + 1);
               setPredictionFlashes((prev) => ({ ...prev, ...flashes }));
-              for (const id of changedIds) {
-                const existing = predFlashTimersRef.current.get(id);
-                if (existing) clearTimeout(existing);
-                const timer = setTimeout(() => {
-                  if (!mountedRef.current) return;
-                  setPredictionFlashes((curr) => {
-                    const copy = { ...curr };
-                    delete copy[id];
-                    return copy;
-                  });
-                  predFlashTimersRef.current.delete(id);
-                }, 950);
-                predFlashTimersRef.current.set(id, timer);
-              }
+              if (predFlashResetTimerRef.current) clearTimeout(predFlashResetTimerRef.current);
+              predFlashResetTimerRef.current = setTimeout(() => {
+                predFlashResetTimerRef.current = null;
+                if (!mountedRef.current) return;
+                setPredictionFlashes({});
+              }, 900);
             }
           } else if (ev.type === 'google_trends_update') {
             setData((prev) =>
@@ -322,14 +312,14 @@ export function useMonitorData() {
             );
           } else if (ev.type === 'collector_sync') {
             setData((prev) => (prev ? { ...prev, health: ev.health } : prev));
-            // Pull updated layer/news immediately when slower collectors finish (streamed collectors already push directly)
+            // Debounce slower collector syncs into one coalesced bootstrap fetch instead of N concurrent downloads
             if (
               ev.collectorId !== 'military-flights' &&
               ev.collectorId !== 'maritime-vessels' &&
               ev.collectorId !== 'polymarket' &&
               ev.collectorId !== 'google-trends'
             ) {
-              void loadBootstrap(true);
+              scheduleCoalescedBootstrap();
             }
           } else if (ev.type === 'breaking_alert' && !alertsMutedRef.current) {
             const alertId = ev.alert.id;
@@ -386,16 +376,11 @@ export function useMonitorData() {
       mountedRef.current = false;
       es?.close();
       clearInterval(safetyTimer);
-      for (const timer of flashTimersRef.current.values()) {
-        clearTimeout(timer);
-      }
-      flashTimersRef.current.clear();
-      for (const timer of predFlashTimersRef.current.values()) {
-        clearTimeout(timer);
-      }
-      predFlashTimersRef.current.clear();
+      if (flashResetTimerRef.current) clearTimeout(flashResetTimerRef.current);
+      if (predFlashResetTimerRef.current) clearTimeout(predFlashResetTimerRef.current);
+      if (bootstrapDebounceRef.current) clearTimeout(bootstrapDebounceRef.current);
     };
-  }, [applyPriceTicks, loadBootstrap, loadLiveFast]);
+  }, [applyPriceTicks, loadBootstrap, loadLiveFast, scheduleCoalescedBootstrap]);
 
   const dismissAlert = useCallback((id: string) => {
     setBreakingAlerts((prev) => prev.filter((a) => a.id !== id));
@@ -556,8 +541,8 @@ export function useMonitorData() {
   }, [layersRef, staticGeoRef, rawNewsRef, rawPredictionsRef, timeWindow]);
 
   const cyberArcs = useMemo(
-    () => buildCyberAttackArcs(filteredData.cyberThreats),
-    [filteredData.cyberThreats],
+    () => (activeLayers.cyberArcs ? buildCyberAttackArcs(filteredData.cyberThreats) : []),
+    [activeLayers.cyberArcs, filteredData.cyberThreats],
   );
 
   const layerCounts = useMemo<Record<MapLayerId, number>>(
@@ -565,7 +550,9 @@ export function useMonitorData() {
       military: filteredData.military.length,
       vessels: filteredData.vessels.length,
       cyberThreats: filteredData.cyberThreats.length,
-      cyberArcs: cyberArcs.length,
+      cyberArcs: activeLayers.cyberArcs
+        ? cyberArcs.length
+        : Math.min(26, filteredData.cyberThreats.length),
       gpsOutages: filteredData.gpsOutages.length,
       earthquakes: filteredData.earthquakes.length,
       natural: filteredData.natural.length,
@@ -578,11 +565,13 @@ export function useMonitorData() {
       cables: filteredData.cables.length,
       weatherRadar: data?.weatherRadar ? data.weatherRadar.pastFrames.length : 0,
     }),
-    [filteredData, cyberArcs.length, data?.weatherRadar],
+    [filteredData, activeLayers.cyberArcs, cyberArcs.length, data?.weatherRadar],
   );
 
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+
   const searchResults = useMemo<SearchHit[]>(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = deferredSearchQuery.trim().toLowerCase();
     if (!q || !data) return [];
 
     const hits: SearchHit[] = [];
@@ -750,7 +739,7 @@ export function useMonitorData() {
     }
 
     return hits.slice(0, 24);
-  }, [searchQuery, data, filteredData]);
+  }, [deferredSearchQuery, data, filteredData]);
 
   return {
     data,
