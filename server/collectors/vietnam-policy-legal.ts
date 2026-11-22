@@ -1,5 +1,6 @@
 import { XMLParser } from 'fast-xml-parser';
 import type { LegalDocType, PolicyLegalItem, PolicyLegalSnapshot } from '@shared/types';
+import { callGroqChatCompletion } from '../lib/groq-intel';
 import { DEFAULT_BROWSER_UA, fetchTextWithTimeout } from '../lib/http';
 import { decodeHtmlEntities } from './polymarket-news';
 
@@ -547,53 +548,25 @@ async function maybeEnrichTopDecreesWithFreeAi(items: PolicyLegalItem[]): Promis
     return { items, aiEnabled: false };
   }
 
-  const targets = items.filter((i) => i.docCode && !aiSummaryCache.has(i.id)).slice(0, 3);
+  const targets = items.filter((i) => i.docCode && !aiSummaryCache.has(i.id)).slice(0, 4);
   for (const doc of targets) {
     try {
-      const prompt = `Tóm tắt đúng 3 gạch đầu dòng ngắn gọn (mỗi dòng dưới 22 từ, tiếng Việt) về nội dung và đối tượng chịu tác động chính của văn bản pháp luật Việt Nam sau:\nSố hiệu: ${doc.docCode}\nTiêu đề: ${doc.title}`;
-      let rawReply = '';
-
-      if (geminiKey) {
-        const postResp = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(geminiKey)}`,
+      const prompt = `Tóm tắt đúng 3 gạch đầu dòng ngắn gọn (mỗi dòng dưới 22 từ, tiếng Việt, không lời mở đầu) về nội dung và đối tượng chịu tác động chính của văn bản pháp luật Việt Nam sau:\nSố hiệu: ${doc.docCode}\nTiêu đề: ${doc.title}`;
+      const llm = await callGroqChatCompletion(
+        [
           {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-            signal: AbortSignal.timeout(6_500),
+            role: 'system',
+            content: 'Chỉ trả lời đúng 3 gạch đầu dòng tiếng Việt ngắn gọn, chính xác.',
           },
-        );
-        if (postResp.ok) {
-          const j = (await postResp.json()) as {
-            candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-          };
-          rawReply = j.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-        }
-      } else if (groqKey) {
-        const postResp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${groqKey}`,
-          },
-          body: JSON.stringify({
-            model: 'llama-3.1-8b-instant',
-            temperature: 0.2,
-            messages: [{ role: 'user', content: prompt }],
-          }),
-          signal: AbortSignal.timeout(6_500),
-        });
-        if (postResp.ok) {
-          const j = (await postResp.json()) as {
-            choices?: Array<{ message?: { content?: string } }>;
-          };
-          rawReply = j.choices?.[0]?.message?.content ?? '';
-        }
-      }
+          { role: 'user', content: prompt },
+        ],
+        { maxTokens: 260, temperature: 0.15, timeoutMs: 6_500 },
+      );
+      const rawReply = llm?.text ?? '';
 
       const bullets = rawReply
         .split('\n')
-        .map((l) => l.replace(/^[-*•\d.)\s]+/, '').trim())
+        .map((l) => l.replace(/^[-*•\d.)\s]+/, '').replace(/\*\*/g, '').trim())
         .filter((l) => l.length >= 12)
         .slice(0, 3);
 

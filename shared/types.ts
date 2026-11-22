@@ -3,6 +3,7 @@ export type MapLayerId =
   | 'vessels'
   | 'cyberThreats'
   | 'cyberArcs'
+  | 'gpsOutages'
   | 'earthquakes'
   | 'natural'
   | 'geopolitics'
@@ -26,17 +27,20 @@ export type CollectorId =
   | 'military-flights'
   | 'maritime-vessels'
   | 'cyber-threats'
+  | 'gps-outages'
   | 'earthquakes'
   | 'natural-events'
   | 'geopolitics-gdelt'
   | 'weather-radar'
+  | 'vietnam-env'
   | 'markets-crypto'
   | 'macro-worldbank'
   | 'polymarket'
   | 'google-trends'
   | 'rss-news'
   | 'tech-cyber'
-  | 'policy-legal';
+  | 'policy-legal'
+  | 'ai-sitrep';
 
 export interface GeoPointFeature {
   id: string;
@@ -134,8 +138,35 @@ export interface MarketQuote {
   price: number;
   changePercent24h: number;
   unit?: string;
+  sparkline?: number[];
   updatedAt: number;
   source: string;
+}
+
+export interface VnGoldQuote {
+  code: string;
+  name: string;
+  buyPerLuongMillionVnd: number;
+  sellPerLuongMillionVnd: number;
+  spreadMillionVnd: number;
+  changeBuyPercent: number;
+  changeSellPercent: number;
+  worldParityPerLuongMillionVnd?: number;
+  premiumVsWorldMillionVnd?: number;
+  updatedLabel?: string;
+  updatedAt: number;
+  source: string;
+}
+
+export interface Vn30StockQuote {
+  symbol: string;
+  name: string;
+  sector: string;
+  priceThousandVnd: number;
+  changePercent: number;
+  volume: number;
+  sparkline: number[];
+  updatedAt: number;
 }
 
 export interface CryptoQuote {
@@ -173,7 +204,60 @@ export interface MarketSnapshot {
   crypto: CryptoQuote[];
   fearGreed: FearGreedSnapshot | null;
   macro: MacroCountryIndicator[];
+  vnGold?: VnGoldQuote[];
+  vn30?: Vn30StockQuote[];
   updatedAt: number;
+}
+
+export type AqiBand = 'good' | 'moderate' | 'sensitive' | 'unhealthy' | 'hazardous';
+
+export interface VietnamEnvLocation {
+  id: string;
+  name: string;
+  region: 'mainland' | 'maritime';
+  lat: number;
+  lon: number;
+  tempC: number;
+  windKmh: number;
+  windGustKmh: number;
+  beaufortScale: number;
+  weatherCode: number;
+  weatherLabel: string;
+  stormWarning: boolean;
+  usAqi?: number;
+  pm25?: number;
+  aqiBand?: AqiBand;
+}
+
+export interface VietnamEnvSnapshot {
+  locations: VietnamEnvLocation[];
+  maxSeaGustKmh: number;
+  worstAqiCity?: string;
+  worstAqi?: number;
+  updatedAt: number;
+}
+
+export interface AiSitrepBullet {
+  tag: string;
+  text: string;
+}
+
+export interface AiSitrepSnapshot {
+  headline: string;
+  bullets: AiSitrepBullet[];
+  provider: 'groq-lpu' | 'gemini' | 'deterministic';
+  model: string;
+  latencyMs: number;
+  generatedAt: number;
+}
+
+export interface AiAskResponse {
+  question: string;
+  answer: string;
+  provider: 'groq-lpu' | 'gemini' | 'deterministic';
+  model: string;
+  latencyMs: number;
+  answeredAt: number;
 }
 
 export type PredictionCategory = 'geopolitics' | 'finance' | 'crypto_tech';
@@ -383,6 +467,7 @@ export interface LiveDynamicLayers {
   military: GeoPointFeature[];
   vessels: GeoPointFeature[];
   cyberThreats: GeoPointFeature[];
+  gpsOutages?: GeoPointFeature[];
   earthquakes: GeoPointFeature[];
   natural: GeoPointFeature[];
   geopolitics: GeoPointFeature[];
@@ -403,6 +488,8 @@ export interface BootstrapResponse {
   techCyber?: TechCyberSnapshot;
   policyLegal?: PolicyLegalSnapshot;
   googleTrends?: GoogleTrendsSnapshot;
+  vietnamEnv?: VietnamEnvSnapshot;
+  aiSitrep?: AiSitrepSnapshot;
 }
 
 export interface LiveFastResponse {

@@ -5,6 +5,8 @@ import {
   Broadcast,
   ChartBar,
   ChartLineUp,
+  CloudSun,
+  Coins,
   Cpu,
   Crosshair,
   FilePdf,
@@ -13,12 +15,15 @@ import {
   Lightning,
   MagnifyingGlass,
   Newspaper,
+  PaperPlaneRight,
   Scales,
   ShieldWarning,
+  Sparkle,
   Target,
   Translate,
   TrendDown,
   TrendUp,
+  Wind,
 } from '@phosphor-icons/react';
 import {
   type CiiBand,
@@ -32,6 +37,9 @@ import {
   selectTopHotPolymarket,
 } from '@shared/intelligence';
 import type {
+  AiAskResponse,
+  AiSitrepSnapshot,
+  AqiBand,
   CollectorId,
   GeoPointFeature,
   GoogleTrendGeo,
@@ -48,6 +56,7 @@ import type {
   TechCyberItem,
   TechCyberSnapshot,
   TechSubCategory,
+  VietnamEnvSnapshot,
 } from '@shared/types';
 import type { FlashDirection } from '../hooks/useMonitorData';
 
@@ -61,6 +70,8 @@ interface RightIntelPanelProps {
   news: NewsItem[];
   techCyber?: TechCyberSnapshot;
   policyLegal?: PolicyLegalSnapshot;
+  vietnamEnv?: VietnamEnvSnapshot;
+  aiSitrep?: AiSitrepSnapshot;
   military: GeoPointFeature[];
   vessels: GeoPointFeature[];
   earthquakes?: GeoPointFeature[];
@@ -182,6 +193,43 @@ function legalBadgeStyle(item: PolicyLegalItem): string {
   return 'border border-slate-700 bg-slate-800 text-slate-300';
 }
 
+const AQI_BADGE_STYLE: Record<AqiBand, { label: string; cls: string }> = {
+  good: { label: 'Tốt', cls: 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300' },
+  moderate: { label: 'TB', cls: 'border-yellow-500/45 bg-yellow-500/15 text-yellow-200' },
+  sensitive: { label: 'Kém', cls: 'border-orange-500/50 bg-orange-500/20 text-orange-200' },
+  unhealthy: { label: 'Xấu', cls: 'border-rose-500/50 bg-rose-500/20 text-rose-200' },
+  hazardous: { label: 'Nguy hại', cls: 'border-fuchsia-500/60 bg-fuchsia-500/25 text-fuchsia-100' },
+};
+
+function MiniSparkline({ values, positive }: { values?: number[]; positive: boolean }) {
+  if (!values || values.length < 2) return null;
+  const w = 52;
+  const h = 18;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const pts = values
+    .map((v, idx) => {
+      const x = (idx / (values.length - 1)) * (w - 2) + 1;
+      const y = h - 2 - ((v - min) / span) * (h - 4);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="shrink-0 overflow-visible">
+      <polyline
+        fill="none"
+        stroke={positive ? '#34d399' : '#fb7185'}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        points={pts}
+      />
+    </svg>
+  );
+}
+
 export const RightIntelPanel = memo(function RightIntelPanel({
   markets,
   predictions,
@@ -189,6 +237,8 @@ export const RightIntelPanel = memo(function RightIntelPanel({
   news,
   techCyber,
   policyLegal,
+  vietnamEnv,
+  aiSitrep,
   military,
   vessels,
   earthquakes = [],
@@ -226,6 +276,58 @@ export const RightIntelPanel = memo(function RightIntelPanel({
   const [iocLoading, setIocLoading] = useState(false);
   const [iocError, setIocError] = useState<string | null>(null);
   const [iocResult, setIocResult] = useState<IocLookupResult | null>(null);
+
+  // Groq LPU AI Sitrep & Interactive "Ask Monitor" Copilot state
+  const [localSitrep, setLocalSitrep] = useState<AiSitrepSnapshot | null>(null);
+  const [sitrepRefreshing, setSitrepRefreshing] = useState(false);
+  const [askInput, setAskInput] = useState('');
+  const [askLoading, setAskLoading] = useState(false);
+  const [askError, setAskError] = useState<string | null>(null);
+  const [askReply, setAskReply] = useState<AiAskResponse | null>(null);
+
+  const effectiveSitrep = localSitrep ?? aiSitrep ?? null;
+
+  const refreshAiSitrep = useCallback(async () => {
+    setSitrepRefreshing(true);
+    try {
+      const resp = await fetch('/api/ai-sitrep/refresh', { method: 'POST' });
+      if (resp.ok) {
+        const snap = (await resp.json()) as AiSitrepSnapshot;
+        setLocalSitrep(snap);
+      }
+    } catch {
+      // Keep current sitrep
+    } finally {
+      setSitrepRefreshing(false);
+    }
+  }, []);
+
+  const submitAiQuestion = useCallback(
+    async (overridePrompt?: string) => {
+      const q = (overridePrompt ?? askInput).trim();
+      if (!q) return;
+      if (overridePrompt) setAskInput(overridePrompt);
+      setAskLoading(true);
+      setAskError(null);
+      try {
+        const resp = await fetch('/api/ai-ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: q }),
+        });
+        const body = (await resp.json()) as AiAskResponse & { error?: string };
+        if (!resp.ok || body.error) {
+          throw new Error(body.error || `HTTP ${resp.status}`);
+        }
+        setAskReply(body);
+      } catch (err) {
+        setAskError(err instanceof Error ? err.message : 'Không thể kết nối Trợ lý AI');
+      } finally {
+        setAskLoading(false);
+      }
+    },
+    [askInput],
+  );
 
   // Custom Keyword Watchlist Alerts (persisted in localStorage)
   const [watchlistTerms, setWatchlistTerms] = useState<string[]>(() => {
@@ -583,6 +685,125 @@ export const RightIntelPanel = memo(function RightIntelPanel({
             </button>
           </div>
 
+          {/* 0. Groq LPU AI Executive Sitrep & Interactive "Ask Monitor" Copilot */}
+          <section className="rounded border border-emerald-500/35 bg-gradient-to-b from-[#0d1829] to-[#0a1220] p-2.5 shadow-lg">
+            <div className="flex flex-wrap items-center justify-between gap-1.5">
+              <h2 className="flex items-center gap-1.5 font-mono text-[10.5px] font-semibold tracking-wider text-emerald-200">
+                <Sparkle size={13} className="text-emerald-400" weight="fill" />
+                <span>AI SITREP &amp; TRỢ LÝ TÌNH BÁO</span>
+                <span className="rounded border border-emerald-500/45 bg-emerald-500/15 px-1.5 py-0.2 font-mono text-[8.5px] font-bold uppercase text-emerald-300">
+                  {effectiveSitrep?.provider === 'groq-lpu'
+                    ? `GROQ LPU · ${effectiveSitrep.latencyMs}ms`
+                    : effectiveSitrep?.provider === 'gemini'
+                      ? 'GEMINI AI'
+                      : 'LIVE BRIEF'}
+                </span>
+              </h2>
+
+              <button
+                type="button"
+                onClick={() => void refreshAiSitrep()}
+                disabled={sitrepRefreshing}
+                title="Tổng hợp lại Bản tin AI Sitrep từ dữ liệu mới nhất"
+                className="inline-flex items-center gap-1 rounded border border-slate-700/90 bg-slate-900/90 px-1.5 py-0.5 font-mono text-[9px] text-slate-300 transition hover:border-emerald-400/50 hover:text-emerald-200 disabled:opacity-50"
+              >
+                <ArrowsClockwise
+                  size={10}
+                  className={sitrepRefreshing ? 'animate-spin text-emerald-300' : ''}
+                />
+                <span>{sitrepRefreshing ? 'Đang phân tích...' : 'Làm mới AI'}</span>
+              </button>
+            </div>
+
+            {effectiveSitrep ? (
+              <div className="mt-1.5 space-y-1.5">
+                <div className="text-xs font-semibold leading-snug text-slate-100">
+                  {effectiveSitrep.headline}
+                </div>
+                <ul className="space-y-1 rounded border border-slate-800/85 bg-[#080e19]/90 p-2 text-[11px] leading-snug text-slate-200">
+                  {effectiveSitrep.bullets.map((b, idx) => (
+                    <li key={idx} className="flex items-start gap-1.5">
+                      <span className="mt-0.5 shrink-0 rounded border border-emerald-500/35 bg-emerald-500/12 px-1 py-0.1 font-mono text-[8.5px] font-bold text-emerald-300">
+                        {b.tag}
+                      </span>
+                      <span className="text-slate-200">{b.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="mt-1.5 py-2 text-center text-[11px] text-slate-400">
+                Đang khởi tạo Bản tin Tình báo AI trên Groq LPU...
+              </div>
+            )}
+
+            {/* Ask Monitor Copilot Q&A grounded in live RAM */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void submitAiQuestion();
+              }}
+              className="mt-2 flex items-center gap-1.5"
+            >
+              <input
+                type="text"
+                value={askInput}
+                onChange={(e) => setAskInput(e.target.value)}
+                placeholder="Hỏi AI: Tình hình Biển Đông, Vàng SJC, NQ 57..."
+                className="min-w-0 flex-1 rounded border border-slate-700/95 bg-[#070b12] px-2 py-1 text-[11px] text-slate-100 placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={askLoading}
+                className="inline-flex shrink-0 items-center gap-1 rounded border border-emerald-500/50 bg-emerald-500/20 px-2.5 py-1 font-mono text-[10px] font-semibold text-emerald-100 transition hover:bg-emerald-500/30 disabled:opacity-50"
+              >
+                <PaperPlaneRight size={11} weight="fill" />
+                <span>{askLoading ? 'Đang trả lời...' : 'Hỏi AI'}</span>
+              </button>
+            </form>
+
+            <div className="mt-1.5 flex flex-wrap gap-1 font-mono text-[9px]">
+              {[
+                'Tình hình Biển Đông & Gió Hoàng Sa?',
+                'Giá vàng SJC, USD/VND & VN30?',
+                'Tóm tắt NQ 57 & Bộ KH&CN mới?',
+              ].map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  onClick={() => void submitAiQuestion(chip)}
+                  className="rounded border border-slate-800 bg-slate-900/90 px-1.5 py-0.5 text-slate-300 transition hover:border-emerald-500/45 hover:text-emerald-200"
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
+
+            {askError && (
+              <div className="mt-1.5 rounded border border-rose-500/40 bg-rose-950/40 px-2 py-1 text-[10.5px] text-rose-200">
+                {askError}
+              </div>
+            )}
+
+            {askReply && (
+              <div className="mt-2 rounded border border-emerald-500/40 bg-[#070d17] p-2 text-[11px] leading-relaxed text-slate-100">
+                <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-1 font-mono text-[9px] text-emerald-300">
+                  <span>
+                    TRẢ LỜI TRỰC TIẾP ({askReply.model} · {askReply.latencyMs}ms)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setAskReply(null)}
+                    className="text-slate-400 hover:text-white"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="mt-1.5 whitespace-pre-line text-slate-200">{askReply.answer}</div>
+              </div>
+            )}
+          </section>
+
           {/* 1. AI Strategic Theater Posture (6 Operational Theaters) */}
           <section>
             <div className="flex items-center justify-between">
@@ -617,6 +838,94 @@ export const RightIntelPanel = memo(function RightIntelPanel({
               ))}
             </div>
           </section>
+
+          {/* 1b. Vietnam Marine Weather (Hoàng Sa · Trường Sa) & Mainland AQI (Open-Meteo Live) */}
+          {vietnamEnv && vietnamEnv.locations.length > 0 && (
+            <section>
+              <div className="flex items-center justify-between">
+                <h2 className="flex items-center gap-1.5 font-mono text-[10.5px] font-semibold tracking-wider text-slate-200">
+                  <CloudSun size={13} className="text-sky-400" weight="fill" />
+                  <span>KHÍ TƯỢNG BIỂN ĐÔNG &amp; CHẤT LƯỢNG KHÔNG KHÍ VN</span>
+                </h2>
+                {onForceRefresh && (
+                  <button
+                    type="button"
+                    onClick={() => onForceRefresh('vietnam-env')}
+                    title="Làm mới Khí tượng Hoàng Sa - Trường Sa & AQI"
+                    className="inline-flex items-center rounded border border-slate-700/90 bg-slate-900 px-1.5 py-0.5 text-slate-300 transition hover:border-sky-400/50 hover:text-sky-200"
+                  >
+                    <ArrowsClockwise
+                      size={10}
+                      className={refreshingIds?.has('vietnam-env') ? 'animate-spin text-sky-300' : ''}
+                    />
+                  </button>
+                )}
+              </div>
+
+              <div className="mt-1.5 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                {vietnamEnv.locations.map((loc) => {
+                  const isSea = loc.region === 'maritime';
+                  const aqiMeta = loc.aqiBand ? AQI_BADGE_STYLE[loc.aqiBand] : null;
+                  return (
+                    <button
+                      key={loc.id}
+                      type="button"
+                      onClick={() => onFlyToLocation(loc.lat, loc.lon, isSea ? 6.2 : 7.5)}
+                      className={`rounded border p-2 text-left transition hover:border-sky-400/55 ${
+                        loc.stormWarning
+                          ? 'border-rose-500/50 bg-rose-950/30'
+                          : isSea
+                            ? 'border-sky-500/35 bg-[#0c1729]'
+                            : 'border-slate-800/95 bg-[#0d1524]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="truncate text-[11px] font-semibold text-slate-100">
+                          {loc.name}
+                        </span>
+                        <span className="shrink-0 font-mono text-[11px] font-bold text-cyan-300 tabular-nums">
+                          {loc.tempC}°C
+                        </span>
+                      </div>
+
+                      {isSea ? (
+                        <div className="mt-1 space-y-0.5 font-mono text-[9.5px]">
+                          <div className="flex items-center justify-between text-sky-200">
+                            <span className="inline-flex items-center gap-0.5">
+                              <Wind size={10} /> Cấp {loc.beaufortScale}
+                            </span>
+                            <span>Giật {loc.windGustKmh}km/h</span>
+                          </div>
+                          <div
+                            className={`text-[9px] font-semibold ${
+                              loc.stormWarning ? 'text-rose-300' : 'text-slate-400'
+                            }`}
+                          >
+                            {loc.stormWarning ? '⚠️ BIỂN ĐỘNG MẠNH' : loc.weatherLabel}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-1 flex items-center justify-between gap-1 font-mono text-[9.5px]">
+                          {loc.usAqi !== undefined && aqiMeta ? (
+                            <span className={`rounded border px-1 py-0.1 font-bold ${aqiMeta.cls}`}>
+                              AQI {loc.usAqi} · {aqiMeta.label}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">{loc.weatherLabel}</span>
+                          )}
+                          {loc.pm25 !== undefined && (
+                            <span className="text-[9px] text-slate-400 tabular-nums">
+                              PM2.5 {loc.pm25}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {/* 2. Polymarket Top 5 Hottest Realtime (CLOB Live WS + 24h Volume) */}
           <section>
@@ -2007,9 +2316,127 @@ export const RightIntelPanel = memo(function RightIntelPanel({
         </div>
       )}
 
-      {/* Tab 5: Markets, FX, Stablecoin Peg Monitor, Crypto 1s WS, World Bank Macro & Top 5 Polymarket */}
+      {/* Tab 5: Markets, Domestic Gold SJC/9999, VN30 Bluechips, FX, Crypto 1s WS, World Bank Macro & Top 5 Polymarket */}
       {activeTab === 'markets' && (
         <div className="flex-1 space-y-4 overflow-y-auto p-3">
+          {/* Vietnam Domestic Gold (SJC & Nhẫn 9999) + World Parity Spread */}
+          {markets.vnGold && markets.vnGold.length > 0 && (
+            <section>
+              <div className="flex items-center justify-between">
+                <h2 className="flex items-center gap-1.5 font-mono text-[11px] font-semibold tracking-wider text-amber-200">
+                  <Coins size={13} className="text-amber-400" weight="fill" />
+                  <span>GIÁ VÀNG TRONG NƯỚC (TRIỆU ₫ / LƯỢNG)</span>
+                </h2>
+                {onForceRefresh && (
+                  <button
+                    type="button"
+                    onClick={() => onForceRefresh('markets-crypto')}
+                    title="Làm mới Giá vàng SJC, VN30 & Thị trường"
+                    className="inline-flex items-center rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-slate-300 hover:border-amber-400/50 hover:text-amber-200"
+                  >
+                    <ArrowsClockwise
+                      size={10}
+                      className={refreshingIds?.has('markets-crypto') ? 'animate-spin text-amber-300' : ''}
+                    />
+                  </button>
+                )}
+              </div>
+
+              <div className="mt-1.5 divide-y divide-slate-800/85 rounded border border-amber-500/35 bg-[#0d1524]">
+                {markets.vnGold.map((g) => (
+                  <div key={g.code} className="px-2.5 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="rounded border border-amber-400/50 bg-amber-500/20 px-1.5 py-0.1 font-mono text-[10px] font-bold text-amber-200">
+                            {g.code}
+                          </span>
+                          <span className="truncate text-xs font-semibold text-slate-100">{g.name}</span>
+                        </div>
+                        {g.worldParityPerLuongMillionVnd !== undefined &&
+                          g.premiumVsWorldMillionVnd !== undefined && (
+                            <div className="mt-0.5 font-mono text-[9.5px] text-slate-400 tabular-nums">
+                              Quy đổi TG: {g.worldParityPerLuongMillionVnd.toFixed(2)} tr · Chênh{' '}
+                              <span
+                                className={
+                                  g.premiumVsWorldMillionVnd >= 0 ? 'text-amber-300' : 'text-emerald-300'
+                                }
+                              >
+                                {g.premiumVsWorldMillionVnd >= 0 ? '+' : ''}
+                                {g.premiumVsWorldMillionVnd.toFixed(2)} tr/lượng
+                              </span>
+                            </div>
+                          )}
+                      </div>
+
+                      <div className="shrink-0 text-right font-mono tabular-nums">
+                        <div className="text-xs">
+                          <span className="text-[10px] text-slate-400">Mua </span>
+                          <strong className="text-emerald-300">
+                            {g.buyPerLuongMillionVnd.toFixed(2)}
+                          </strong>
+                          <span className="mx-1 text-slate-600">|</span>
+                          <span className="text-[10px] text-slate-400">Bán </span>
+                          <strong className="text-amber-300">
+                            {g.sellPerLuongMillionVnd.toFixed(2)}
+                          </strong>
+                        </div>
+                        <div className="text-[9.5px] text-slate-500">
+                          Biên độ {g.spreadMillionVnd.toFixed(2)} tr
+                          {g.updatedLabel ? ` · ${g.updatedLabel.split(' ')[1] ?? g.updatedLabel}` : ''}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Top 10 VN30 Leading Stocks (HOSE Live + 10-Session Sparklines) */}
+          {markets.vn30 && markets.vn30.length > 0 && (
+            <section>
+              <div className="flex items-center justify-between">
+                <h2 className="font-mono text-[11px] font-semibold tracking-wider text-emerald-300">
+                  RỔ CỔ PHIẾU DẪN DẮT VN30 (HOSE · NGHÌN ₫)
+                </h2>
+                <span className="font-mono text-[9.5px] text-slate-500">Sparkline 10 phiên</span>
+              </div>
+              <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                {markets.vn30.map((st) => {
+                  const up = st.changePercent >= 0;
+                  return (
+                    <div
+                      key={st.symbol}
+                      className="flex items-center justify-between gap-1.5 rounded border border-slate-800/95 bg-[#0d1524] px-2.5 py-1.5"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs font-bold text-slate-100">{st.symbol}</span>
+                          <span className="truncate text-[9.5px] text-slate-400">{st.sector}</span>
+                        </div>
+                        <MiniSparkline values={st.sparkline} positive={up} />
+                      </div>
+                      <div className="shrink-0 text-right font-mono tabular-nums">
+                        <div className="text-xs font-semibold text-slate-100">
+                          {st.priceThousandVnd.toFixed(2)}
+                        </div>
+                        <div
+                          className={`text-[10px] font-semibold ${
+                            up ? 'text-emerald-400' : 'text-rose-400'
+                          }`}
+                        >
+                          {up ? '+' : ''}
+                          {st.changePercent.toFixed(2)}%
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           {/* FX Rates */}
           <section>
             <h2 className="font-mono text-[11px] font-semibold tracking-wider text-slate-300">
@@ -2088,19 +2515,22 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                       </div>
                       <div className="truncate text-[10.5px] text-slate-400">{q.name}</div>
                     </div>
-                    <div className="text-right font-mono tabular-nums">
-                      <div className="text-xs font-semibold text-slate-100">
-                        {q.unit?.startsWith('USD') ? '$' : ''}
-                        {q.price.toLocaleString('en-US', { maximumFractionDigits: 2 })}
-                      </div>
-                      <div
-                        className={`inline-flex items-center gap-0.5 text-[10.5px] ${
-                          up ? 'text-emerald-400' : 'text-rose-400'
-                        }`}
-                      >
-                        {up ? <TrendUp size={11} /> : <TrendDown size={11} />}
-                        {up ? '+' : ''}
-                        {q.changePercent24h.toFixed(2)}%
+                    <div className="flex shrink-0 items-center gap-2.5">
+                      <MiniSparkline values={q.sparkline} positive={up} />
+                      <div className="text-right font-mono tabular-nums">
+                        <div className="text-xs font-semibold text-slate-100">
+                          {q.unit?.startsWith('USD') ? '$' : ''}
+                          {q.price.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                        </div>
+                        <div
+                          className={`inline-flex items-center gap-0.5 text-[10.5px] ${
+                            up ? 'text-emerald-400' : 'text-rose-400'
+                          }`}
+                        >
+                          {up ? <TrendUp size={11} /> : <TrendDown size={11} />}
+                          {up ? '+' : ''}
+                          {q.changePercent24h.toFixed(2)}%
+                        </div>
                       </div>
                     </div>
                   </div>

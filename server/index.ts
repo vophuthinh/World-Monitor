@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import type {
+  AiSitrepSnapshot,
   GeoPointFeature,
   GoogleTrendsSnapshot,
   MarketSnapshot,
@@ -11,6 +12,7 @@ import type {
   PolicyLegalSnapshot,
   PredictionItem,
   TechCyberSnapshot,
+  VietnamEnvSnapshot,
 } from '@shared/types';
 import { createApp } from './app';
 import { CollectorScheduler } from './cache/scheduler';
@@ -26,8 +28,10 @@ import { fetchMilitaryFlights } from './collectors/military-flights';
 import { fetchNaturalEvents } from './collectors/natural-events';
 import { fetchCuratedRssNews, fetchPolymarketPredictions } from './collectors/polymarket-news';
 import { fetchTechCyberIntelligence } from './collectors/tech-cyber-intel';
+import { fetchGpsAndBgpOutages, fetchVietnamEnvironment } from './collectors/vietnam-env-outages';
 import { fetchVietnamPolicyLegal } from './collectors/vietnam-policy-legal';
 import { fetchWeatherRadar } from './collectors/weather-radar';
+import { generateAiSitrep } from './lib/groq-intel';
 import { BinanceRealtimeStream } from './realtime/binance-stream';
 import { RealtimeHub } from './realtime/hub';
 import { UnifiedNewsStreamService } from './realtime/news-stream';
@@ -122,6 +126,15 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
   });
 
   scheduler.registerCollector({
+    id: 'gps-outages',
+    label: 'Tác chiến Điện tử GPS (NIC≤4) & Định tuyến BGP (RIPE/CF)',
+    intervalMs: 240_000,
+    retainMs: 6 * 3_600_000,
+    countItems: (items) => items.length,
+    fetcher: () => fetchGpsAndBgpOutages(),
+  });
+
+  scheduler.registerCollector({
     id: 'earthquakes',
     label: 'Động đất Toàn cầu (USGS)',
     intervalMs: 120_000,
@@ -157,12 +170,22 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
     fetcher: () => fetchWeatherRadar(),
   });
 
+  scheduler.registerCollector<VietnamEnvSnapshot>({
+    id: 'vietnam-env',
+    label: 'Khí tượng Biển Đông (Hoàng Sa · Trường Sa) & AQI Việt Nam',
+    intervalMs: 300_000,
+    retainMs: 4 * 3_600_000,
+    countItems: (snap) => snap.locations.length,
+    fetcher: () => fetchVietnamEnvironment(),
+  });
+
   scheduler.registerCollector<MarketSnapshot>({
     id: 'markets-crypto',
-    label: 'Tài chính, FX & Crypto (+ Binance WS)',
+    label: 'Tài chính, Vàng SJC, VN30, FX & Crypto (+ Binance WS)',
     intervalMs: 90_000,
     retainMs: 6 * 3_600_000,
-    countItems: (snap) => snap.quotes.length + snap.crypto.length,
+    countItems: (snap) =>
+      snap.quotes.length + snap.crypto.length + (snap.vnGold?.length ?? 0) + (snap.vn30?.length ?? 0),
     fetcher: (prev) => fetchMarketsAndCrypto(prev),
   });
 
@@ -220,6 +243,15 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
     fetcher: () => fetchVietnamPolicyLegal(),
   });
 
+  scheduler.registerCollector<AiSitrepSnapshot>({
+    id: 'ai-sitrep',
+    label: 'Bản tin Tình báo AI Sitrep (Groq LPU · 12p)',
+    intervalMs: 720_000,
+    retainMs: 6 * 3_600_000,
+    countItems: (snap) => snap.bullets.length,
+    fetcher: () => generateAiSitrep(store, true),
+  });
+
   const binanceStream = new BinanceRealtimeStream(hub, store);
 
   return {
@@ -238,6 +270,11 @@ async function main(): Promise<void> {
     buildProductionRuntime();
   await store.hydrateFromDisk();
   scheduler.startAll({ runImmediately: true });
+  // Refresh AI Sitrep once at +7.5s after initial upstream collectors populate RAM
+  const warmupSitrepTimer = setTimeout(() => {
+    void scheduler.refreshCollector('ai-sitrep');
+  }, 7_500);
+  if (typeof warmupSitrepTimer.unref === 'function') warmupSitrepTimer.unref();
   binanceStream.start();
   polymarketStream.start();
   vesselManager.start();

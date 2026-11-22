@@ -1,4 +1,11 @@
-import type { CryptoQuote, FearGreedSnapshot, MarketQuote, MarketSnapshot } from '@shared/types';
+import type {
+  CryptoQuote,
+  FearGreedSnapshot,
+  MarketQuote,
+  MarketSnapshot,
+  Vn30StockQuote,
+  VnGoldQuote,
+} from '@shared/types';
 import { DEFAULT_BROWSER_UA, NAMED_APP_UA, fetchJsonWithTimeout, fetchTextWithTimeout } from '../lib/http';
 
 const COINGECKO_URL =
@@ -6,6 +13,7 @@ const COINGECKO_URL =
 const COINPAPRIKA_FALLBACK_URL = 'https://api.coinpaprika.com/v1/tickers?quotes=USD';
 const FEAR_GREED_URL = 'https://api.alternative.me/fng/?limit=1';
 const ER_API_USD_URL = 'https://open.er-api.com/v6/latest/USD';
+const MIHONG_GOLD_URL = 'https://api.mihong.vn/v1/gold-prices?market=domestic';
 
 export interface CoinGeckoItem {
   id?: string;
@@ -232,9 +240,184 @@ export function normalizeYahooChartQuote(
     price: Number(price.toFixed(price >= 100 ? 2 : 3)),
     changePercent24h: Number(changePct.toFixed(2)),
     unit,
+    sparkline: closes.length >= 2 ? closes.slice(-10).map((v) => Number(v.toFixed(2))) : undefined,
     updatedAt: now,
     source: 'Yahoo Finance Chart v8',
   };
+}
+
+// 1 lượng (cây vàng Việt Nam) = 37.5 grams = 1.205653027 troy ounces
+const TROY_OZ_PER_LUONG = 1.205653;
+
+export function computeWorldGoldLuongMillionVnd(
+  goldUsdPerOz?: number,
+  usdVnd?: number,
+): number | undefined {
+  if (
+    typeof goldUsdPerOz !== 'number' ||
+    !Number.isFinite(goldUsdPerOz) ||
+    goldUsdPerOz <= 0 ||
+    typeof usdVnd !== 'number' ||
+    !Number.isFinite(usdVnd) ||
+    usdVnd <= 0
+  ) {
+    return undefined;
+  }
+  return Number(((goldUsdPerOz * TROY_OZ_PER_LUONG * usdVnd) / 1_000_000).toFixed(2));
+}
+
+export interface MihongGoldItem {
+  code?: string;
+  buyingPrice?: number;
+  sellingPrice?: number;
+  buyChangePercent?: number;
+  sellChangePercent?: number;
+  dateTime?: string;
+}
+
+const GOLD_CODE_LABELS: Record<string, string> = {
+  SJC: 'Vàng miếng SJC 999.9',
+  '999': 'Vàng nhẫn tròn 999.9',
+  '985': 'Vàng nữ trang 98.5% (24K)',
+  '750': 'Vàng tây 18K (750)',
+};
+
+export function normalizeMihongGoldPrices(
+  items: MihongGoldItem[],
+  goldUsdPerOz?: number,
+  usdVnd?: number,
+  now = Date.now(),
+): VnGoldQuote[] {
+  if (!Array.isArray(items)) return [];
+  const worldParity = computeWorldGoldLuongMillionVnd(goldUsdPerOz, usdVnd);
+  const out: VnGoldQuote[] = [];
+
+  for (const row of items) {
+    const code = String(row.code ?? '').trim().toUpperCase();
+    if (!GOLD_CODE_LABELS[code]) continue;
+
+    const rawBuy = Number(row.buyingPrice);
+    const rawSell = Number(row.sellingPrice);
+    if (!Number.isFinite(rawBuy) || rawBuy <= 0 || !Number.isFinite(rawSell) || rawSell <= 0) {
+      continue;
+    }
+
+    // Mi Hồng quotes VND per chỉ (1 lượng = 10 chỉ); if an upstream ever quotes per lượng (> 50,000,000), normalize seamlessly
+    const buyMillion = rawBuy >= 50_000_000 ? rawBuy / 1_000_000 : (rawBuy * 10) / 1_000_000;
+    const sellMillion = rawSell >= 50_000_000 ? rawSell / 1_000_000 : (rawSell * 10) / 1_000_000;
+    const isPure999 = code === 'SJC' || code === '999';
+
+    out.push({
+      code,
+      name: GOLD_CODE_LABELS[code],
+      buyPerLuongMillionVnd: Number(buyMillion.toFixed(2)),
+      sellPerLuongMillionVnd: Number(sellMillion.toFixed(2)),
+      spreadMillionVnd: Number((sellMillion - buyMillion).toFixed(2)),
+      changeBuyPercent: Number((Number(row.buyChangePercent) || 0).toFixed(2)),
+      changeSellPercent: Number((Number(row.sellChangePercent) || 0).toFixed(2)),
+      worldParityPerLuongMillionVnd: isPure999 ? worldParity : undefined,
+      premiumVsWorldMillionVnd:
+        isPure999 && worldParity !== undefined
+          ? Number((sellMillion - worldParity).toFixed(2))
+          : undefined,
+      updatedLabel: row.dateTime,
+      updatedAt: now,
+      source: 'Mi Hồng / SJC Live Domestic',
+    });
+  }
+
+  return out;
+}
+
+async function fetchVietnamDomesticGold(
+  goldUsdPerOz?: number,
+  usdVnd?: number,
+  now = Date.now(),
+): Promise<VnGoldQuote[]> {
+  const rows = await fetchJsonWithTimeout<MihongGoldItem[]>(MIHONG_GOLD_URL, {
+    timeoutMs: 7_500,
+    retries: 1,
+    userAgent: DEFAULT_BROWSER_UA,
+    headers: { Accept: 'application/json' },
+  });
+  return normalizeMihongGoldPrices(rows, goldUsdPerOz, usdVnd, now);
+}
+
+export interface Vn30Target {
+  symbol: string;
+  name: string;
+  sector: string;
+}
+
+const VN30_LEADERS: readonly Vn30Target[] = [
+  { symbol: 'VCB', name: 'Vietcombank', sector: 'Ngân hàng' },
+  { symbol: 'FPT', name: 'Tập đoàn FPT', sector: 'Công nghệ · AI' },
+  { symbol: 'HPG', name: 'Thép Hòa Phát', sector: 'Thép · Công nghiệp' },
+  { symbol: 'VHM', name: 'Vinhomes', sector: 'Bất động sản' },
+  { symbol: 'VIC', name: 'Vingroup', sector: 'Đa ngành · Xe điện' },
+  { symbol: 'BID', name: 'BIDV', sector: 'Ngân hàng' },
+  { symbol: 'MBB', name: 'MBBank', sector: 'Ngân hàng' },
+  { symbol: 'TCB', name: 'Techcombank', sector: 'Ngân hàng' },
+  { symbol: 'MWG', name: 'Thế Giới Di Động', sector: 'Bán lẻ' },
+  { symbol: 'GAS', name: 'PV GAS', sector: 'Dầu khí · Năng lượng' },
+];
+
+export interface VndDchartPayload {
+  c?: number[];
+  v?: number[];
+  s?: string;
+}
+
+export function normalizeVn30DchartQuote(
+  target: Vn30Target,
+  payload: VndDchartPayload,
+  now = Date.now(),
+): Vn30StockQuote | null {
+  const closes = (payload?.c ?? []).filter((v) => typeof v === 'number' && Number.isFinite(v) && v > 0);
+  if (closes.length === 0) return null;
+
+  const latest = closes[closes.length - 1];
+  const prev = closes.length >= 2 ? closes[closes.length - 2] : latest;
+  const changePct = prev > 0 ? ((latest - prev) / prev) * 100 : 0;
+  const volumes = payload?.v ?? [];
+  const latestVol = Number(volumes[volumes.length - 1] ?? 0);
+
+  return {
+    symbol: target.symbol,
+    name: target.name,
+    sector: target.sector,
+    priceThousandVnd: Number(latest.toFixed(2)),
+    changePercent: Number(changePct.toFixed(2)),
+    volume: Number.isFinite(latestVol) ? latestVol : 0,
+    sparkline: closes.slice(-10).map((c) => Number(c.toFixed(2))),
+    updatedAt: now,
+  };
+}
+
+async function fetchVn30Leaders(now: number): Promise<Vn30StockQuote[]> {
+  const toSec = Math.floor(now / 1000);
+  const fromSec = toSec - 15 * 86_400;
+
+  const results = await Promise.allSettled(
+    VN30_LEADERS.map(async (target) => {
+      const url = `https://dchart-api.vndirect.com.vn/dchart/history?resolution=D&symbol=${encodeURIComponent(target.symbol)}&from=${fromSec}&to=${toSec}`;
+      const dchart = await fetchJsonWithTimeout<VndDchartPayload>(url, {
+        timeoutMs: 6_500,
+        retries: 0,
+        userAgent: DEFAULT_BROWSER_UA,
+        headers: { Accept: '*/*' },
+      });
+      return normalizeVn30DchartQuote(target, dchart, now);
+    }),
+  );
+
+  const out: Vn30StockQuote[] = [];
+  for (const r of results) {
+    if (r.status === 'fulfilled' && r.value) {
+      out.push(r.value);
+    }
+  }
+  return out;
 }
 
 interface YahooTarget {
@@ -260,7 +443,7 @@ async function fetchVietnamIndexQuote(now: number): Promise<MarketQuote | null> 
   // Primary: VNDirect DChart daily feed for HOSE VNINDEX
   try {
     const toSec = Math.floor(now / 1000);
-    const fromSec = toSec - 12 * 86_400;
+    const fromSec = toSec - 16 * 86_400;
     const vndUrl = `https://dchart-api.vndirect.com.vn/dchart/history?resolution=D&symbol=VNINDEX&from=${fromSec}&to=${toSec}`;
     const dchart = await fetchJsonWithTimeout<{ c?: number[]; s?: string }>(vndUrl, {
       timeoutMs: 7_500,
@@ -280,6 +463,7 @@ async function fetchVietnamIndexQuote(now: number): Promise<MarketQuote | null> 
         price: Number(close.toFixed(2)),
         changePercent24h: Number(changePct.toFixed(2)),
         unit: 'pts',
+        sparkline: closes.slice(-10).map((c) => Number(c.toFixed(2))),
         updatedAt: now,
         source: 'HOSE / VNDirect Feed',
       };
@@ -304,6 +488,10 @@ async function fetchVietnamIndexQuote(now: number): Promise<MarketQuote | null> 
       const prevCols = lines.length >= 2 ? lines[lines.length - 2].split(',') : latestCols;
       const close = Number(latestCols[4]);
       const prevClose = Number(prevCols[4]);
+      const sparkline = lines
+        .slice(-10)
+        .map((l) => Number(l.split(',')[4]))
+        .filter((v) => Number.isFinite(v) && v > 100);
       if (Number.isFinite(close) && close > 100) {
         const changePct =
           Number.isFinite(prevClose) && prevClose > 0 ? ((close - prevClose) / prevClose) * 100 : 0;
@@ -314,6 +502,7 @@ async function fetchVietnamIndexQuote(now: number): Promise<MarketQuote | null> 
           price: Number(close.toFixed(2)),
           changePercent24h: Number(changePct.toFixed(2)),
           unit: 'pts',
+          sparkline: sparkline.length >= 2 ? sparkline : undefined,
           updatedAt: now,
           source: 'HOSE / Stooq Feed',
         };
@@ -353,7 +542,7 @@ async function fetchIndicesAndCommodities(now: number): Promise<MarketQuote[]> {
     const pairResults = await Promise.allSettled(
       pair.map(async (target, idx) => {
         const host = idx % 2 === 0 ? 'query1.finance.yahoo.com' : 'query2.finance.yahoo.com';
-        const url = `https://${host}/v8/finance/chart/${encodeURIComponent(target.yahooSymbol)}?interval=1d&range=5d`;
+        const url = `https://${host}/v8/finance/chart/${encodeURIComponent(target.yahooSymbol)}?interval=1d&range=7d`;
         const payload = await fetchJsonWithTimeout<YahooChartPayload>(url, {
           timeoutMs: 9_000,
           retries: 1,
@@ -383,7 +572,7 @@ async function fetchIndicesAndCommodities(now: number): Promise<MarketQuote[]> {
 export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): Promise<MarketSnapshot> {
   const now = Date.now();
 
-  const [cryptoRes, fgRes, fxRes, marketQuotesRes] = await Promise.allSettled([
+  const [cryptoRes, fgRes, fxRes, marketQuotesRes, vn30Res] = await Promise.allSettled([
     fetchCryptoQuotes(now),
     fetchJsonWithTimeout<FearGreedPayload>(FEAR_GREED_URL, {
       timeoutMs: 8_000,
@@ -396,6 +585,7 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
       userAgent: NAMED_APP_UA,
     }).then((d) => normalizeErApiFx(d, now)),
     fetchIndicesAndCommodities(now),
+    fetchVn30Leaders(now),
   ]);
 
   const crypto =
@@ -433,6 +623,24 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
 
   const quotes = [...indexCommodityQuotes, ...fxQuotes];
 
+  const goldUsd = quotes.find((q) => q.symbol === 'Gold')?.price;
+  const usdVnd = fxQuotes.find((q) => q.symbol === 'USD/VND')?.price;
+
+  let vnGold = previous?.vnGold ?? [];
+  try {
+    const freshGold = await fetchVietnamDomesticGold(goldUsd, usdVnd, now);
+    if (freshGold.length > 0) {
+      vnGold = freshGold;
+    }
+  } catch {
+    // Retain previous vnGold snapshot
+  }
+
+  const vn30 =
+    vn30Res.status === 'fulfilled' && vn30Res.value.length > 0
+      ? vn30Res.value
+      : (previous?.vn30 ?? []);
+
   if (quotes.length === 0 && crypto.length === 0) {
     throw new Error('All market, FX, and crypto upstream endpoints failed');
   }
@@ -442,6 +650,8 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
     crypto,
     fearGreed,
     macro: previous?.macro ?? [],
+    vnGold,
+    vn30,
     updatedAt: now,
   };
 }

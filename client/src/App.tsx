@@ -144,6 +144,7 @@ export function App() {
             vessels={filteredData.vessels}
             cyberThreats={filteredData.cyberThreats}
             cyberArcs={cyberArcs}
+            gpsOutages={filteredData.gpsOutages}
             militaryAnchorMs={militaryAnchorMs}
             vesselsAnchorMs={vesselsAnchorMs}
             deadReckoning={deadReckoning}
@@ -244,6 +245,8 @@ export function App() {
             news={filteredData.news}
             techCyber={data?.techCyber}
             policyLegal={data?.policyLegal}
+            vietnamEnv={data?.vietnamEnv}
+            aiSitrep={data?.aiSitrep}
             military={filteredData.military}
             vessels={filteredData.vessels}
             earthquakes={filteredData.earthquakes}

@@ -109,6 +109,29 @@ export class SnapshotStore {
     return snap.data;
   }
 
+  set<T>(
+    id: CollectorId,
+    data: T,
+    retainMs: number,
+    itemCount = 1,
+    now = Date.now(),
+  ): void {
+    const envelope: SnapshotEnvelope<T> = {
+      version: 1,
+      id,
+      data,
+      itemCount,
+      fetchedAt: now,
+      retainedUntil: now + retainMs,
+      consecutiveFailures: 0,
+      firstFailureAt: null,
+      lastAttemptAt: now,
+      lastError: null,
+    };
+    this.snapshots.set(id, envelope);
+    this.bareFailures.delete(id);
+  }
+
   getHealth(id: CollectorId, now = Date.now()): SourceHealth | null {
     const reg = this.registrations.get(id);
     if (!reg) return null;

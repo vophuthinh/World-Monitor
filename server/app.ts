@@ -3,6 +3,7 @@ import { compress } from 'hono/compress';
 import { cors } from 'hono/cors';
 import { THEATER_PRESETS, buildStaticGeoBundle } from '@shared/registries/index';
 import type {
+  AiSitrepSnapshot,
   BootstrapResponse,
   GeoPointFeature,
   GoogleTrendsSnapshot,
@@ -15,9 +16,11 @@ import type {
   PredictionItem,
   RealtimeServerEvent,
   TechCyberSnapshot,
+  VietnamEnvSnapshot,
   WeatherRadarSnapshot,
 } from '@shared/types';
 import type { CollectorScheduler } from './cache/scheduler';
+import { answerMonitorQuestion, generateAiSitrep } from './lib/groq-intel';
 import { lookupLiveIocOrCve } from './lib/ioc-scanner';
 import { RealtimeHub } from './realtime/hub';
 
@@ -129,6 +132,35 @@ export function createApp(
     }
   });
 
+  app.get('/api/ai-sitrep', async (c) => {
+    const sitrep = await generateAiSitrep(store, false);
+    store.set('ai-sitrep', sitrep, 2 * 3_600_000, sitrep.bullets.length);
+    return c.json(sitrep);
+  });
+
+  app.post('/api/ai-sitrep/refresh', async (c) => {
+    const sitrep = await generateAiSitrep(store, true);
+    store.set('ai-sitrep', sitrep, 2 * 3_600_000, sitrep.bullets.length);
+    return c.json(sitrep);
+  });
+
+  app.post('/api/ai-ask', async (c) => {
+    try {
+      const body = (await c.req.json()) as { question?: string };
+      const clientIp =
+        c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
+        c.req.header('x-real-ip') ||
+        'local';
+      const res = await answerMonitorQuestion(String(body?.question ?? ''), store, clientIp);
+      return c.json(res);
+    } catch (err) {
+      return c.json(
+        { error: err instanceof Error ? err.message : 'Không thể xử lý câu hỏi AI' },
+        400,
+      );
+    }
+  });
+
   app.get('/api/bootstrap', (c) => {
     const now = Date.now();
     const rawMarkets = store.get<MarketSnapshot>('markets-crypto', now);
@@ -152,6 +184,7 @@ export function createApp(
         military: store.get<GeoPointFeature[]>('military-flights', now) ?? [],
         vessels: resolvedVessels,
         cyberThreats: store.get<GeoPointFeature[]>('cyber-threats', now) ?? [],
+        gpsOutages: store.get<GeoPointFeature[]>('gps-outages', now) ?? [],
         earthquakes: store.get<GeoPointFeature[]>('earthquakes', now) ?? [],
         natural: store.get<GeoPointFeature[]>('natural-events', now) ?? [],
         geopolitics: store.get<GeoPointFeature[]>('geopolitics-gdelt', now) ?? [],
@@ -163,6 +196,8 @@ export function createApp(
         crypto: rawMarkets?.crypto ?? [],
         fearGreed: rawMarkets?.fearGreed ?? null,
         macro,
+        vnGold: rawMarkets?.vnGold ?? [],
+        vn30: rawMarkets?.vn30 ?? [],
         updatedAt: rawMarkets?.updatedAt ?? now,
       },
       predictions: store.get<PredictionItem[]>('polymarket', now) ?? [],
@@ -174,6 +209,8 @@ export function createApp(
       techCyber: store.get<TechCyberSnapshot>('tech-cyber', now) ?? undefined,
       policyLegal: store.get<PolicyLegalSnapshot>('policy-legal', now) ?? undefined,
       googleTrends: store.get<GoogleTrendsSnapshot>('google-trends', now) ?? undefined,
+      vietnamEnv: store.get<VietnamEnvSnapshot>('vietnam-env', now) ?? undefined,
+      aiSitrep: store.get<AiSitrepSnapshot>('ai-sitrep', now) ?? undefined,
     };
 
     return c.json(payload);

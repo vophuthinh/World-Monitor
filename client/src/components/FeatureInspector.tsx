@@ -42,6 +42,7 @@ const LAYER_LABELS: Record<string, string> = {
   military: 'MÁY BAY QUÂN SỰ',
   vessels: 'TÀU BIỂN HÀNG HẢI AIS',
   cyberThreats: 'MỐI ĐE DỌA MẠNG C2 / APT',
+  gpsOutages: 'NHIỄU GPS/GNSS & ĐỊNH TUYẾN BGP',
   militaryBases: 'CĂN CỨ QUÂN SỰ & VŨ TRỤ',
   aiDatacenters: 'HẠ TẦNG AI · BÁN DẪN · ĐẤT HIẾM',
   earthquakes: 'ĐỘNG ĐẤT ĐỊA CHẤN',

@@ -292,6 +292,7 @@ export interface WorldMapProps {
   vessels: GeoPointFeature[];
   cyberThreats: GeoPointFeature[];
   cyberArcs: CyberAttackArc[];
+  gpsOutages: GeoPointFeature[];
   militaryAnchorMs: number;
   vesselsAnchorMs: number;
   deadReckoning: boolean;
@@ -315,6 +316,7 @@ const CLICKABLE_LAYERS = [
   'military-layer',
   'vessels-layer',
   'cyber-circle',
+  'gps-outages-circle',
   'vn-archipelago-symbol',
   'vn-islands-circle',
   'vn-islands-label',
@@ -339,6 +341,7 @@ export const WorldMap = memo(function WorldMap({
   vessels,
   cyberThreats,
   cyberArcs,
+  gpsOutages,
   militaryAnchorMs,
   vesselsAnchorMs,
   deadReckoning,
@@ -376,6 +379,7 @@ export const WorldMap = memo(function WorldMap({
     vessels,
     cyberThreats,
     cyberArcs,
+    gpsOutages,
     militaryAnchorMs,
     vesselsAnchorMs,
     deadReckoning,
@@ -403,6 +407,7 @@ export const WorldMap = memo(function WorldMap({
     vessels,
     cyberThreats,
     cyberArcs,
+    gpsOutages,
     militaryAnchorMs,
     vesselsAnchorMs,
     deadReckoning,
@@ -427,6 +432,7 @@ export const WorldMap = memo(function WorldMap({
       military,
       vessels,
       cyberThreats,
+      gpsOutages,
       earthquakes,
       natural,
       geopolitics,
@@ -448,6 +454,7 @@ export const WorldMap = memo(function WorldMap({
     military,
     vessels,
     cyberThreats,
+    gpsOutages,
     earthquakes,
     natural,
     geopolitics,
@@ -969,6 +976,71 @@ export const WorldMap = memo(function WorldMap({
     if (map.getLayer('cyber-halo')) map.setLayoutProperty('cyber-halo', 'visibility', cyberVis);
     if (map.getLayer('cyber-circle')) map.setLayoutProperty('cyber-circle', 'visibility', cyberVis);
 
+    // 6e. Live GNSS/GPS Jamming (NIC<=4) & BGP Routing Outages
+    if (upsertPointSource('gps-outages-src', state.gpsOutages)) {
+      map.addLayer({
+        id: 'gps-outages-halo',
+        type: 'circle',
+        source: 'gps-outages-src',
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['get', 'magnitude'], 2, 14, 25, 28],
+          'circle-color': [
+            'match',
+            ['get', 'category'],
+            'gps_jamming',
+            '#f59e0b',
+            'bgp_outage',
+            '#f43f5e',
+            '#38bdf8',
+          ],
+          'circle-opacity': 0.2,
+          'circle-stroke-width': 1.2,
+          'circle-stroke-color': '#fbbf24',
+        },
+      });
+      map.addLayer({
+        id: 'gps-outages-circle',
+        type: 'circle',
+        source: 'gps-outages-src',
+        paint: {
+          'circle-radius': ['match', ['get', 'severity'], 'critical', 7.5, 'high', 6.2, 5.0],
+          'circle-color': [
+            'match',
+            ['get', 'category'],
+            'gps_jamming',
+            '#fbbf24',
+            'bgp_outage',
+            '#fb7185',
+            '#38bdf8',
+          ],
+          'circle-stroke-width': 1.8,
+          'circle-stroke-color': '#05080f',
+          'circle-opacity': 0.95,
+        },
+      });
+      map.addLayer({
+        id: 'gps-outages-label',
+        type: 'symbol',
+        source: 'gps-outages-src',
+        minzoom: 3.1,
+        layout: {
+          'text-field': ['get', 'shortLabel'],
+          'text-size': 10,
+          'text-offset': [0, 1.15],
+          'text-anchor': 'top',
+        },
+        paint: {
+          'text-color': isLight ? '#92400e' : '#fde68a',
+          'text-halo-color': isLight ? '#ffffff' : '#05080f',
+          'text-halo-width': 1.5,
+        },
+      });
+    }
+    const gpsVis = state.activeLayers.gpsOutages ? 'visible' : 'none';
+    if (map.getLayer('gps-outages-halo')) map.setLayoutProperty('gps-outages-halo', 'visibility', gpsVis);
+    if (map.getLayer('gps-outages-circle')) map.setLayoutProperty('gps-outages-circle', 'visibility', gpsVis);
+    if (map.getLayer('gps-outages-label')) map.setLayoutProperty('gps-outages-label', 'visibility', gpsVis);
+
     // 7. Geopolitics GDELT
     if (upsertPointSource('geopolitics-src', state.geopolitics)) {
       map.addLayer({
@@ -1281,6 +1353,7 @@ export const WorldMap = memo(function WorldMap({
     vessels,
     cyberThreats,
     cyberArcs,
+    gpsOutages,
     deadReckoning,
     earthquakes,
     natural,
