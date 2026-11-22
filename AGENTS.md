@@ -10,7 +10,7 @@ Project: `/Users/vophuthinh/Code/worldmonitor` — independent World Monitor. Ca
 
 ## Layout
 - `server/app.ts` — Hono routes. `server/index.ts` — registers collectors, starts scheduler, SSE hub, streams.
-- `server/collectors/` — one file per data source (`markets-crypto.ts` is the orchestrator; its parsers live in `markets/{crypto,fx-yahoo,vn-gold-stocks,vn-valuation-macro,fred}.ts`, re-exported from it). `server/cache/` — scheduler + 2-tier store (RAM + atomic `.cache/*.json`).
+- `server/collectors/` — one file per data source (`markets-crypto.ts` is the orchestrator; its parsers live in `markets/{crypto,fx-yahoo,vn-gold-stocks,vn-valuation-macro,fred}.ts`, re-exported from it). `hpt-company-intel.ts` orchestrates `hpt/{config,sources,ai}.ts` (re-exported). `server/cache/` — scheduler + 2-tier store (RAM + atomic `.cache/*.json`).
 - `server/realtime/` — SSE hub, Binance / Polymarket / unified news streams.
 - `server/lib/` — Groq/Gemini AI (`groq-intel`), IOC scanner, Telegram alerter, regime ledger, translator.
 - `shared/` — types, static registries (`registries/`), `macro-health.ts` (VN/US quant engine), `intelligence.ts`, catalysts/chokepoints, dead-reckoning.
@@ -33,7 +33,7 @@ Project: `/Users/vophuthinh/Code/worldmonitor` — independent World Monitor. Ca
 `npm run dev` · `npm test` · `npm run typecheck` · `npm run build` · `npm start`. Verify with typecheck + tests + build before claiming done.
 
 ## Known Debt
-- `shared/macro-health.ts` is now a barrel over `shared/macro/{core,vietnam,us,compass}.ts` (compass.ts still ~900 lines). Still oversized: `client/src/components/WorldMap.tsx` (~1.1k, helpers already in `map/map-utils.ts`), `right-panel/MarketsMacroTab.tsx` (now ~215; sections live in `right-panel/markets/*Section.tsx`, plus `MacroHealthSection` and `InvestmentCompassSection`), `right-panel/LiveIntelTab.tsx` (now ~320; all sections extracted to sibling `*Section.tsx` files), `right-panel/TechCyberTab.tsx` (~460; `IocCyberPanel` and `GithubTrendingPanel` extracted). Split before adding features.
+- `shared/macro-health.ts` is now a barrel over `shared/macro/{core,vietnam,us,compass}.ts` (compass.ts still ~900 lines). `server/collectors/hpt-company-intel.ts` was split into `hpt/`. Still oversized: `client/src/components/WorldMap.tsx` (~1.1k, helpers already in `map/map-utils.ts`), `right-panel/MarketsMacroTab.tsx` (now ~215; sections live in `right-panel/markets/*Section.tsx`, plus `MacroHealthSection` and `InvestmentCompassSection`), `right-panel/LiveIntelTab.tsx` (now ~320; all sections extracted to sibling `*Section.tsx` files), `right-panel/TechCyberTab.tsx` (~460; `IocCyberPanel` and `GithubTrendingPanel` extracted). Split before adding features.
 - Macro figures come from live collectors and carry `periodLabel`; benchmarks are hardcoded constants (CPI target now `VN_CPI_TARGET_PCT` in `shared/macro/core.ts`; other benchmarks still inline). One literal narrative string (`~0.3% GDP`, `vn-cab` metric) is hand-written.
 - No client component tests. Server+shared line coverage 72.7% (branches 58.5%); measure with `npx vitest run --coverage --coverage.include='server/**' --coverage.include='shared/**'` (`@vitest/coverage-v8` is a devDependency).
 - Several unofficial sources (Yahoo v8 UA spoof, RSSHub, Reddit, public Telegram, NCHMF) can break or breach ToS; collector health is exposed at `/api/health` and shown in `TopCommandBar`, but no dedicated page.
