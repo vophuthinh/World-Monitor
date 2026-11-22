@@ -530,7 +530,7 @@ export function buildVietnamMacroHealth(
           deltaVsBenchmark: Number((pulse.tradeBalanceBillionUsd - 1.5).toFixed(2)),
           trendLabel:
             ytdTradeB !== undefined
-              ? `Lũy kế năm: ${ytdTradeB >= 0 ? '+' : ''}${ytdTradeB.toFixed(2)}B$ (${ytdTradeB < 0 ? 'nhập siêu máy móc/NL' : 'xuất siêu'})`
+              ? `Lũy kế ${pulse?.ytdCpiMonths ? `${pulse.ytdCpiMonths}T` : 'năm'}: ${ytdTradeB >= 0 ? '+' : ''}${ytdTradeB.toFixed(2)}B$ (${ytdTradeB < 0 ? 'nhập siêu máy móc/NL' : 'xuất siêu'})`
               : `Độ mở XK: ${exportsGdp.toFixed(0)}% GDP`,
           periodLabel: 'Tháng mới nhất',
           status:
@@ -792,10 +792,11 @@ export function buildVietnamMacroHealth(
 
   const warningFlags: EconomyHealthReport['warningFlags'] = [];
   if (gdp >= 7.0 && pmiHealthy) {
+    const tradePeriodLabel = pulse?.ytdCpiMonths ? `${pulse.ytdCpiMonths} tháng ` : 'năm ';
     const tradeContext =
       pulse?.tradeBalanceBillionUsd !== undefined
         ? ytdTradeB !== undefined && ytdTradeB < 0
-          ? `, tháng gần nhất xuất siêu +$${pulse.tradeBalanceBillionUsd.toFixed(2)}B (nhưng lũy kế năm nhập siêu ${ytdTradeB.toFixed(2)}B$ do nhập máy móc/nguyên liệu)`
+          ? `, tháng gần nhất xuất siêu +$${pulse.tradeBalanceBillionUsd.toFixed(2)}B (nhưng lũy kế ${tradePeriodLabel}nhập siêu ${ytdTradeB.toFixed(2)}B$ do nhập máy móc/nguyên liệu)`
           : `, xuất siêu tháng +$${pulse.tradeBalanceBillionUsd.toFixed(2)}B`
         : '';
     warningFlags.push({
@@ -851,9 +852,10 @@ export function buildVietnamMacroHealth(
   // NEVER claim a stale prior-year Current Account (+6.44% in 2025) as a current-year shield!
   if (currentAccount !== null && currentAccount !== undefined) {
     if (isCabStalePriorYear && ytdTradeB !== undefined && ytdTradeB < 0) {
+      const ytdMonthsTxt = pulse?.ytdCpiMonths ? `${pulse.ytdCpiMonths} tháng ` : '';
       warningFlags.push({
         severity: 'warn',
-        text: `Đệm cán cân vãng lai thu hẹp trong ${currentCalendarYear}: Số chốt +${currentAccount.toFixed(2)}% GDP là của năm ${cabYear}; năm nay lũy kế nhập siêu (${ytdTradeB.toFixed(2)}B$) khiến thặng dư vãng lai thu hẹp về ~0.3% GDP.`,
+        text: `Đệm cán cân vãng lai thu hẹp trong ${currentCalendarYear}: Số chốt +${currentAccount.toFixed(2)}% GDP là của năm ${cabYear}; năm nay lũy kế ${ytdMonthsTxt}nhập siêu (${ytdTradeB.toFixed(2)}B$) khiến thặng dư vãng lai thu hẹp về ~0.3% GDP.`,
       });
     } else if (!isCabStalePriorYear && currentAccount >= 3.0) {
       warningFlags.push({

@@ -970,22 +970,37 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
   it('aligns Vietnam CPI strictly on YTD Average vs 4.5% National Assembly target and flags lagged 2025 Current Account vs 2026 YTD Trade Deficit', () => {
     const ytdCtx = parseVietnamOfficialYtdContext({
       now: Date.UTC(2026, 10, 22, 12, 0, 0),
+      nsoPostsJson: JSON.stringify([
+        {
+          date: '2026-11-04T15:44:31',
+          title: { rendered: 'Một số nét chính tình hình kinh tế – xã hội tháng 10 và 10 tháng năm 2026' },
+          content: {
+            rendered:
+              '<p>Cán cân thương mại hàng hóa tháng Mười sơ bộ xuất siêu 7,31 tỷ USD. Cán cân thương mại hàng hóa mười tháng năm 2026 sơ bộ nhập siêu 12,07 tỷ USD.</p>',
+          },
+        },
+        {
+          date: '2026-11-03T09:01:54',
+          title: {
+            rendered:
+              'Chỉ số giá tiêu dùng, chỉ số giá vàng và chỉ số giá đô la Mỹ tháng Mười và mười tháng năm 2026',
+          },
+          content: {
+            rendered:
+              '<p>Bình quân mười tháng năm 2026, CPI tăng 4,57% so với cùng kỳ năm trước; lạm phát cơ bản tăng 4,24%.</p>',
+          },
+        },
+      ]),
       cpiRssXml: `
         <rss><channel>
           <item>
             <title>Bình quân 11 tháng năm 2025, CPI tăng 3,29%, lạm phát cơ bản tăng 3,21% và kịch bản 2026</title>
             <pubDate>Sat, 06 Dec 2025 08:00:00 GMT</pubDate>
           </item>
-          <item>
-            <title>10 tháng đầu năm 2026, CPI tăng 4,57%, lạm phát cơ bản tăng 4,24% - Thị trường Tài chính Tiền tệ</title>
-            <pubDate>Fri, 06 Nov 2026 08:00:00 GMT</pubDate>
-          </item>
         </channel></rss>
       `,
       tradeRssXml: `
         <rss><channel>
-          <item><title>11 tháng năm 2025 Việt Nam xuất siêu 24,31 tỷ USD</title><pubDate>Sat, 06 Dec 2025 08:00:00 GMT</pubDate></item>
-          <item><title>Việt Nam xuất siêu hơn 7 tỷ USD trong tháng 10/2026</title><pubDate>Fri, 06 Nov 2026 09:00:00 GMT</pubDate></item>
           <item><title>Xuất nhập khẩu vượt 1.070 tỷ USD, nhập siêu còn 11,74 tỷ USD</title><pubDate>Wed, 18 Nov 2026 09:00:00 GMT</pubDate></item>
         </channel></rss>
       `,
@@ -995,8 +1010,22 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     expect(ytdCtx.ytdCpiMonths).toBe(10);
     expect(ytdCtx.ytdAvgCpiPct).toBe(4.57);
     expect(ytdCtx.ytdCoreCpiPct).toBe(4.24);
-    expect(ytdCtx.ytdTradeBalanceBillionUsd).toBe(-11.74);
+    // Authoritative NSO 10-month trade balance (-12.07B$) takes precedence over Customs mid-month RSS (-11.74B$)
+    expect(ytdCtx.ytdTradeBalanceBillionUsd).toBe(-12.07);
     expect(ytdCtx.vcbSellUsdVnd).toBe(25980);
+
+    // Even when NSO JSON is temporarily unavailable, RSS fallback prefers GSO full-month release window (Nov 5 -> -12.07B$) over Customs mid-month flash (Nov 19 -> -11.74B$)
+    const rssFallbackCtx = parseVietnamOfficialYtdContext({
+      now: Date.UTC(2026, 10, 22, 12, 0, 0),
+      cpiRssXml: `<rss><channel><item><title>10 tháng đầu năm 2026, CPI tăng 4,57%, lạm phát cơ bản tăng 4,24%</title><pubDate>Fri, 06 Nov 2026 08:00:00 GMT</pubDate></item></rss>`,
+      tradeRssXml: `
+        <rss><channel>
+          <item><title>Xuất nhập khẩu vượt 1.070 tỷ USD, nhập siêu còn 11,74 tỷ USD - Tin nhanh chứng khoán</title><pubDate>Thu, 19 Nov 2026 07:42:01 GMT</pubDate></item>
+          <item><title>Xuất nhập khẩu Việt Nam vượt 1.000 tỉ USD, nhập siêu 12,07 tỉ - Báo Văn Hóa</title><pubDate>Thu, 05 Nov 2026 08:00:00 GMT</pubDate></item>
+        </channel></rss>
+      `,
+    });
+    expect(rssFallbackCtx.ytdTradeBalanceBillionUsd).toBe(-12.07);
 
     const health = evaluateMacroHealth({
       quotes: [
@@ -1031,7 +1060,7 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
         ytdCoreCpiPct: 4.24,
         ytdCpiMonths: 10,
         tradeBalanceBillionUsd: 7.31,
-        ytdTradeBalanceBillionUsd: -11.74,
+        ytdTradeBalanceBillionUsd: -12.07,
         interbankRatePct: 7.66,
         vn10yYieldPct: 4.57,
         vcbSellUsdVnd: 25980,
@@ -1050,6 +1079,11 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
 
     // Must NEVER emit false-present "Lá chắn ngoại hối vững +6.44% GDP" when 6.44% is lagged 2025 data & 2026 YTD trade is in deficit!
     expect(health.vn?.warningFlags.some((f) => f.text.includes('Lá chắn ngoại hối vững'))).toBe(false);
-    expect(health.vn?.warningFlags.some((f) => f.text.includes('năm 2025') && f.text.includes('~0.3% GDP'))).toBe(true);
+    expect(health.vn?.warningFlags.some((f) => f.text.includes('lũy kế 10 tháng nhập siêu -12.07B$'))).toBe(true);
+    expect(
+      health.vn?.warningFlags.some(
+        (f) => f.text.includes('năm 2025') && f.text.includes('(-12.07B$)') && f.text.includes('~0.3% GDP'),
+      ),
+    ).toBe(true);
   });
 });
