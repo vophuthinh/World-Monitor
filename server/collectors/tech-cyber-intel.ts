@@ -38,7 +38,8 @@ export const TECH_CYBER_FEEDS: readonly TechFeedDefinition[] = [
   { name: 'NVIDIA Technical Blog', subCategory: 'ai', url: 'https://developer.nvidia.com/blog/feed/', maxItems: 3 },
   { name: 'Simon Willison AI', subCategory: 'ai', url: 'https://simonwillison.net/atom/everything/', maxItems: 3 },
   { name: 'MarkTechPost AI', subCategory: 'ai', url: 'https://www.marktechpost.com/feed/', maxItems: 3 },
-  { name: 'ArXiv CS.AI & LLM',
+  {
+    name: 'ArXiv CS.AI & LLM',
     subCategory: 'ai',
     url: 'https://export.arxiv.org/api/query?search_query=cat:cs.AI+OR+cat:cs.CL&sortBy=submittedDate&sortOrder=descending&max_results=8',
     maxItems: 3,
@@ -104,6 +105,18 @@ export const TECH_CYBER_FEEDS: readonly TechFeedDefinition[] = [
   { name: 'Thanh Niên Công nghệ', subCategory: 'vn_tech', url: 'https://thanhnien.vn/rss/cong-nghe.rss', maxItems: 5 },
   { name: 'Dân Trí Công nghệ', subCategory: 'vn_tech', url: 'https://dantri.com.vn/rss/cong-nghe.rss', maxItems: 5 },
   { name: 'VietNamNet Công nghệ', subCategory: 'vn_tech', url: 'https://vietnamnet.vn/rss/cong-nghe.rss', maxItems: 5 },
+  {
+    name: 'Tạp chí TT&TT · An toàn thông tin',
+    subCategory: 'vn_tech',
+    url: 'https://news.google.com/rss/search?q=(site:ictvietnam.vn+OR+site:antoanthongtin.vn)+when:7d&hl=vi&gl=VN&ceid=VN:vi',
+    maxItems: 5,
+  },
+  {
+    name: 'VINASA · VNISA · Kinh tế số',
+    subCategory: 'vn_tech',
+    url: 'https://news.google.com/rss/search?q=(site:vinasa.org.vn+OR+site:vnisa.org.vn+OR+(site:vneconomy.vn+%22chuy%E1%BB%83n+%C4%91%E1%BB%95i+s%E1%BB%91%22))+when:7d&hl=vi&gl=VN&ceid=VN:vi',
+    maxItems: 5,
+  },
 ];
 
 const CISA_KEV_JSON_URL =
@@ -208,10 +221,10 @@ export function parseTechFeedXml(
       url,
       ...(loc
         ? {
-            matchedLat: loc.lat,
-            matchedLon: loc.lon,
-            matchedLocation: loc.name,
-          }
+          matchedLat: loc.lat,
+          matchedLon: loc.lon,
+          matchedLocation: loc.name,
+        }
         : {}),
     });
   }

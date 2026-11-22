@@ -275,10 +275,10 @@ export interface AiAskResponse {
 }
 
 export type HptItemCategory =
-  | 'exchange_filing' // HNX / UBCKNN / HĐQT / Cổ tức / BCTC
-  | 'shareholder_ir' // hpt.vn/co-dong
-  | 'tech_activity' // hpt.vn/tin-tuc (AI, An ninh mạng, Đối tác)
-  | 'press_social'; // Báo chí, F319/F247/Voz, MXH công khai
+  | 'exchange_filing' // HNX / UBCKNN / HĐQT / Cổ tức / Cổ đông nội bộ
+  | 'bidding_project' // Đấu thầu (MST 0301447436 / Báo Đấu thầu / Ngân hàng / Bộ ngành)
+  | 'it_press_partner' // Báo CNTT (ICT/VietNamNet/VnEconomy Số/ATTT) + VINASA/VNISA + IBM/Microsoft/Cisco
+  | 'press_social'; // Bing News, Báo Mới, F319/F247/Voz, Pháp lý/Thuế/SHTT
 
 export type HptSentiment = 'positive' | 'negative' | 'neutral';
 
@@ -286,7 +286,7 @@ export interface HptCompanyItem {
   id: string;
   title: string;
   category: HptItemCategory;
-  badge: string; // e.g. 'NGHỊ QUYẾT HĐQT', 'CỔ TỨC', 'UBCKNN / HNX', 'CỔ ĐÔNG HPT', 'HPT TECH', 'BÁO CHÍ / DIỄN ĐÀN'
+  badge: string;
   source: string;
   publishedAt: number;
   dateLabel?: string;
@@ -295,6 +295,21 @@ export interface HptCompanyItem {
   sentiment: HptSentiment;
   aiSummary?: string;
   aiVerified?: boolean;
+}
+
+export interface HptFundamentals {
+  taxCode: '0301447436';
+  peRatio?: number;
+  pbRatio?: number;
+  marketCapBillionVnd?: number;
+  freeFloatPct?: number;
+  dividendYieldPct?: number;
+  ytdChangePct?: number;
+  oneYearChangePct?: number;
+  ceilingThousandVnd?: number;
+  floorThousandVnd?: number;
+  refThousandVnd?: number;
+  taSignal?: string;
 }
 
 export interface HptStockSnapshot {
@@ -307,6 +322,7 @@ export interface HptStockSnapshot {
   highThousandVnd?: number;
   lowThousandVnd?: number;
   sparkline: number[];
+  fundamentals?: HptFundamentals;
   hqLat: number;
   hqLon: number;
   updatedAt: number;

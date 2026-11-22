@@ -481,9 +481,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
     const list = hptIntel?.items ?? [];
     if (hptFilter === 'all') return list;
     if (hptFilter === 'filings') {
-      return list.filter(
-        (i) => i.category === 'exchange_filing' || i.category === 'shareholder_ir',
-      );
+      return list.filter((i) => i.category === 'exchange_filing');
     }
     return list.filter((i) => i.category === hptFilter);
   }, [hptIntel?.items, hptFilter]);
@@ -2473,7 +2471,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
             </section>
           )}
 
-          {/* FireAnt-Style Corporate Intelligence Radar: HPT (UPCoM · HNX / UBCKNN + hpt.vn + Press/Forums/Social + Groq Sentiment) */}
+          {/* FireAnt-Style Independent Corporate Intelligence Radar: HPT (UPCoM · MST 0301447436 — Excludes hpt.vn) */}
           {hptIntel && (hptIntel.stock || hptIntel.items.length > 0) && (
             <section className="rounded border border-cyan-500/35 bg-[#0a1322] p-2.5">
               <div className="flex items-center justify-between gap-2">
@@ -2482,7 +2480,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                     HPT · UPCoM
                   </span>
                   <h2 className="truncate font-mono text-[10.5px] font-semibold tracking-wider text-slate-100">
-                    CÔNG NGHỆ TIN HỌC HPT
+                    TIN HỌC HPT · MST 0301447436
                   </h2>
                 </div>
 
@@ -2502,7 +2500,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                     <button
                       type="button"
                       onClick={() => onForceRefresh('hpt-intel')}
-                      title="Quét mới Công bố thông tin HNX/UBCKNN & Tin tức HPT"
+                      title="Quét mới Đấu thầu, CBTT HNX/UBCKNN, Simplize & Báo chí độc lập về HPT"
                       className="inline-flex items-center rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-slate-300 hover:border-cyan-400/50 hover:text-cyan-200"
                     >
                       <ArrowsClockwise
@@ -2514,55 +2512,123 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                 </div>
               </div>
 
-              {/* HPT Live Stock Ticker Strip + AI Sentiment Summary */}
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded border border-slate-800/90 bg-[#0d1729] px-2.5 py-1.5 font-mono">
-                {hptIntel.stock ? (
-                  <div className="flex items-center gap-2.5">
-                    <div>
-                      <div className="flex items-baseline gap-1.5 tabular-nums">
-                        <span className="text-sm font-bold text-slate-100">
-                          {(hptIntel.stock.priceThousandVnd * 1000).toLocaleString('en-US')}₫
-                        </span>
-                        <span
-                          className={`text-[10.5px] font-semibold ${
-                            hptIntel.stock.changePercent >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                          }`}
-                        >
-                          {hptIntel.stock.changePercent >= 0 ? '+' : ''}
-                          {hptIntel.stock.changePercent.toFixed(2)}%
-                        </span>
+              {/* HPT Live Stock Ticker Strip + Simplize Valuation Ratios + AI Sentiment Summary */}
+              <div className="mt-2 space-y-1.5 rounded border border-slate-800/90 bg-[#0d1729] px-2.5 py-2 font-mono">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  {hptIntel.stock ? (
+                    <div className="flex items-center gap-2.5">
+                      <div>
+                        <div className="flex items-baseline gap-1.5 tabular-nums">
+                          <span className="text-sm font-bold text-slate-100">
+                            {(hptIntel.stock.priceThousandVnd * 1000).toLocaleString('en-US')}₫
+                          </span>
+                          <span
+                            className={`text-[10.5px] font-semibold ${
+                              hptIntel.stock.changePercent >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                            }`}
+                          >
+                            {hptIntel.stock.changePercent >= 0 ? '+' : ''}
+                            {hptIntel.stock.changePercent.toFixed(2)}%
+                          </span>
+                        </div>
+                        <div className="text-[9px] text-slate-400 tabular-nums">
+                          KL: {(hptIntel.stock.volume * 100).toLocaleString('en-US')} cp
+                          {hptIntel.stock.fundamentals?.ceilingThousandVnd
+                            ? ` · Trần ${hptIntel.stock.fundamentals.ceilingThousandVnd} / Sàn ${hptIntel.stock.fundamentals.floorThousandVnd}`
+                            : ' · Sàn HNX/UPCoM'}
+                        </div>
                       </div>
-                      <div className="text-[9px] text-slate-400 tabular-nums">
-                        KL: {(hptIntel.stock.volume * 100).toLocaleString('en-US')} cp · Sàn HNX/UPCoM
-                      </div>
+                      <MiniSparkline
+                        values={hptIntel.stock.sparkline}
+                        positive={hptIntel.stock.changePercent >= 0}
+                      />
                     </div>
-                    <MiniSparkline
-                      values={hptIntel.stock.sparkline}
-                      positive={hptIntel.stock.changePercent >= 0}
-                    />
+                  ) : (
+                    <span className="text-[10px] text-slate-400">Mã HPT (UPCoM)</span>
+                  )}
+
+                  <div className="text-right text-[9px]">
+                    <div className="font-semibold text-emerald-300">
+                      {hptIntel.aiSentimentEnabled ? '🤖 AI LỌC ĐỘC LẬP (KHÔNG HPT.VN)' : 'NGUỒN ĐỘC LẬP'}
+                    </div>
+                    <div className="mt-0.5 text-slate-400 tabular-nums">
+                      🟢 {hptSentimentStats.pos} · ⚪ {hptSentimentStats.neu} · 🔴 {hptSentimentStats.neg}
+                    </div>
                   </div>
-                ) : (
-                  <span className="text-[10px] text-slate-400">Mã HPT (UPCoM)</span>
+                </div>
+
+                {/* Valuation & Fundamental Ratios from Simplize */}
+                {hptIntel.stock?.fundamentals && (
+                  <div className="grid grid-cols-4 gap-1 border-t border-slate-800/85 pt-1.5 text-[9.5px] tabular-nums">
+                    <div>
+                      <span className="text-slate-500">P/E </span>
+                      <strong className="text-cyan-300">
+                        {hptIntel.stock.fundamentals.peRatio?.toFixed(2) ?? '—'}x
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">P/B </span>
+                      <strong className="text-emerald-300">
+                        {hptIntel.stock.fundamentals.pbRatio?.toFixed(2) ?? '—'}x
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Vốn hóa </span>
+                      <strong className="text-slate-200">
+                        {hptIntel.stock.fundamentals.marketCapBillionVnd
+                          ? `${hptIntel.stock.fundamentals.marketCapBillionVnd}tỷ`
+                          : '—'}
+                      </strong>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-slate-500">YTD </span>
+                      <strong
+                        className={
+                          (hptIntel.stock.fundamentals.ytdChangePct ?? 0) >= 0
+                            ? 'text-emerald-300'
+                            : 'text-rose-300'
+                        }
+                      >
+                        {(hptIntel.stock.fundamentals.ytdChangePct ?? 0) >= 0 ? '+' : ''}
+                        {hptIntel.stock.fundamentals.ytdChangePct ?? 0}%
+                      </strong>
+                    </div>
+                  </div>
                 )}
 
-                <div className="text-right text-[9px]">
-                  <div className="font-semibold text-emerald-300">
-                    {hptIntel.aiSentimentEnabled ? '🤖 AI LỌC NHIỄU & SẮC THÁI' : 'LỌC NGỮ CẢNH HPT'}
-                  </div>
-                  <div className="mt-0.5 text-slate-400 tabular-nums">
-                    🟢 {hptSentimentStats.pos} · ⚪ {hptSentimentStats.neu} · 🔴 {hptSentimentStats.neg}
-                  </div>
+                {/* Quick National Portal Verification Links for MST 0301447436 */}
+                <div className="flex flex-wrap items-center gap-1 border-t border-slate-800/80 pt-1.5 text-[8.5px]">
+                  <span className="text-slate-500">Tra cứu gốc:</span>
+                  {[
+                    { label: 'MuaSắmCông (Thầu)', href: 'https://muasamcong.mpi.gov.vn/' },
+                    { label: 'Simplize HPT', href: 'https://simplize.vn/co-phieu/HPT' },
+                    { label: 'Thuế GDT', href: 'https://tracuunnt.gdt.gov.vn/' },
+                    { label: 'ĐKKD', href: 'https://dangkykinhdoanh.gov.vn/' },
+                    { label: 'Bản án Tòa án', href: 'https://congbobanan.toaan.gov.vn/' },
+                    { label: 'SHTT WIPO', href: 'http://wipopublish.ipvietnam.gov.vn/' },
+                  ].map((ext) => (
+                    <a
+                      key={ext.label}
+                      href={ext.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded border border-slate-700/90 bg-slate-900/90 px-1.5 py-0.2 text-slate-300 transition hover:border-cyan-400/50 hover:text-cyan-200"
+                    >
+                      {ext.label} ↗
+                    </a>
+                  ))}
                 </div>
               </div>
 
-              {/* FireAnt-Style Category Filter Pills */}
+              {/* FireAnt-Style Independent Category Filter Pills */}
               <div className="mt-2 flex flex-wrap gap-1">
                 {(
                   [
                     { id: 'all', label: `Tất cả (${hptIntel.items.length})` },
-                    { id: 'filings', label: '📜 Công bố HNX/UBCK & Cổ đông' },
-                    { id: 'tech_activity', label: '🔬 Hoạt động Công nghệ' },
-                    { id: 'press_social', label: '🌐 Báo chí · F319 · MXH' },
+                    { id: 'filings', label: '📜 CBTT & Cổ đông' },
+                    { id: 'bidding_project', label: '🏗️ Đấu thầu & Dự án' },
+                    { id: 'it_press_partner', label: '🤝 Báo CNTT · VINASA · Đối tác' },
+                    { id: 'press_social', label: '🌐 Bing · Báo Mới · F319' },
                   ] as const
                 ).map((tab) => (
                   <button
@@ -2580,14 +2646,14 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                 ))}
               </div>
 
-              {/* FireAnt-Style Disclosure & News Stream */}
-              <div className="mt-2 max-h-[340px] divide-y divide-slate-800/80 overflow-y-auto rounded border border-slate-800/95 bg-[#080f1c]">
+              {/* FireAnt-Style Independent Disclosure, Bidding & Trade Press Stream */}
+              <div className="mt-2 max-h-[360px] divide-y divide-slate-800/80 overflow-y-auto rounded border border-slate-800/95 bg-[#080f1c]">
                 {filteredHptItems.length === 0 ? (
                   <div className="py-5 text-center text-xs text-slate-400">
                     Chưa có tin khớp phân nhóm này.
                   </div>
                 ) : (
-                  filteredHptItems.slice(0, 24).map((item) => {
+                  filteredHptItems.slice(0, 28).map((item) => {
                     const sentBadge: Record<HptSentiment, { text: string; cls: string }> = {
                       positive: {
                         text: 'TÍCH CỰC',
@@ -2611,9 +2677,9 @@ export const RightIntelPanel = memo(function RightIntelPanel({
                               className={`rounded border px-1.5 py-0.1 font-bold ${
                                 item.category === 'exchange_filing'
                                   ? 'border-amber-400/50 bg-amber-500/18 text-amber-200'
-                                  : item.category === 'shareholder_ir'
-                                    ? 'border-cyan-500/45 bg-cyan-500/15 text-cyan-200'
-                                    : item.category === 'tech_activity'
+                                  : item.category === 'bidding_project'
+                                    ? 'border-emerald-400/50 bg-emerald-500/18 text-emerald-200'
+                                    : item.category === 'it_press_partner'
                                       ? 'border-violet-500/45 bg-violet-500/15 text-violet-200'
                                       : 'border-slate-700 bg-slate-800 text-slate-300'
                               }`}

@@ -285,14 +285,18 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now()):
 
   if (hptIntel && (hptIntel.stock || hptIntel.items.length > 0)) {
     const st = hptIntel.stock;
+    const f = st?.fundamentals;
+    const fundStr = f
+      ? ` [MST ${f.taxCode}${f.peRatio ? `, P/E=${f.peRatio}x` : ''}${f.pbRatio ? `, P/B=${f.pbRatio}x` : ''}${f.marketCapBillionVnd ? `, Vốn hóa=${f.marketCapBillionVnd} tỷ` : ''}${f.ytdChangePct !== undefined ? `, YTD=${f.ytdChangePct >= 0 ? '+' : ''}${f.ytdChangePct}%` : ''}]`
+      : '';
     const stockStr = st
-      ? `Cổ phiếu HPT (UPCoM): ${st.priceThousandVnd.toFixed(2)} nghìn ₫ (${st.changePercent >= 0 ? '+' : ''}${st.changePercent.toFixed(2)}%, KL ${st.volume}). `
+      ? `Cổ phiếu HPT (UPCoM): ${st.priceThousandVnd.toFixed(2)} nghìn ₫ (${st.changePercent >= 0 ? '+' : ''}${st.changePercent.toFixed(2)}%)${fundStr}. `
       : '';
     const topHptNews = hptIntel.items
-      .slice(0, 4)
+      .slice(0, 5)
       .map((i) => `[${i.badge} · ${i.sentiment.toUpperCase()}] ${i.title}`)
       .join(' | ');
-    lines.push(`[CÔNG TY CP DỊCH VỤ CÔNG NGHỆ TIN HỌC HPT (MÃ HPT)] ${stockStr}${topHptNews}`);
+    lines.push(`[CÔNG TY CP DỊCH VỤ CÔNG NGHỆ TIN HỌC HPT (MÃ HPT · NGUỒN ĐỘC LẬP)] ${stockStr}${topHptNews}`);
   }
 
   if (techCyber && techCyber.items.length > 0) {
