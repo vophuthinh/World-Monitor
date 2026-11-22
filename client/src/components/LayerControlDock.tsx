@@ -118,7 +118,7 @@ export const LayerControlDock = memo(function LayerControlDock({
   }
 
   return (
-    <div className="pointer-events-auto w-[252px] rounded-md border border-slate-800/95 bg-[#090f1a]/92 p-2.5 shadow-2xl backdrop-blur-md">
+    <div className="pointer-events-auto min-h-0 w-[252px] overflow-y-auto overscroll-contain rounded-md border border-slate-800/95 bg-[#090f1a]/92 p-2.5 shadow-2xl backdrop-blur-md">
       <div className="flex items-center justify-between border-b border-slate-800/90 pb-2">
         <div className="flex items-center gap-1.5">
           <SlidersHorizontal size={14} className="text-cyan-400" />

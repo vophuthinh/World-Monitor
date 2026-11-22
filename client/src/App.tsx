@@ -216,7 +216,7 @@ export function App() {
           />
 
           {/* Floating Left Layer Control Dock */}
-          <div className="pointer-events-none absolute left-3 top-3 z-20 flex flex-col gap-2.5">
+          <div className="pointer-events-none absolute left-3 top-3 z-20 flex max-h-[calc(100%-1.5rem)] flex-col gap-2.5">
             <LayerControlDock
               activeLayers={activeLayers}
               layerCounts={layerCounts}
@@ -264,7 +264,7 @@ export function App() {
           )}
 
           {/* Floating Bottom-Right Live News TV & Windy Weather Streamlines PiP */}
-          <div className="pointer-events-none absolute bottom-10 right-12 z-20 flex flex-col items-end gap-2.5">
+          <div className="pointer-events-none absolute bottom-10 right-12 z-20 flex max-h-[calc(100%-3.5rem)] flex-col items-end gap-2.5 overflow-y-auto">
             <WindyWeatherWindow open={windyOpen} onClose={() => setWindyOpen(false)} />
             <LiveTvPipWindow open={liveTvOpen} onClose={() => setLiveTvOpen(false)} />
           </div>
