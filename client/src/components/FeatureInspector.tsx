@@ -7,6 +7,7 @@ import {
   X,
 } from '@phosphor-icons/react';
 import type { InspectableFeature, SeverityLevel } from '@shared/types';
+import { safeHref } from '../lib/safe-href';
 
 interface FeatureInspectorProps {
   selected: InspectableFeature | null;
@@ -234,7 +235,7 @@ export function FeatureInspector({ selected, onClose, onFlyTo }: FeatureInspecto
           </button>
           {pt.url && (
             <a
-              href={pt.url}
+              href={safeHref(pt.url)}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1 rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs font-medium text-slate-200 transition hover:border-slate-500 hover:text-white"

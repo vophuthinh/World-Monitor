@@ -6,6 +6,7 @@ import {
 } from '@phosphor-icons/react';
 import { formatRelativeTime } from './shared';
 import type { CollectorId, GoogleTrendGeo, GoogleTrendsSnapshot } from '@shared/types';
+import { safeHref } from '../../lib/safe-href';
 
 export function GoogleTrendsSection({ activeGoogleTrends, googleTrends, trendGeo, setTrendGeo, translateVi, onFlyToLocation, onForceRefresh, refreshingIds }: {
   activeGoogleTrends: GoogleTrendsSnapshot['global'];
@@ -101,7 +102,7 @@ export function GoogleTrendsSection({ activeGoogleTrends, googleTrends, trendGeo
                       #{tr.rank}
                     </span>
                     <a
-                      href={tr.topNewsUrl ?? tr.trendUrl}
+                      href={safeHref(tr.topNewsUrl ?? tr.trendUrl)}
                       target="_blank"
                       rel="noreferrer"
                       className="truncate text-xs font-semibold text-slate-100 hover:text-cyan-300"
@@ -120,7 +121,7 @@ export function GoogleTrendsSection({ activeGoogleTrends, googleTrends, trendGeo
 
                 {newsHeadline && (
                   <a
-                    href={tr.topNewsUrl ?? tr.trendUrl}
+                    href={safeHref(tr.topNewsUrl ?? tr.trendUrl)}
                     target="_blank"
                     rel="noreferrer"
                     className="mt-1 block text-[11px] leading-snug text-slate-300 hover:text-slate-100"
@@ -136,7 +137,7 @@ export function GoogleTrendsSection({ activeGoogleTrends, googleTrends, trendGeo
 
                 <div className="mt-1 flex items-center justify-between font-mono text-[9.5px]">
                   <a
-                    href={tr.trendUrl}
+                    href={safeHref(tr.trendUrl)}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-0.5 text-slate-400 hover:text-cyan-300"

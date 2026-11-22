@@ -2,6 +2,7 @@ import { ArrowSquareOut, Crosshair, MagnifyingGlass } from '@phosphor-icons/reac
 import { INTEL_TOPIC_TABS, formatRelativeTime } from './shared';
 import type { GeoPointFeature } from '@shared/types';
 import type { IntelTopicId, classifyLiveIntelTopics } from '@shared/intelligence';
+import { safeHref } from '../../lib/safe-href';
 
 export function IntelFeedsSection({ cyberThreats, intelTopic, setIntelTopic, intelTopicBuckets, translateVi, onFlyToLocation, onJumpToTechCyber }: {
   cyberThreats: GeoPointFeature[];
@@ -83,7 +84,7 @@ export function IntelFeedsSection({ cyberThreats, intelTopic, setIntelTopic, int
                 </div>
                 {ioc.url && (
                   <a
-                    href={ioc.url}
+                    href={safeHref(ioc.url)}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-0.5 text-[10px] text-slate-400 hover:text-slate-200"
@@ -119,7 +120,7 @@ export function IntelFeedsSection({ cyberThreats, intelTopic, setIntelTopic, int
                   </span>
                 </div>
                 <a
-                  href={item.url}
+                  href={safeHref(item.url)}
                   target="_blank"
                   rel="noreferrer"
                   className="mt-1 block text-xs font-medium leading-snug text-slate-100 hover:text-fuchsia-300"

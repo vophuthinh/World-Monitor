@@ -13,6 +13,7 @@ import type {
   HptSentiment,
 } from '@shared/types';
 import { MiniSparkline, formatRelativeTime, renderInlineMarkdown } from './shared';
+import { safeHref } from '../../lib/safe-href';
 
 export interface HptCorporateTabProps {
   hptIntel?: HptCompanyIntelSnapshot;
@@ -204,7 +205,7 @@ const HptCorporateTab = memo(function HptCorporateTab({
             ].map((ext) => (
               <a
                 key={ext.label}
-                href={ext.href}
+                href={safeHref(ext.href)}
                 target="_blank"
                 rel="noreferrer"
                 className="rounded border border-slate-700/90 bg-slate-900/90 px-1.5 py-0.2 text-slate-300 transition hover:border-emerald-400/50 hover:text-emerald-200"
@@ -314,7 +315,7 @@ const HptCorporateTab = memo(function HptCorporateTab({
                   </div>
 
                   <a
-                    href={item.url}
+                    href={safeHref(item.url)}
                     target="_blank"
                     rel="noreferrer"
                     className="mt-1.5 block text-xs font-semibold leading-relaxed text-slate-100 hover:text-emerald-300"
@@ -333,7 +334,7 @@ const HptCorporateTab = memo(function HptCorporateTab({
                     <div className="flex shrink-0 items-center gap-1.5">
                       {item.pdfUrl && (
                         <a
-                          href={item.pdfUrl}
+                          href={safeHref(item.pdfUrl)}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-0.5 rounded border border-rose-500/45 bg-rose-600/20 px-1.5 py-0.2 font-semibold text-rose-200 hover:bg-rose-600/35"
@@ -343,7 +344,7 @@ const HptCorporateTab = memo(function HptCorporateTab({
                         </a>
                       )}
                       <a
-                        href={item.url}
+                        href={safeHref(item.url)}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center gap-0.5 text-slate-400 hover:text-emerald-200"

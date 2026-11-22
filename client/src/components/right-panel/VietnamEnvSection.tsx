@@ -1,6 +1,7 @@
 import { ArrowsClockwise, CloudSun, Wind } from '@phosphor-icons/react';
 import { AQI_BADGE_STYLE, VN_ENV_DISPLAY_ORDER, formatRelativeTime } from './shared';
 import type { CollectorId, VietnamEnvSnapshot } from '@shared/types';
+import { safeHref } from '../../lib/safe-href';
 
 export function VietnamEnvSection({ vietnamEnv, onFlyToLocation, onForceRefresh, onOpenWindy, refreshingIds }: {
   vietnamEnv: VietnamEnvSnapshot;
@@ -145,7 +146,7 @@ export function VietnamEnvSection({ vietnamEnv, onFlyToLocation, onForceRefresh,
             {vietnamEnv.alerts.slice(0, 3).map((al) => (
               <a
                 key={al.id}
-                href={al.url}
+                href={safeHref(al.url)}
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-start justify-between gap-2 py-1.5 first:pt-0.5 last:pb-0 transition hover:text-sky-200"

@@ -13,6 +13,7 @@ import type {
   PolicyLegalSnapshot,
 } from '@shared/types';
 import { formatRelativeTime, legalBadgeStyle, renderInlineMarkdown } from './shared';
+import { safeHref } from '../../lib/safe-href';
 
 export interface PolicyLegalTabProps {
   policyLegal?: PolicyLegalSnapshot;
@@ -293,7 +294,7 @@ const PolicyLegalTab = memo(function PolicyLegalTab({
                   </div>
 
                   <a
-                    href={doc.url}
+                    href={safeHref(doc.url)}
                     target="_blank"
                     rel="noreferrer"
                     className="mt-1.5 block text-xs font-semibold leading-relaxed text-slate-100 hover:text-amber-300"
@@ -336,7 +337,7 @@ const PolicyLegalTab = memo(function PolicyLegalTab({
                       )}
                       {doc.pdfUrl && (
                         <a
-                          href={doc.pdfUrl}
+                          href={safeHref(doc.pdfUrl)}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-1 rounded border border-rose-500/45 bg-rose-600/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-rose-200 transition hover:bg-rose-600/35"
@@ -346,7 +347,7 @@ const PolicyLegalTab = memo(function PolicyLegalTab({
                         </a>
                       )}
                       <a
-                        href={doc.url}
+                        href={safeHref(doc.url)}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center gap-0.5 text-[10.5px] text-slate-400 hover:text-slate-200"

@@ -16,6 +16,7 @@ import type {
   TechSubCategory,
 } from '@shared/types';
 import { formatRelativeTime, techBadgeStyle } from './shared';
+import { safeHref } from '../../lib/safe-href';
 
 export interface TechCyberJumpPayload {
   seq: number;
@@ -168,7 +169,7 @@ const TechCyberTab = memo(function TechCyberTab({
               return (
                 <a
                   key={st.name}
-                  href={st.url}
+                  href={safeHref(st.url)}
                   target="_blank"
                   rel="noreferrer"
                   title={`${st.name}: ${st.description}`}
@@ -404,7 +405,7 @@ const TechCyberTab = memo(function TechCyberTab({
 
                   <div className="flex justify-end">
                     <a
-                      href={iocResult.referenceUrl}
+                      href={safeHref(iocResult.referenceUrl)}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-0.5 text-[9.5px] text-fuchsia-300 hover:underline"
@@ -437,7 +438,7 @@ const TechCyberTab = memo(function TechCyberTab({
               {ghTrendingDaily.slice(0, 3).map((repo) => (
                 <a
                   key={repo.id}
-                  href={repo.url}
+                  href={safeHref(repo.url)}
                   target="_blank"
                   rel="noreferrer"
                   className="flex items-center justify-between gap-2 rounded border border-slate-800/90 bg-[#090f1b] px-2 py-1.5 transition hover:border-emerald-500/45"
@@ -560,7 +561,7 @@ const TechCyberTab = memo(function TechCyberTab({
                             #{repo.rank}
                           </span>
                           <a
-                            href={repo.url}
+                            href={safeHref(repo.url)}
                             target="_blank"
                             rel="noreferrer"
                             className="truncate font-semibold text-cyan-200 hover:text-emerald-300 hover:underline"
@@ -606,7 +607,7 @@ const TechCyberTab = memo(function TechCyberTab({
                           </span>
                         </div>
                         <a
-                          href={repo.url}
+                          href={safeHref(repo.url)}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-0.5 text-slate-400 hover:text-slate-200"
@@ -700,7 +701,7 @@ const TechCyberTab = memo(function TechCyberTab({
                   )}
 
                   <a
-                    href={item.url}
+                    href={safeHref(item.url)}
                     target="_blank"
                     rel="noreferrer"
                     className="mt-1 block text-xs font-medium leading-relaxed text-slate-100 hover:text-violet-300"
@@ -728,7 +729,7 @@ const TechCyberTab = memo(function TechCyberTab({
                       <span />
                     )}
                     <a
-                      href={item.url}
+                      href={safeHref(item.url)}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-0.5 text-[10.5px] text-slate-400 hover:text-slate-200"

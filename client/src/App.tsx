@@ -8,6 +8,7 @@ import { RightIntelPanel } from './components/RightIntelPanel';
 import { TopCommandBar } from './components/TopCommandBar';
 import { WorldMap } from './components/WorldMap';
 import { type SearchHit, useMonitorData } from './hooks/useMonitorData';
+import { safeHref } from './lib/safe-href';
 
 export function App() {
   const {
@@ -126,8 +127,8 @@ export function App() {
     }
     if (hit.lat !== undefined && hit.lon !== undefined) {
       flyTo(hit.lat, hit.lon, 6.2);
-    } else if (hit.url) {
-      window.open(hit.url, '_blank', 'noopener,noreferrer');
+    } else if (safeHref(hit.url)) {
+      window.open(safeHref(hit.url), '_blank', 'noopener,noreferrer');
     }
   };
 

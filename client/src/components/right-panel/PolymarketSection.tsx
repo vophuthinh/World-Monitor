@@ -2,6 +2,7 @@ import { ArrowsClockwise, Fire } from '@phosphor-icons/react';
 import { formatCompactUsd } from './shared';
 import type { CollectorId, PredictionItem } from '@shared/types';
 import type { FlashDirection } from '../../hooks/useMonitorData';
+import { safeHref } from '../../lib/safe-href';
 
 export function PolymarketSection({ top5HotPolymarket, predictionFlashes, streamConnected, translateVi, onForceRefresh, refreshingIds }: {
   top5HotPolymarket: PredictionItem[];
@@ -54,7 +55,7 @@ export function PolymarketSection({ top5HotPolymarket, predictionFlashes, stream
             return (
               <a
                 key={item.id}
-                href={item.url}
+                href={safeHref(item.url)}
                 target="_blank"
                 rel="noreferrer"
                 className={`block px-2.5 py-2 transition hover:bg-[#121e33] ${

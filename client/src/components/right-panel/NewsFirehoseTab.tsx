@@ -8,6 +8,7 @@ import {
 } from '@phosphor-icons/react';
 import type { NewsItem, NewsStreamStats } from '@shared/types';
 import { type NewsFilterId, formatRelativeTime, sourceBadgeStyle } from './shared';
+import { safeHref } from '../../lib/safe-href';
 
 export interface NewsJumpPayload {
   seq: number;
@@ -217,7 +218,7 @@ const NewsFirehoseTab = memo(function NewsFirehoseTab({
                   </div>
 
                   <a
-                    href={item.url}
+                    href={safeHref(item.url)}
                     target="_blank"
                     rel="noreferrer"
                     className="mt-1 block text-xs font-medium leading-relaxed text-slate-100 hover:text-cyan-300"
@@ -245,7 +246,7 @@ const NewsFirehoseTab = memo(function NewsFirehoseTab({
                       <span />
                     )}
                     <a
-                      href={item.url}
+                      href={safeHref(item.url)}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-0.5 text-[10.5px] text-slate-400 hover:text-slate-200"

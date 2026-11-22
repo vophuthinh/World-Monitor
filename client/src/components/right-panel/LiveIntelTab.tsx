@@ -41,6 +41,7 @@ import {
   POSTURE_BADGE,
   renderInlineMarkdown,
 } from './shared';
+import { safeHref } from '../../lib/safe-href';
 
 export interface LiveIntelTabProps {
   predictions: PredictionItem[];
@@ -558,7 +559,7 @@ export const LiveIntelTab = memo(function LiveIntelTab({
               (watchlistHitsMap.get(selectedWatchTerm) ?? []).map((hit) => (
                 <a
                   key={hit.id}
-                  href={hit.url}
+                  href={safeHref(hit.url)}
                   target="_blank"
                   rel="noreferrer"
                   className="block py-1.5 text-[11px] leading-snug text-slate-200 hover:text-amber-200"
