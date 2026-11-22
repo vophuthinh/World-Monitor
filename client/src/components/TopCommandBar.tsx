@@ -253,7 +253,7 @@ export const TopCommandBar = memo(function TopCommandBar({
 
         <div className="flex flex-wrap items-center gap-1.5">
           {/* Unified Instant Search */}
-          <div className="relative w-44 sm:w-56">
+          <div className="relative w-32 sm:w-56">
             <MagnifyingGlass
               size={14}
               className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
@@ -409,7 +409,7 @@ export const TopCommandBar = memo(function TopCommandBar({
             type="button"
             onClick={toggleFullscreen}
             title={isFullscreen ? 'Thoát Toàn màn hình (Esc)' : 'Mở Toàn màn hình (Phím F)'}
-            className={`inline-flex items-center gap-1 rounded border px-2 py-1 font-mono text-[11px] font-medium transition ${
+            className={`hidden items-center gap-1 rounded border px-2 py-1 font-mono text-[11px] font-medium transition sm:inline-flex ${
               isFullscreen
                 ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-200'
                 : 'border-slate-700/85 bg-[#0d1524] text-slate-300 hover:border-cyan-500/45 hover:text-cyan-200'
@@ -438,12 +438,13 @@ export const TopCommandBar = memo(function TopCommandBar({
                 }`}
               />
               <span className="tabular-nums">
-                {okCount}/{health.length || 10} UPSTREAM
+                {okCount}/{health.length || 10}
+                <span className="hidden sm:inline"> UPSTREAM</span>
               </span>
             </button>
 
             {healthOpen && (
-              <div className="absolute right-0 top-full z-50 mt-1.5 w-[355px] rounded-md border border-slate-700 bg-[#0a101d] p-3 shadow-2xl">
+              <div className="absolute right-0 top-full z-50 mt-1.5 w-[min(355px,calc(100vw-1.5rem))] rounded-md border border-slate-700 bg-[#0a101d] p-3 shadow-2xl">
                 <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                   <div>
                     <div className="font-mono text-xs font-semibold text-slate-100">
