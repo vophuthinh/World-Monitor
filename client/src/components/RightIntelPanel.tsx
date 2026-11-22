@@ -205,6 +205,14 @@ const AQI_BADGE_STYLE: Record<AqiBand, { label: string; cls: string }> = {
   hazardous: { label: 'Nguy hại', cls: 'border-fuchsia-500/60 bg-fuchsia-500/25 text-fuchsia-100' },
 };
 
+const VN_ENV_DISPLAY_ORDER: Record<string, number> = {
+  'vn-hcmc': 0,
+  'vn-hanoi': 1,
+  'vn-danang': 2,
+  'vn-hoang-sa': 3,
+  'vn-truong-sa': 4,
+};
+
 function MiniSparkline({ values, positive }: { values?: number[]; positive: boolean }) {
   if (!values || values.length < 2) return null;
   const w = 52;
@@ -1016,7 +1024,9 @@ export const RightIntelPanel = memo(function RightIntelPanel({
               </div>
 
               <div className="mt-1.5 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                {vietnamEnv.locations.map((loc) => {
+                {[...vietnamEnv.locations]
+                  .sort((a, b) => (VN_ENV_DISPLAY_ORDER[a.id] ?? 99) - (VN_ENV_DISPLAY_ORDER[b.id] ?? 99))
+                  .map((loc) => {
                   const isSea = loc.region === 'maritime';
                   const aqiMeta = loc.aqiBand ? AQI_BADGE_STYLE[loc.aqiBand] : null;
                   return (

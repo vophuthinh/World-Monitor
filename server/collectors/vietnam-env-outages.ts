@@ -18,9 +18,9 @@ interface VietnamStationDef {
 }
 
 const VIETNAM_STATIONS: readonly VietnamStationDef[] = [
+  { id: 'vn-hcmc', name: 'TP.HCM', region: 'mainland', lat: 10.7769, lon: 106.7009 },
   { id: 'vn-hanoi', name: 'Hà Nội', region: 'mainland', lat: 21.0285, lon: 105.8542 },
   { id: 'vn-danang', name: 'Đà Nẵng', region: 'mainland', lat: 16.0544, lon: 108.2022 },
-  { id: 'vn-hcmc', name: 'TP.HCM', region: 'mainland', lat: 10.7769, lon: 106.7009 },
   { id: 'vn-hoang-sa', name: 'QĐ. Hoàng Sa', region: 'maritime', lat: 16.53, lon: 111.62 },
   { id: 'vn-truong-sa', name: 'QĐ. Trường Sa', region: 'maritime', lat: 8.64, lon: 111.92 },
 ];

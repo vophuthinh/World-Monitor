@@ -179,20 +179,27 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
   it('normalizes Open-Meteo Vietnam AQI + Hoàng Sa / Trường Sa marine weather & gusts', () => {
     const locations = normalizeVietnamEnvLocations(
       [
+        { current: { temperature_2m: 31.2, wind_speed_10m: 10, wind_gusts_10m: 18, weather_code: 3 } },
         { current: { temperature_2m: 26.4, wind_speed_10m: 12, wind_gusts_10m: 20, weather_code: 2 } },
         { current: { temperature_2m: 28.1, wind_speed_10m: 15, wind_gusts_10m: 24, weather_code: 1 } },
-        { current: { temperature_2m: 31.2, wind_speed_10m: 10, wind_gusts_10m: 18, weather_code: 3 } },
         { current: { temperature_2m: 27.8, wind_speed_10m: 44, wind_gusts_10m: 66, weather_code: 95 } },
         { current: { temperature_2m: 28.5, wind_speed_10m: 28, wind_gusts_10m: 42, weather_code: 80 } },
       ],
       [
+        { current: { us_aqi: 78, pm2_5: 24.5 } },
         { current: { us_aqi: 138, pm2_5: 50.4 } },
         { current: { us_aqi: 42, pm2_5: 10.1 } },
-        { current: { us_aqi: 78, pm2_5: 24.5 } },
       ],
     );
 
     expect(locations.length).toBe(5);
+    expect(locations.map((l) => l.id)).toEqual([
+      'vn-hcmc',
+      'vn-hanoi',
+      'vn-danang',
+      'vn-hoang-sa',
+      'vn-truong-sa',
+    ]);
     const hanoi = locations.find((l) => l.id === 'vn-hanoi')!;
     expect(hanoi.usAqi).toBe(138);
     expect(hanoi.aqiBand).toBe('sensitive');
