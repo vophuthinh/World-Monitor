@@ -1280,7 +1280,24 @@ export const WorldMap = memo(function WorldMap({
 
     mapRef.current = map;
 
+    let resizeRaf: number | null = null;
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => {
+            if (resizeRaf !== null) cancelAnimationFrame(resizeRaf);
+            resizeRaf = requestAnimationFrame(() => {
+              resizeRaf = null;
+              map.resize();
+            });
+          })
+        : null;
+    if (resizeObserver && containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
     return () => {
+      if (resizeRaf !== null) cancelAnimationFrame(resizeRaf);
+      resizeObserver?.disconnect();
       popup.remove();
       map.remove();
       mapRef.current = null;

@@ -6,6 +6,8 @@ import {
   CheckCircle,
   Clock,
   Compass,
+  CornersIn,
+  CornersOut,
   Cube,
   Globe,
   Lightning,
@@ -13,6 +15,7 @@ import {
   MapTrifold,
   NavigationArrow,
   Pulse,
+  SidebarSimple,
   Television,
   WarningCircle,
   X,
@@ -58,6 +61,8 @@ interface TopCommandBarProps {
   onToggleDeadReckoning: () => void;
   liveTvOpen: boolean;
   onToggleLiveTv: () => void;
+  desktopIntelOpen?: boolean;
+  onToggleDesktopIntel?: () => void;
 }
 
 const TIME_OPTIONS: ReadonlyArray<{ id: TimeWindow; label: string }> = [
@@ -125,10 +130,29 @@ export function TopCommandBar({
   onToggleDeadReckoning,
   liveTvOpen,
   onToggleLiveTv,
+  desktopIntelOpen = true,
+  onToggleDesktopIntel,
 }: TopCommandBarProps) {
   const [healthOpen, setHealthOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const onFsChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      void document.documentElement.requestFullscreen?.();
+    } else {
+      void document.exitFullscreen?.();
+    }
+  };
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -362,6 +386,38 @@ export function TopCommandBar({
             <option value="voyager">Voyager</option>
             <option value="positron">Positron Light</option>
           </select>
+
+          {/* Desktop Right Intel Panel Collapse/Expand (Full-Map Mode) */}
+          {onToggleDesktopIntel && (
+            <button
+              type="button"
+              onClick={onToggleDesktopIntel}
+              title={desktopIntelOpen ? 'Thu gọn Bảng Intel để mở rộng Bản đồ toàn khung' : 'Hiện lại Bảng Intel bên phải'}
+              className={`hidden items-center gap-1 rounded border px-2 py-1 font-mono text-[11px] font-medium transition lg:inline-flex ${
+                desktopIntelOpen
+                  ? 'border-slate-700/85 bg-[#0d1524] text-slate-300 hover:border-cyan-500/45 hover:text-cyan-200'
+                  : 'border-cyan-400/50 bg-cyan-500/20 text-cyan-200'
+              }`}
+            >
+              <SidebarSimple size={14} weight={desktopIntelOpen ? 'duotone' : 'regular'} />
+              <span className="hidden xl:inline">{desktopIntelOpen ? 'ẨN PANEL' : 'HIỆN PANEL'}</span>
+            </button>
+          )}
+
+          {/* Browser Native Fullscreen Toggle */}
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            title={isFullscreen ? 'Thoát Toàn màn hình (Esc)' : 'Mở Toàn màn hình (Phím F)'}
+            className={`inline-flex items-center gap-1 rounded border px-2 py-1 font-mono text-[11px] font-medium transition ${
+              isFullscreen
+                ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-200'
+                : 'border-slate-700/85 bg-[#0d1524] text-slate-300 hover:border-cyan-500/45 hover:text-cyan-200'
+            }`}
+          >
+            {isFullscreen ? <CornersIn size={14} weight="bold" /> : <CornersOut size={14} weight="bold" />}
+            <span className="hidden 2xl:inline">{isFullscreen ? 'THOÁT FULL' : 'FULLSCREEN'}</span>
+          </button>
 
           {/* Upstream Health Diagnostics Pill & Popover */}
           <div className="relative">

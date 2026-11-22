@@ -581,7 +581,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
   }, [policyItems, legalFilter, legalPillar, legalQuery]);
 
   return (
-    <aside className="flex h-full w-full flex-col border-l border-slate-800/95 bg-[#090e18] lg:w-[454px] xl:w-[494px]">
+    <aside className="flex h-full w-full flex-col border-l border-slate-800/95 bg-[#090e18] lg:w-[454px] xl:w-[494px] 2xl:w-[548px]">
       {/* Command Header: Live Intel · AI & ML · Tin nóng · Chính sách · Thị trường */}
       <div className="grid shrink-0 grid-cols-5 border-b border-slate-800/95 bg-[#070b12]">
         <button

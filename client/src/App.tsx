@@ -53,12 +53,28 @@ export function App() {
   const [basemap, setBasemap] = useState<BasemapTheme>('dark-matter');
   const [activeTheaterId, setActiveTheaterId] = useState<string>('east-sea-vn');
   const [mobileIntelOpen, setMobileIntelOpen] = useState<boolean>(false);
+  const [desktopIntelOpen, setDesktopIntelOpen] = useState<boolean>(true);
   const [liveTvOpen, setLiveTvOpen] = useState<boolean>(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setSelectedFeature(null);
+        return;
+      }
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      const isEditable =
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        (e.target as HTMLElement | null)?.isContentEditable;
+      if (!isEditable && !e.metaKey && !e.ctrlKey && !e.altKey && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        if (!document.fullscreenElement) {
+          void document.documentElement.requestFullscreen?.();
+        } else {
+          void document.exitFullscreen?.();
+        }
       }
     };
     window.addEventListener('keydown', onKey);
@@ -83,7 +99,7 @@ export function App() {
   };
 
   return (
-    <div className="flex h-[100dvh] w-full flex-col overflow-hidden bg-[#070b12] text-slate-100">
+    <div className="fixed inset-0 flex h-[100dvh] w-[100dvw] flex-col overflow-hidden bg-[#070b12] text-slate-100">
       <TopCommandBar
         isGlobe={isGlobe}
         onToggleGlobe={() => setIsGlobe((v) => !v)}
@@ -112,6 +128,8 @@ export function App() {
         onToggleDeadReckoning={() => setDeadReckoning((v) => !v)}
         liveTvOpen={liveTvOpen}
         onToggleLiveTv={() => setLiveTvOpen((v) => !v)}
+        desktopIntelOpen={desktopIntelOpen}
+        onToggleDesktopIntel={() => setDesktopIntelOpen((v) => !v)}
       />
 
       {error && (
@@ -229,41 +247,43 @@ export function App() {
         </main>
 
         {/* Desktop Right Intelligence Column */}
-        <div className="hidden h-full shrink-0 lg:block">
-          <RightIntelPanel
-            markets={
-              data?.markets ?? {
-                quotes: [],
-                crypto: [],
-                fearGreed: null,
-                macro: [],
-                updatedAt: 0,
+        {desktopIntelOpen && (
+          <div className="hidden h-full shrink-0 lg:block">
+            <RightIntelPanel
+              markets={
+                data?.markets ?? {
+                  quotes: [],
+                  crypto: [],
+                  fearGreed: null,
+                  macro: [],
+                  updatedAt: 0,
+                }
               }
-            }
-            predictions={filteredData.predictions}
-            googleTrends={data?.googleTrends}
-            news={filteredData.news}
-            techCyber={data?.techCyber}
-            policyLegal={data?.policyLegal}
-            vietnamEnv={data?.vietnamEnv}
-            aiSitrep={data?.aiSitrep}
-            military={filteredData.military}
-            vessels={filteredData.vessels}
-            earthquakes={filteredData.earthquakes}
-            geopolitics={filteredData.geopolitics}
-            cyberThreats={filteredData.cyberThreats}
-            newsStreamStats={data?.newsStreamStats}
-            freshNewsIds={freshNewsIds}
-            priceFlashes={priceFlashes}
-            predictionFlashes={predictionFlashes}
-            refreshingIds={refreshingIds}
-            onForceRefresh={forceRefresh}
-            streamConnected={streamConnected}
-            onFlyToLocation={(lat, lon, zoom) => {
-              flyTo(lat, lon, zoom ?? 5.5);
-            }}
-          />
-        </div>
+              predictions={filteredData.predictions}
+              googleTrends={data?.googleTrends}
+              news={filteredData.news}
+              techCyber={data?.techCyber}
+              policyLegal={data?.policyLegal}
+              vietnamEnv={data?.vietnamEnv}
+              aiSitrep={data?.aiSitrep}
+              military={filteredData.military}
+              vessels={filteredData.vessels}
+              earthquakes={filteredData.earthquakes}
+              geopolitics={filteredData.geopolitics}
+              cyberThreats={filteredData.cyberThreats}
+              newsStreamStats={data?.newsStreamStats}
+              freshNewsIds={freshNewsIds}
+              priceFlashes={priceFlashes}
+              predictionFlashes={predictionFlashes}
+              refreshingIds={refreshingIds}
+              onForceRefresh={forceRefresh}
+              streamConnected={streamConnected}
+              onFlyToLocation={(lat, lon, zoom) => {
+                flyTo(lat, lon, zoom ?? 5.5);
+              }}
+            />
+          </div>
+        )}
 
         {/* Mobile Slide-Over Right Intelligence Drawer */}
         {mobileIntelOpen && (
