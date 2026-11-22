@@ -1,5 +1,7 @@
 # Bàn giao Ngữ cảnh & Tiến độ Dự án (`HANDOFF_CONTEXT.md`)
 
+> **[LỊCH SỬ — 2026-11-22]** Tài liệu này chỉ ghi lại phiên khởi tạo. Phase 1 đã hoàn thành và dự án đã mở rộng nhiều; trạng thái hiện tại xem `AGENTS.md` và `README.md`. Bỏ qua phần "Bước tiếp theo" bên dưới. `docs/chat-history/` nay chỉ còn trên máy local (đã gitignore).
+
 Tài liệu này tóm tắt **100% nội dung cuộc trò chuyện khởi tạo**, các quyết định thiết kế đã thống nhất và vị trí mọi tài nguyên đã thu thập để bạn (và AI Agent ở phiên mới) tiếp tục làm việc ngay lập tức khi mở thư mục `/Users/vophuthinh/Code/worldmonitor`.
 
 - **ID phiên hội thoại gốc:** `4030a947-550a-47b4-9a34-40c3cc12cca2`

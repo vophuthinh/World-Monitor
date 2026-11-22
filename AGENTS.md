@@ -1,24 +1,47 @@
-# AGENTS.md — Project Context & Instructions for AI Agents
+# AGENTS.md — Project Context for AI Agents
 
-## Current Project Status (Read First!)
+Project: `/Users/vophuthinh/Code/worldmonitor` — independent World Monitor. Calls free/keyless upstream APIs directly (no dependency on `worldmonitor.app`). Vietnam / East Sea (Biển Đông) / ASEAN focus. Phase 1 is done; project has grown well past the original spec.
 
-This project (`/Users/vophuthinh/Code/worldmonitor`) was initialized after completing full API discovery, upstream source extraction, reference code analysis from `koala73/worldmonitor`, and architectural design with the user.
+## Locked Decisions (do not re-ask)
+- Build independent, call upstream APIs directly. Reference `koala73/worldmonitor` patterns from `docs/reference/koala73-source-refs/` instead of re-fetching from GitHub.
+- Stack: TypeScript monorepo. `Hono` backend (port `8787`, binds `127.0.0.1`), `React 19` + `Vite` + `Tailwind v4` + `MapLibre GL v5` (2D/3D toggle, port `5173`), `Vitest`.
+- One command to run: `npm run dev`. No external cloud services.
+- License: AGPL-3.0.
 
-Before asking any questions or taking action, **read these two files first**:
-1. `HANDOFF_CONTEXT.md` — Complete summary of all user decisions, scope, and reference files migrated from the initial session (`4030a947-550a-47b4-9a34-40c3cc12cca2`).
-2. `docs/superpowers/specs/2026-11-22-custom-worldmonitor-design.md` — The complete architecture & feature specification for Phase 1.
+## Layout
+- `server/app.ts` — Hono routes. `server/index.ts` — registers collectors, starts scheduler, SSE hub, streams.
+- `server/collectors/` — one file per data source. `server/cache/` — scheduler + 2-tier store (RAM + atomic `.cache/*.json`).
+- `server/realtime/` — SSE hub, Binance / Polymarket / unified news streams.
+- `server/lib/` — Groq/Gemini AI (`groq-intel`), IOC scanner, Telegram alerter, regime ledger, translator.
+- `shared/` — types, static registries (`registries/`), `macro-health.ts` (VN/US quant engine), `intelligence.ts`, catalysts/chokepoints, dead-reckoning.
+- `client/src/` — `App.tsx`, `components/` (map, top bar, layer dock, inspector), `components/right-panel/` (6 lazy tabs), `hooks/useMonitorData.ts`.
+- `tests/` — 14 Vitest files, 84 tests.
 
-## Key User Decisions Already Locked In (Do Not Re-Ask)
-- **Direction:** Independent World Monitor calling free/keyless **upstream APIs directly** (Option 1), optimized by referencing battle-tested patterns & static registries from `koala73/worldmonitor` (saved locally in `docs/reference/koala73-source-refs/`), while building a cleaner, faster architecture where we can do better (single `npm run dev` monorepo without external cloud service sprawl, plus built-in Vietnam & East Sea / ASEAN focus).
-- **Phase 1 Scope:** Multi-domain live tactical map (Military flights via `adsb.lol`, Earthquakes via `USGS`, Natural disasters via `NASA EONET` + `GDACS`, Geopolitics via `GDELT`, Weather Radar via `RainViewer`, Static registries for Chokepoints / Nuclear / Cables / Financial Centers) **+** Finance, Macro & Prediction Markets (`CoinGecko`, `Fear & Greed`, `FX rates` incl. `USD/VND`, global indices/commodities, `World Bank` GDP/CPI incl. `VNM`, `Polymarket Gamma API`, and curated World/Finance/Vietnam RSS news).
-- **Tech Stack:** Full-stack TypeScript (`Hono` backend on port `8787` with 2-tier RAM + `.cache/*.json` snapshot store, `React 19` + `Vite` + `Tailwind CSS` + `MapLibre GL JS v5` with 2D Mercator / 3D Globe toggle on port `5173`, `Vitest` for unit tests).
+## Collectors (ids in `server/index.ts`)
+`military-flights` (adsb.fi/adsb.lol failover), `maritime-vessels` (AISStream), `cyber-threats`, `gps-outages`, `earthquakes` (USGS), `natural-events` (EONET+GDACS), `geopolitics-gdelt`, `weather-radar`, `vietnam-env`, `markets-crypto`, `macro-worldbank`, `polymarket`, `google-trends`, `rss-news`, `tech-cyber`, `policy-legal`, `hpt-intel`, `ai-sitrep`. Intervals 30s–6h; tuned to avoid 429s — do not shorten without checking.
 
-## Local Reference Library
-- `docs/reference/koala73-source-refs/`: Contains actual reference modules from `koala73/worldmonitor` (`seed-military-flights.mjs`, `seed-natural-events.mjs`, `chokepoint-registry.ts`, `finance-geo.ts`, `geo-map.ts`, `nuclear-facilities-data.ts`, `basemap-styles.ts`, `theater-presets.ts`, `list-prediction-markets.ts`, `_quote-provider.ts`, `list-world-bank-indicators.ts`, `stocks.json`, `gdelt-intel.ts`). Consult these directly instead of re-fetching from GitHub.
-- `docs/reference/worldmonitor-apis/`: Contains `ALL_UPSTREAM_DATA_SOURCES.md` (551 structured upstream APIs), `ALL_WORLDMONITOR_ENDPOINTS.md` (247+ endpoints), `openapi.json`, `feeds.ts`, and `upstream-env-keys.example`.
-- `docs/chat-history/`: Contains `2026-11-22-chat-messages.md` and raw `transcript.jsonl`.
+## API (all under `/api`)
+`GET /stream` (SSE), `/health`, `/bootstrap`, `/live-fast`, `/ioc-lookup`, `/ai-sitrep`; `POST /ai-sitrep/refresh`, `/ai-ask`, `/policy-summarize`, `/refresh/:collectorName`. AI and refresh endpoints are rate-limited. CORS whitelist: localhost origins + `ALLOWED_ORIGINS`.
 
-## Next Step
-Once the user confirms or asks to continue implementation:
-1. Follow the `writing-plans` skill to create `docs/superpowers/plans/2026-11-22-worldmonitor-phase1.md` from `docs/superpowers/specs/2026-11-22-custom-worldmonitor-design.md`.
-2. Execute the plan cleanly with TDD (`vitest`), typechecking, build verification, and live verification.
+## Right panel tabs
+`intel` (Live Intel), `techCyber`, `news`, `policy` (Vietnam policy/legal), `markets` (markets + Macro Health + Investment Compass), `hpt` (HPT Corporate Radar; alerts via Telegram run headless from `.env`, no UI config).
+
+## Env (`.env`, optional — app runs without any)
+`AISSTREAM_API_KEY`, `GROQ_API_KEY`, `GEMINI_API_KEY`, `FRED_API_KEY`, `NASA_FIRMS_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `PORT`, `HOST`, `ALLOWED_ORIGINS`. Never commit `.env`.
+
+## Commands
+`npm run dev` · `npm test` · `npm run typecheck` · `npm run build` · `npm start`. Verify with typecheck + tests + build before claiming done.
+
+## Known Debt
+- `shared/macro-health.ts` is now a barrel over `shared/macro/{core,vietnam,us,compass}.ts` (compass.ts still ~900 lines). Still oversized: `server/collectors/markets-crypto.ts`, `client/src/components/WorldMap.tsx`, `right-panel/MarketsMacroTab.tsx`, `right-panel/LiveIntelTab.tsx`. Split before adding features.
+- Macro figures come from live collectors and carry `periodLabel`; benchmarks are hardcoded constants (CPI target now `VN_CPI_TARGET_PCT` in `shared/macro/core.ts`; other benchmarks still inline). One literal narrative string (`~0.3% GDP`, `vn-cab` metric) is hand-written.
+- No client component tests. Server+shared line coverage 72.7% (branches 58.5%); measure with `npx vitest run --coverage --coverage.include='server/**' --coverage.include='shared/**'` (`@vitest/coverage-v8` is a devDependency).
+- Several unofficial sources (Yahoo v8 UA spoof, RSSHub, Reddit, public Telegram, NCHMF) can break or breach ToS; collector health is exposed at `/api/health` and shown in `TopCommandBar`, but no dedicated page.
+- Scope creep: avoid new features until above is addressed.
+
+## Reference Library (consult, do not re-fetch)
+- `docs/reference/koala73-source-refs/` — koala73 modules (military classifier, EONET/GDACS, chokepoints, finance geo, etc.).
+- `docs/reference/worldmonitor-apis/` — 551 upstream APIs, 247 endpoints, `openapi.json`, `feeds.ts`.
+- `docs/superpowers/specs/2026-11-22-custom-worldmonitor-design.md` — original Phase 1 spec (historical).
+- `docs/superpowers/plans/2026-11-22-worldmonitor-phase1.md` — Phase 1 plan (done).
+- `HANDOFF_CONTEXT.md`, `docs/chat-history/` — history of the initial session only.

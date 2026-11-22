@@ -1,41 +1,69 @@
 # World Monitor (Custom Independent Edition)
 
-Hệ thống Trung tâm Chỉ huy & Tình báo Đa lĩnh vực thời gian thực (**Quân sự ADS-B**, **Động đất USGS**, **Thiên tai NASA EONET + GDACS**, **Địa chính trị GDELT**, **Radar Mưa/Bão RainViewer**, **Tài chính/FX/Crypto**, **Vĩ mô World Bank**, **Polymarket** & **Tin nóng RSS gắn tọa độ**) — gọi trực tiếp các nguồn dữ liệu gốc miễn phí (Keyless Upstream APIs), tích hợp sẵn trọng tâm khu vực **Việt Nam & Biển Đông**.
+Trung tâm chỉ huy & tình báo đa lĩnh vực thời gian thực, gọi trực tiếp các nguồn dữ liệu gốc miễn phí, trọng tâm **Việt Nam & Biển Đông**. Không cần API key để chạy; key tùy chọn mở thêm tính năng.
 
-## Khởi chạy Nhanh (1 Lệnh Duy Nhất)
+## Khởi chạy
 
 ```bash
 npm install
+cp .env.example .env   # tùy chọn
 npm run dev
 ```
 
-- **Giao diện Web (Vite + React 19 + MapLibre GL v5 2D/3D):** `http://localhost:5173`
-- **Backend API & Scheduler (Hono + Cache 2 tầng RAM/.cache):** `http://localhost:8787/api/bootstrap`
-
-## Các Lệnh Kiểm thử & Build Sản xuất
+- Web (Vite + React 19 + MapLibre GL v5, 2D/3D): `http://localhost:5173`
+- API + scheduler (Hono): `http://127.0.0.1:8787/api/bootstrap`
 
 ```bash
-npm test          # Chạy toàn bộ bộ kiểm thử đơn vị & API bằng Vitest
-npm run typecheck # Kiểm tra kiểu tĩnh TypeScript nghiêm ngặt
-npm run build     # Biên dịch Client (dist/client) & Server (dist/server/index.js)
-npm start         # Chạy bản Production gộp cả Web + API trên cổng 8787
+npm test          # Vitest (84 test)
+npm run typecheck # tsc --noEmit
+npm run build     # dist/client + dist/server/index.js
+npm start         # production, web + API trên cổng 8787
 ```
 
-## Điểm Nổi bật Kiến trúc Giai đoạn 1
+## Tính năng
 
-1. **Zero-Infra Monorepo:** Loại bỏ hoàn toàn sự phụ thuộc vào 5 dịch vụ đám mây rời rạc; sử dụng Cache 2 tầng tự phục hồi (`RAM + .cache/*.json` ghi nguyên tử, kế thừa đồng hồ lỗi `selectSourceSnapshot` từ `koala73/worldmonitor`).
-2. **Bản đồ Chiến thuật 2D Mercator ↔ 3D Globe:** Chuyển đổi tức thì giữ nguyên toàn bộ 9 lớp dữ liệu, icon máy bay quân sự vẽ hướng bay thực tế phân màu theo vai trò (`Bomber`, `VIP`, `AWACS`, `Recon/UAV`, `Fighter`, `Tanker`, `Transport`).
-3. **Trọng tâm Việt Nam & Biển Đông:** Khung nhìn nhanh `VN · Biển Đông`, sàn `HOSE`, `HNX`, `Ngân hàng Nhà nước (SBV)`, tỷ giá `USD/VND`, chỉ số `VN-Index`, vĩ mô `VNM` (World Bank), các tuyến cáp quang biển cập bờ Đà Nẵng / Quy Nhơn / Vũng Tàu (`APG`, `AAG`, `AAE-1`, `SJC2/ADC`) và nguồn tin tiếng Việt gắn tọa độ `flyTo`.
+**Bản đồ chiến thuật** (2D Mercator ↔ 3D Globe): máy bay quân sự ADS-B (adsb.fi/adsb.lol), tàu biển AIS (cần key), động đất USGS, thiên tai EONET + GDACS, địa chính trị GDELT, radar RainViewer + Windy, nhiễu GPS/BGP, eo biển, cơ sở hạt nhân, cáp biển, trung tâm tài chính, chủ quyền Biển Đông.
 
-## Tài liệu Dự án
+**Panel phải (6 tab, lazy-load):**
+- **Live Intel** — tin tức tình báo, AI Sitrep, Copilot "Ask Monitor", Polymarket, Google Trends.
+- **Tech & Cyber** — mối đe dọa mạng, GitHub Trending, quét IOC/CVE (Shodan InternetDB, NVD).
+- **News** — luồng RSS hợp nhất, gắn tọa độ `flyTo`.
+- **Policy** — văn bản pháp luật Việt Nam, tóm tắt AI theo yêu cầu.
+- **Markets & Macro** — crypto, FX (USD/VND), chỉ số, hàng hóa, World Bank, Macro Health VN/US (mô hình định lượng nhiều nhân tố), Investment Compass, lịch catalyst.
+- **HPT** — radar tin doanh nghiệp HPT; cảnh báo Telegram chạy nền từ `.env`.
 
-- **[HANDOFF_CONTEXT.md](./HANDOFF_CONTEXT.md)**: Tóm tắt toàn bộ quyết định thiết kế, lịch sử hội thoại và hướng dẫn làm việc tiếp.
-- **[Thiết kế Kiến trúc Giai đoạn 1](./docs/superpowers/specs/2026-11-22-custom-worldmonitor-design.md)**: Đặc tả kỹ thuật chi tiết cho Backend Collectors, Cache 2 tầng, Bản đồ 2D/3D và các Panel Tài chính / Polymarket / Tin nóng.
-- **[Kế hoạch Triển khai Giai đoạn 1](./docs/superpowers/plans/2026-11-22-worldmonitor-phase1.md)**: Kế hoạch triển khai chi tiết từng bước theo TDD.
-- **[Danh mục 551 API Nguồn gốc (Upstream)](./docs/reference/worldmonitor-apis/ALL_UPSTREAM_DATA_SOURCES.md)**: Toàn bộ các nguồn dữ liệu gốc để mở rộng hệ thống ở Giai đoạn 2.
-- **[Danh mục 247+ API của worldmonitor.app](./docs/reference/worldmonitor-apis/ALL_WORLDMONITOR_ENDPOINTS.md)**: Tài liệu tham chiếu hệ thống API bản gốc.
-- **[Mã nguồn Tham khảo chọn lọc từ koala73/worldmonitor](./docs/reference/koala73-source-refs/)**: Các thuật toán phân loại máy bay quân sự, xử lý GDACS/EONET, Polymarket và bộ dữ liệu địa lý tĩnh.
+## Kiến trúc
+
+```
+server/      Hono API, collectors/, cache/ (RAM + .cache/*.json), realtime/ (SSE), lib/ (AI, IOC, Telegram)
+client/src/  React UI: map, command bar, layer dock, right-panel/ tabs
+shared/      types, registries tĩnh, macro-health, intelligence
+tests/       Vitest
+```
+
+18 collector chạy theo chu kỳ 30 giây – 6 giờ; cache 2 tầng tự phục hồi khi nguồn lỗi. Đẩy dữ liệu realtime qua SSE `/api/stream`.
+
+## Biến môi trường (tùy chọn)
+
+`AISSTREAM_API_KEY` (tàu AIS), `GROQ_API_KEY` / `GEMINI_API_KEY` (AI), `FRED_API_KEY` (vĩ mô Mỹ), `NASA_FIRMS_API_KEY` (nhiệt vệ tinh), `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` (cảnh báo), `PORT`, `HOST` (mặc định `127.0.0.1`), `ALLOWED_ORIGINS`. Xem `.env.example`.
+
+## Bảo mật
+
+Server bind `127.0.0.1`, CORS whitelist, rate-limit endpoint AI và refresh. Nếu deploy công khai, đặt `HOST` và `ALLOWED_ORIGINS` có chủ đích và đặt sau reverse proxy.
+
+## Hạn chế đã biết
+
+- Các mốc benchmark vĩ mô là hằng số trong code và có thể lỗi thời.
+- Vài nguồn không chính thức (Yahoo, RSSHub, Reddit, Telegram công khai) có thể ngừng hoạt động.
+- Chưa có test cho component client.
+
+## Tài liệu
+
+- [AGENTS.md](./AGENTS.md) — ngữ cảnh cho AI agent và nợ kỹ thuật.
+- [Spec Giai đoạn 1](./docs/superpowers/specs/2026-11-22-custom-worldmonitor-design.md), [Plan](./docs/superpowers/plans/2026-11-22-worldmonitor-phase1.md) — lịch sử thiết kế.
+- [HANDOFF_CONTEXT.md](./HANDOFF_CONTEXT.md) — bàn giao phiên khởi tạo.
+- [551 API nguồn](./docs/reference/worldmonitor-apis/ALL_UPSTREAM_DATA_SOURCES.md), [mã tham khảo koala73](./docs/reference/koala73-source-refs/).
 
 ## Giấy phép
 
-Phân phối theo giấy phép **GNU AGPLv3** (`LICENSE`), tương thích với các bảng dữ liệu địa lý tham chiếu từ `koala73/worldmonitor`.
+GNU AGPLv3 (`LICENSE`), tương thích với dữ liệu địa lý tham chiếu từ `koala73/worldmonitor`.
