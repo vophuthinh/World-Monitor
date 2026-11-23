@@ -471,7 +471,7 @@ export function classifyRegime(params: {
       regime: 'overheating',
       label: 'TĂNG TRƯỞNG NÓNG · ÁP LỰC LẠM PHÁT',
       summary:
-        'Sản xuất & cầu tiêu dùng tăng tốc vượt dự báo nhưng mặt bằng lạm phát / lãi suất liên ngân hàng dâng cao — chính sách tiền tệ ưu tiên kiểm soát giá cả & tỷ giá.',
+        'Sản xuất & cầu tiêu dùng tăng tốc vượt dự báo nhưng mặt bằng lạm phát / lãi suất liên ngân hàng dâng cao — tạo áp lực lên điều hành tiền tệ (giá cả, tỷ giá).',
     };
   }
 

@@ -585,7 +585,7 @@ export function buildVietnamMacroHealth(
   if (interbank !== undefined && interbank >= 6.5) {
     warningFlags.push({
       severity: 'warn',
-      text: `Thanh khoản liên ngân hàng căng cục bộ (${interbank.toFixed(2)}%): Chi phí vốn ngắn hạn tăng làm thu hẹp dư địa giảm lãi vay margin, dù NHNN linh hoạt điều tiết qua kênh OMO.`,
+      text: `Lãi suất liên ngân hàng cao (${interbank.toFixed(2)}%, theo nguồn dữ liệu gần nhất): chi phí vốn ngắn hạn cao làm thu hẹp dư địa giảm lãi vay margin.`,
     });
   }
 
