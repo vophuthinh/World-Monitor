@@ -136,6 +136,8 @@ Các chốt chặn bật sẵn trong `server/app.ts`:
 
 - Chỉ lắng nghe `127.0.0.1` theo mặc định. Muốn mở ra ngoài phải đổi `HOST` có chủ đích.
 - Kiểm tra header `Host` để chặn DNS rebinding; kiểm tra `Origin` và `Sec-Fetch-Site` trên các yêu cầu ghi để chặn CSRF; giới hạn thân yêu cầu 16 KB; CORS chỉ nhận `localhost` và các origin khai báo trong `ALLOWED_ORIGINS`.
+- Luồng SSE `/api/stream` tối đa 200 kết nối (quá thì trả 503); máy khách đọc chậm bị ngắt thay vì để bộ đệm phình mãi. Các bộ nhớ đệm trong tiến trình đều có trần.
+- Chạy bằng `docker compose`: ứng dụng giới hạn 1 GB RAM (heap Node 768 MB), SearXNG 512 MB, 256 tiến trình mỗi container, log xoay vòng 10 MB × 3 file. Đặt `WM_MEM_LIMIT` để đổi giới hạn RAM của ứng dụng.
 - Endpoint AI và làm mới collector đều có giới hạn tần suất. Tóm tắt chính sách chỉ nhận `id`, tiêu đề được đọc từ dữ liệu trên server.
 - Đường dẫn bài viết từ nguồn ngoài chỉ được dùng khi là `http:` hoặc `https:`, cả trên giao diện lẫn trong tin nhắn Telegram.
 

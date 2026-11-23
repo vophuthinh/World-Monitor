@@ -17,6 +17,7 @@ import type {
   VietnamEnvSnapshot,
 } from '@shared/types';
 import type { SnapshotStore } from '../cache/snapshot-store';
+import { setBounded } from './bounded-map';
 import { getRetainedMarketSnapshot } from '../collectors/markets-crypto';
 
 export const GROQ_MODEL_CHAIN = [
@@ -553,7 +554,7 @@ export async function answerMonitorQuestion(
   if (now - lastAsk < 1_500) {
     throw new Error('Vui lòng đợi 2 giây giữa các câu hỏi để bảo vệ hạn mức API.');
   }
-  askCooldownByIp.set(clientIp, now);
+  setBounded(askCooldownByIp, clientIp, now, 1_000);
 
   const liveVessels = getLiveVessels?.();
   const context = buildMonitorLiveContext(store, now, liveVessels);

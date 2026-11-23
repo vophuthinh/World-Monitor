@@ -2,6 +2,7 @@ import { XMLParser } from 'fast-xml-parser';
 import type { LegalDocType, PolicyLegalItem, PolicyLegalSnapshot } from '@shared/types';
 import { callGroqChatCompletion } from '../lib/groq-intel';
 import { DEFAULT_BROWSER_UA, fetchTextWithTimeout } from '../lib/http';
+import { setBounded } from '../lib/bounded-map';
 import { decodeHtmlEntities } from './polymarket-news';
 
 const VANBAN_CHINHPHU_LIST_URL = 'https://vanban.chinhphu.vn/he-thong-van-ban?classid=1&mode=1';
@@ -588,7 +589,7 @@ export async function summarizeSinglePolicyItemWithAi(input: {
     throw new Error('Phản hồi AI quá ngắn, vui lòng thử lại.');
   }
 
-  aiSummaryCache.set(input.id, bullets);
+  setBounded(aiSummaryCache, input.id, bullets, 500);
   return {
     id: input.id,
     highlights: bullets,

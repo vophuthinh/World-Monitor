@@ -1,4 +1,5 @@
 import type { HptCompanyItem, HptSentiment } from '@shared/types';
+import { setBounded } from '../../lib/bounded-map';
 import { callGroqChatCompletion } from '../../lib/groq-intel';
 
 export interface ParsedHptAiVerdict {
@@ -61,7 +62,7 @@ export async function maybeEnrichHptWithGroqSentiment(items: HptCompanyItem[]): 
       for (const [idx, verdict] of parsed.entries()) {
         const target = uncached[idx];
         if (target) {
-          aiHptCache.set(target.id, verdict);
+          setBounded(aiHptCache, target.id, verdict, 500);
         }
       }
     }

@@ -34,6 +34,10 @@ import type { RegimeHistoryLedger } from './lib/regime-ledger';
 import { RealtimeHub } from './realtime/hub';
 
 const STATIC_GEO_BUNDLE = buildStaticGeoBundle();
+/** Cap on simultaneous live (SSE) connections; the API has no login, so anyone on the network can open one. */
+export const MAX_SSE_CLIENTS = 200;
+/** A client that lets this many frames pile up unread is dropped instead of buffered without bound. */
+const SSE_MAX_QUEUED_FRAMES = 64;
 const encoder = new TextEncoder();
 
 const DEFAULT_TRUSTED_ORIGINS = new Set([
@@ -148,17 +152,28 @@ export function createApp(
   });
 
   app.get('/api/stream', (c) => {
+    if (hub.subscriberCount() >= MAX_SSE_CLIENTS) {
+      return c.json({ error: 'Too many live connections, retry shortly' }, 503, { 'Retry-After': '30' });
+    }
     const abortSignal = c.req.raw.signal;
     let cleanupFn: (() => void) | null = null;
 
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
-        const sendEvent = (event: RealtimeServerEvent) => {
+        const pushFrame = (frame: string) => {
+          // desiredSize <= 0 means the client is not reading: stop buffering for it.
+          if ((controller.desiredSize ?? 1) <= 0) {
+            cleanupFn?.();
+            return;
+          }
           try {
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+            controller.enqueue(encoder.encode(frame));
           } catch {
             // Stream closed
           }
+        };
+        const sendEvent = (event: RealtimeServerEvent) => {
+          pushFrame(`data: ${JSON.stringify(event)}\n\n`);
         };
 
         sendEvent({
@@ -169,11 +184,7 @@ export function createApp(
 
         const unsubscribe = hub.subscribe(sendEvent);
         const heartbeat = setInterval(() => {
-          try {
-            controller.enqueue(encoder.encode(`: ping ${Date.now()}\n\n`));
-          } catch {
-            // Closed
-          }
+          pushFrame(`: ping ${Date.now()}\n\n`);
         }, 15_000);
         if (typeof heartbeat.unref === 'function') {
           heartbeat.unref();
@@ -194,7 +205,7 @@ export function createApp(
       cancel() {
         cleanupFn?.();
       },
-    });
+    }, new CountQueuingStrategy({ highWaterMark: SSE_MAX_QUEUED_FRAMES }));
 
     return new Response(stream, {
       status: 200,

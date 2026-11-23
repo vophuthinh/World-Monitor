@@ -2,6 +2,7 @@ import { XMLParser } from 'fast-xml-parser';
 import type { HptCompanyItem, HptFundamentals } from '@shared/types';
 import { DEFAULT_BROWSER_UA, fetchTextWithTimeout } from '../../lib/http';
 import { decodeHtmlEntities } from '../polymarket-news';
+import { setBounded } from '../../lib/bounded-map';
 import { ExternalRssFeedDef, HPT_RECRUITMENT_DOMAIN_RE, HPT_TAX_CODE, classifyHptExternalItem, isAuthenticHptMention, isHptSelfSocialPost } from './config';
 
 export interface RedditSearchPayload {
@@ -272,7 +273,7 @@ export async function enrichTopDisclosuresWithPdfLinks(items: HptCompanyItem[]):
         });
         const pdfMatch = text.match(/https?:\/\/[^"'\s>]+\.pdf/i);
         const foundPdf = pdfMatch?.[0] ?? null;
-        pdfAttachmentCache.set(item.url, foundPdf);
+        setBounded(pdfAttachmentCache, item.url, foundPdf, 500);
         if (foundPdf) {
           item.pdfUrl = foundPdf;
         }

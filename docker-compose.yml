@@ -7,15 +7,29 @@
 #   WM_PUBLIC_ORIGIN=http://<server-ip>:8787
 # The app has NO user authentication: expose it only on a trusted network or behind an
 # authenticating reverse proxy.
+# Keep container logs from growing without bound (json-file has no limit by default).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   worldmonitor:
     build: .
     image: worldmonitor:latest
     container_name: worldmonitor
     restart: unless-stopped
+    # Resource guard rails: a leak or an abusive client can only hurt this container, not the host.
+    # The Node heap cap sits below the container cap so the GC works before the kernel OOM-kills.
+    mem_limit: ${WM_MEM_LIMIT:-1g}
+    memswap_limit: ${WM_MEM_LIMIT:-1g}
+    pids_limit: 256
+    logging: *logging
     ports:
       - "${WM_PORT:-8787}:8787"
     environment:
+      NODE_OPTIONS: --max-old-space-size=768
       ALLOWED_ORIGINS: ${WM_PUBLIC_ORIGIN:-http://localhost:8787}
       # SearXNG runs as the `searxng` service below, reachable only inside the compose network.
       # Set SEARXNG_BASE_URL=off in `.env` to disable it.
@@ -42,6 +56,10 @@ services:
     image: docker.io/searxng/searxng:latest
     container_name: worldmonitor-searxng
     restart: unless-stopped
+    mem_limit: 512m
+    memswap_limit: 512m
+    pids_limit: 256
+    logging: *logging
     volumes:
       - ./infra/searxng/settings.yml:/etc/searxng/settings.yml:ro
     environment:
