@@ -2,7 +2,7 @@ import { XMLParser } from 'fast-xml-parser';
 import type { HptCompanyItem, HptFundamentals } from '@shared/types';
 import { DEFAULT_BROWSER_UA, fetchTextWithTimeout } from '../../lib/http';
 import { decodeHtmlEntities } from '../polymarket-news';
-import { ExternalRssFeedDef, HPT_RECRUITMENT_DOMAIN_RE, HPT_TAX_CODE, classifyHptExternalItem, isAuthenticHptMention } from './config';
+import { ExternalRssFeedDef, HPT_RECRUITMENT_DOMAIN_RE, HPT_TAX_CODE, classifyHptExternalItem, isAuthenticHptMention, isHptSelfSocialPost } from './config';
 
 export interface RedditSearchPayload {
   data?: {
@@ -311,7 +311,7 @@ export function parseHptExternalRss(
   const entries = Array.isArray(rawItems) ? rawItems : rawItems ? [rawItems] : [];
   const out: HptCompanyItem[] = [];
 
-  for (const entry of entries.slice(0, 18)) {
+  for (const entry of entries.slice(0, 30)) {
     const fullTitle = decodeHtmlEntities(String(entry?.title?.['#text'] ?? entry?.title ?? ''));
     const rawDesc = decodeHtmlEntities(
       String(entry?.description ?? entry?.summary ?? entry?.content ?? ''),
@@ -323,11 +323,14 @@ export function parseHptExternalRss(
     const link = rawLink.includes('bing.com/news/apiclick') ? extractBingRealUrl(rawLink) : rawLink;
     if (link.toLowerCase().includes('hpt.vn') || HPT_RECRUITMENT_DOMAIN_RE.test(link)) continue;
 
+    const rssSourceTag = decodeHtmlEntities(
+      String(entry?.source?.['#text'] ?? entry?.source ?? ''),
+    ).trim();
     const parts = fullTitle.split(/\s+-\s+/);
     const publisher =
       parts.length >= 2 && parts[parts.length - 1].length <= 42
         ? parts[parts.length - 1].trim()
-        : String(entry?.['News:Source'] ?? feed.name);
+        : rssSourceTag || String(entry?.['News:Source'] ?? feed.name);
     if (/hpt\.vn/i.test(publisher)) continue;
 
     const cleanTitle =
@@ -335,7 +338,7 @@ export function parseHptExternalRss(
         ? parts.slice(0, -1).join(' - ').trim()
         : fullTitle;
 
-    if (!isAuthenticHptMention(cleanTitle, rawDesc, link, customKeywords)) {
+    if (!isAuthenticHptMention(cleanTitle, rawDesc, link, customKeywords, publisher)) {
       continue;
     }
 
@@ -367,6 +370,322 @@ export function parseHptExternalRss(
 }
 
 // ============================================================================
-// 3. Groq LPU AI Verification + Sentiment Analysis (Cached per Article ID)
+// 3. Local SearXNG Metasearch (?format=json) & Optional Free-Tier Official APIs
 // ============================================================================
+
+export interface SearxngSearchPayload {
+  query?: string;
+  results?: Array<{
+    url?: string;
+    title?: string;
+    content?: string;
+    engine?: string;
+    engines?: string[];
+    publishedDate?: string | null;
+    pubdate?: string | null;
+  }>;
+}
+
+function parseSearxngResultTimestamp(
+  rawDate: string | null | undefined,
+  snippet: string,
+  fallbackNow: number,
+): { publishedAt: number; dateLabel?: string } {
+  if (rawDate) {
+    const parsed = Date.parse(rawDate);
+    if (Number.isFinite(parsed) && parsed > 946_684_800_000 && parsed <= fallbackNow + 86_400_000) {
+      return { publishedAt: parsed };
+    }
+  }
+
+  const head = snippet.slice(0, 80);
+
+  const relVn = head.match(/(\d+)\s*(phút|giờ|ngày|tuần|tháng)\s+trước/i);
+  if (relVn) {
+    const n = Number(relVn[1]);
+    const unit = relVn[2].toLowerCase();
+    const mult =
+      unit === 'phút'
+        ? 60_000
+        : unit === 'giờ'
+          ? 3_600_000
+          : unit === 'ngày'
+            ? 86_400_000
+            : unit === 'tuần'
+              ? 7 * 86_400_000
+              : 30 * 86_400_000;
+    return { publishedAt: fallbackNow - n * mult };
+  }
+
+  const relEn = head.match(/(\d+)\s*(minute|hour|day|week|month)s?\s+ago/i);
+  if (relEn) {
+    const n = Number(relEn[1]);
+    const unit = relEn[2].toLowerCase();
+    const mult =
+      unit === 'minute'
+        ? 60_000
+        : unit === 'hour'
+          ? 3_600_000
+          : unit === 'day'
+            ? 86_400_000
+            : unit === 'week'
+              ? 7 * 86_400_000
+              : 30 * 86_400_000;
+    return { publishedAt: fallbackNow - n * mult };
+  }
+
+  const vnThg = head.match(/\b(\d{1,2})\s+thg\s+(\d{1,2}),?\s+(20\d{2})\b/i);
+  if (vnThg) {
+    const day = vnThg[1].padStart(2, '0');
+    const month = vnThg[2].padStart(2, '0');
+    const year = vnThg[3];
+    const parsed = Date.parse(`${year}-${month}-${day}T08:00:00+07:00`);
+    if (Number.isFinite(parsed)) {
+      return { publishedAt: parsed, dateLabel: `${day}/${month}/${year}` };
+    }
+  }
+
+  const vnSlash = head.match(/\b(\d{1,2})\/(\d{1,2})\/(20\d{2})\b/);
+  if (vnSlash) {
+    const parsed = parseVnDateString(vnSlash[0], fallbackNow);
+    if (parsed.dateLabel) {
+      return { publishedAt: parsed.ts, dateLabel: parsed.dateLabel };
+    }
+  }
+
+  const enDate = head.match(
+    /\b((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+20\d{2})\b/i,
+  );
+  if (enDate) {
+    const parsed = Date.parse(enDate[1]);
+    if (Number.isFinite(parsed)) {
+      return { publishedAt: parsed };
+    }
+  }
+
+  // Undated archival web result: rank below recent dated news rather than faking a breaking timestamp
+  return {
+    publishedAt: fallbackNow - 30 * 86_400_000,
+    dateLabel: 'Không rõ ngày',
+  };
+}
+
+function formatSearxngSourceLabel(url: string, engines?: string[], engine?: string): string {
+  let host = 'Web';
+  try {
+    host = new URL(url).hostname.replace(/^(?:www|m|vn|web)\./i, '').toLowerCase();
+  } catch {
+    // Keep fallback host
+  }
+
+  const engineList =
+    engines && engines.length > 0
+      ? engines.slice(0, 2).join('+')
+      : engine
+        ? String(engine)
+        : '';
+  const suffix = engineList ? `SearXNG · ${engineList}` : 'SearXNG';
+
+  if (host.includes('facebook.com') || host.includes('fb.com')) return `Facebook (${suffix})`;
+  if (host.includes('linkedin.com')) return `LinkedIn (${suffix})`;
+  if (host.includes('tiktok.com')) return `TikTok (${suffix})`;
+  if (host.includes('threads.net') || host.includes('threads.com')) return `Threads (${suffix})`;
+  return `${host} (${suffix})`;
+}
+
+// Require explicit 'HPT' or tax code '0301447436' in the article title OR decoded URL slug so SearXNG never pulls tangential executive quotes, peer-table PDFs, or unrelated tickers
+const SEARXNG_TITLE_OR_SLUG_HPT_RE = /\b(hpt|0301447436)\b/i;
+
+function safeDecodeUrlForMatch(rawUrl: string): string {
+  try {
+    return decodeURIComponent(rawUrl);
+  } catch {
+    return rawUrl;
+  }
+}
+
+function isValidSearxngResultUrl(rawUrl: string): boolean {
+  if (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) return false;
+  // Reject malformed relative redirects such as "http:///go/v1/..." and generic unnamed PDF uploads
+  if (/^https?:\/\/\/+/i.test(rawUrl)) return false;
+  if (/\/no-name-\d+\.pdf$/i.test(rawUrl)) return false;
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+    return parsed.hostname.includes('.');
+  } catch {
+    return false;
+  }
+}
+
+export function parseSearxngHptSearchJson(
+  payload: SearxngSearchPayload,
+  fallbackNow = Date.now(),
+  customKeywords: readonly string[] = [],
+): HptCompanyItem[] {
+  const entries = payload?.results ?? [];
+  const seenUrls = new Set<string>();
+  const out: HptCompanyItem[] = [];
+
+  for (const entry of entries.slice(0, 30)) {
+    const link = String(entry?.url ?? '').trim();
+    const title = decodeHtmlEntities(String(entry?.title ?? '').trim());
+    const content = decodeHtmlEntities(String(entry?.content ?? '').trim());
+    if (!title || !isValidSearxngResultUrl(link)) continue;
+    if (seenUrls.has(link)) continue;
+    seenUrls.add(link);
+
+    const decodedLink = safeDecodeUrlForMatch(link);
+    if (customKeywords.length === 0 && !SEARXNG_TITLE_OR_SLUG_HPT_RE.test(`${title} ${decodedLink}`)) {
+      continue;
+    }
+
+    const source = formatSearxngSourceLabel(link, entry.engines, entry.engine);
+    if (!isAuthenticHptMention(title, content, link, customKeywords, source)) continue;
+
+    const { publishedAt, dateLabel } = parseSearxngResultTimestamp(
+      entry.publishedDate ?? entry.pubdate,
+      content,
+      fallbackNow,
+    );
+    const classified = classifyHptExternalItem(title, source, link, 'press_social', content);
+
+    out.push({
+      id: `hpt-sx:${link}`,
+      title,
+      category: classified.category,
+      badge: classified.badge,
+      source,
+      publishedAt,
+      dateLabel,
+      url: link,
+      sentiment: classified.sentiment,
+    });
+  }
+
+  return out;
+}
+
+export interface GoogleCseSearchPayload {
+  items?: Array<{
+    title?: string;
+    link?: string;
+    snippet?: string;
+    displayLink?: string;
+    pagemap?: {
+      metatags?: Array<Record<string, string | undefined>>;
+    };
+  }>;
+}
+
+export function parseGoogleCseHptSearchJson(
+  payload: GoogleCseSearchPayload,
+  fallbackNow = Date.now(),
+): HptCompanyItem[] {
+  const entries = payload?.items ?? [];
+  const out: HptCompanyItem[] = [];
+
+  for (const entry of entries) {
+    const link = String(entry?.link ?? '').trim();
+    const title = decodeHtmlEntities(String(entry?.title ?? '').trim());
+    const snippet = decodeHtmlEntities(String(entry?.snippet ?? '').trim());
+    if (!title || !link.startsWith('http')) continue;
+
+    const host = (entry?.displayLink ?? '').toLowerCase();
+    const source = host.includes('facebook.com') || host.includes('fb.com')
+      ? 'Facebook (Google Index)'
+      : host.includes('linkedin.com')
+        ? 'LinkedIn (Google Index)'
+        : host.includes('tiktok.com')
+          ? 'TikTok (Google Index)'
+          : host.includes('threads.net') || host.includes('threads.com')
+            ? 'Threads (Google Index)'
+            : entry?.displayLink || 'Google Search';
+    if (!isAuthenticHptMention(title, snippet, link, [], source)) continue;
+
+    const metaTag = entry?.pagemap?.metatags?.[0];
+    const pubIso =
+      metaTag?.['article:published_time'] ??
+      metaTag?.['og:updated_time'] ??
+      metaTag?.['date'];
+    const parsedTs = pubIso ? Date.parse(pubIso) : Number.NaN;
+    const publishedAt = Number.isFinite(parsedTs) ? parsedTs : fallbackNow;
+
+    const classified = classifyHptExternalItem(title, source, link, 'press_social', snippet);
+    out.push({
+      id: `hpt-cse:${link}`,
+      title,
+      category: classified.category,
+      badge: classified.badge,
+      source,
+      publishedAt,
+      url: link,
+      sentiment: classified.sentiment,
+    });
+  }
+
+  return out;
+}
+
+export interface MetaGraphPostsPayload {
+  data?: Array<{
+    id?: string;
+    message?: string;
+    story?: string;
+    created_time?: string;
+    permalink_url?: string;
+    from?: {
+      id?: string;
+      name?: string;
+    };
+  }>;
+}
+
+export function parseMetaPageMentionsJson(
+  payload: MetaGraphPostsPayload,
+  ownPageId: string,
+  fallbackNow = Date.now(),
+): HptCompanyItem[] {
+  const posts = payload?.data ?? [];
+  const cleanOwnId = ownPageId.trim();
+  const out: HptCompanyItem[] = [];
+
+  for (const post of posts) {
+    // Skip self-authored posts by HPT's own Fanpage or sister HPT pages (keep strictly external visitor/tagged mentions)
+    if (cleanOwnId && post?.from?.id && post.from.id === cleanOwnId) continue;
+
+    const rawText = decodeHtmlEntities(String(post?.message ?? post?.story ?? '').replace(/\s+/g, ' ').trim());
+    if (!rawText || rawText.length < 10) continue;
+    if (HPT_RECRUITMENT_DOMAIN_RE.test(rawText)) continue;
+
+    const postId = String(post?.id ?? '').trim();
+    const url =
+      post?.permalink_url && post.permalink_url.startsWith('http')
+        ? post.permalink_url
+        : postId
+          ? `https://www.facebook.com/${postId}`
+          : '';
+    if (!url) continue;
+    if (isHptSelfSocialPost(url, rawText, '', post?.from?.name ?? 'Facebook')) continue;
+
+    const title = rawText.length > 150 ? `${rawText.slice(0, 147).trim()}...` : rawText;
+    const author = post?.from?.name ? `Facebook · ${post.from.name}` : 'Facebook · Tag Fanpage HPT';
+    const parsedTs = post?.created_time ? Date.parse(post.created_time) : Number.NaN;
+    const publishedAt = Number.isFinite(parsedTs) ? parsedTs : fallbackNow;
+
+    const classified = classifyHptExternalItem(title, author, url, 'press_social', rawText);
+    out.push({
+      id: `hpt-fb:${postId || url}`,
+      title,
+      category: 'press_social',
+      badge: 'FACEBOOK · TAG FANPAGE',
+      source: author,
+      publishedAt,
+      url,
+      sentiment: classified.sentiment,
+    });
+  }
+
+  return out;
+}
 

@@ -68,6 +68,35 @@ export const HPT_EXTERNAL_FEEDS: readonly ExternalRssFeedDef[] = [
     defaultCategory: 'press_social',
     url: 'https://news.google.com/rss/search?q=site:youtube.com+(%22C%C3%B4ng+ngh%E1%BB%87+Tin+h%E1%BB%8Dc+HPT%22+OR+%22c%E1%BB%95+phi%E1%BA%BFu+HPT%22+OR+%22HPT+Cyber+Security%22+OR+%22HSOC%22)&hl=vi&gl=VN&ceid=VN:vi',
   },
+  {
+    name: 'Facebook Công khai (Bài đăng bên thứ ba nhắc HPT)',
+    defaultCategory: 'press_social',
+    url: 'https://news.google.com/rss/search?q=site:facebook.com+-site:facebook.com/HPTVietnamCorp+-site:facebook.com/LifeAtHPT+(%22C%C3%B4ng+ngh%E1%BB%87+Tin+h%E1%BB%8Dc+HPT%22+OR+%22HPT+Cyber+Security%22+OR+%22c%C3%B4ng+ty+HPT%22+OR+%22c%E1%BB%95+phi%E1%BA%BFu+HPT%22+OR+%22HPT+Vietnam%22+OR+%220301447436%22)&hl=vi&gl=VN&ceid=VN:vi',
+  },
+  {
+    name: 'LinkedIn Posts & Pulse (Bên thứ ba nhắc HPT)',
+    defaultCategory: 'press_social',
+    url: 'https://news.google.com/rss/search?q=(site:linkedin.com/posts+OR+site:vn.linkedin.com/posts+OR+site:linkedin.com/pulse+OR+site:vn.linkedin.com/pulse)+-site:linkedin.com/posts/hpt-vietnam-corporation+(%22C%C3%B4ng+ngh%E1%BB%87+Tin+h%E1%BB%8Dc+HPT%22+OR+%22HPT+Cyber+Security%22+OR+%22HPT+Vietnam%22+OR+%22c%E1%BB%95+phi%E1%BA%BFu+HPT%22)&hl=vi&gl=VN&ceid=VN:vi',
+  },
+  {
+    name: 'Threads · TikTok (Bên thứ ba nhắc HPT)',
+    defaultCategory: 'press_social',
+    url: 'https://news.google.com/rss/search?q=(site:threads.net+OR+site:threads.com+OR+site:tiktok.com)+-site:tiktok.com/@hptvietnamcorp+-site:threads.net/@hptvietnamcorp+(%22C%C3%B4ng+ngh%E1%BB%87+Tin+h%E1%BB%8Dc+HPT%22+OR+%22HPT+Cyber+Security%22+OR+%22c%E1%BB%95+phi%E1%BA%BFu+HPT%22+OR+%22HPT+Vietnam%22)&hl=vi&gl=VN&ceid=VN:vi',
+  },
+  {
+    name: 'Vietstock · FireAnt · 24hMoney · Tin nhanh Chứng khoán',
+    defaultCategory: 'exchange_filing',
+    url: 'https://news.google.com/rss/search?q=(site:vietstock.vn+OR+site:fireant.vn+OR+site:24hmoney.vn+OR+site:stockbiz.vn+OR+site:tinnhanhchungkhoan.vn+OR+site:nguoiquansat.vn)+(%22HPT%22+OR+%220301447436%22)&hl=vi&gl=VN&ceid=VN:vi',
+  },
+];
+
+// Default public Vietnamese stock/finance/cyber Telegram channels (`https://t.me/s/<handle>`)
+// Users can append more comma-separated handles via `HPT_TELEGRAM_CHANNELS` in `.env`
+export const DEFAULT_HPT_TELEGRAM_CHANNELS: readonly string[] = [
+  'vietstock_official',
+  'cafef_official',
+  'chungkhoanvietnam',
+  'antoanthongtinvn',
 ];
 
 // ============================================================================
@@ -79,33 +108,148 @@ export const HPT_WORD_OR_TAX_RE = /\b(HPT|HSOC|0301447436)\b/i;
 export const HPT_RECRUITMENT_DOMAIN_RE =
   /(topcv\.vn|itviec\.com|vietnamworks\.com|careerviet\.vn|careerbuilder\.vn|careerlink\.vn|vieclam24h\.vn|timviecnhanh\.com|jobsgo\.vn|glints\.com|1900\.com\.vn|ybox\.vn|devwork\.vn|topdev\.vn|linkedin\.com\/jobs|indeed\.com|glassdoor\.com)/i;
 
+// Static ticker-quote, bio-profile, tax-code directory, CV profile, and bare social homepage URLs (not news/discussions)
+export const HPT_STATIC_DIRECTORY_URL_RE = new RegExp(
+  [
+    'fireant\\.vn\\/(?:ma-chung-khoan|ca-nhan)\\/',
+    '24hmoney\\.vn\\/stock\\/[^/?#]+(?:\\/profile|$)',
+    'simplize\\.vn\\/co-phieu\\/',
+    'tradingview\\.com\\/symbols\\/',
+    'investing\\.com\\/equities\\/',
+    'finance\\.vietstock\\.vn\\/[a-z0-9]{3}-',
+    'upstock\\.com\\.vn\\/chi-tiet-co-phieu\\/',
+    '(?:thuvienphapluat\\.vn\\/ma-so-thue|masothue\\.com|hosocongty\\.vn|thongtindoanhnghiep\\.co|dauthau\\.info|vnr500\\.vn\\/thong-tin-doanh-nghiep)\\/',
+    'linkedin\\.com\\/in\\/',
+    '^https?:\\/\\/(?:www\\.|m\\.|web\\.)?(?:facebook\\.com|fb\\.com)\\/(?!(?:story|permalink|photo|watch)\\.php\\b|watch\\/|share\\/)[^/?#]+\\/?$',
+  ].join('|'),
+  'i',
+);
+
 export const HPT_RECRUITMENT_NOISE_RE =
-  /\b(tuyển\s+dụng|cần\s+tuyển|tin\s+tuyển|thông\s+báo\s+tuyển|tuyển\s+gấp|ứng\s+tuyển|việc\s+làm\s+tại\s+hpt|cơ\s+hội\s+nghề\s+nghiệp|mô\s+tả\s+công\s+việc|hiring\b|job\s+opening|we\s+are\s+hiring|reviews\s*&\s*jobs)\b/i;
+  /(?:\b(?:tuyển\s+dụng|cần\s+tuyển|tin\s+tuyển|thông\s+báo\s+tuyển|tuyển\s+gấp|việc\s+làm\s+tại\s+hpt|cơ\s+hội\s+nghề\s+nghiệp|mô\s+tả\s+công\s+việc|hiring|job\s+opening|we\s+are\s+hiring|reviews\s*&\s*jobs)\b|(?:^|\s)(?:ứng\s+tuyển|tìm\s+kiếm\s+(?:nhân\s+sự|ứng\s+viên|đồng\s+đội)|cho\s+các\s+vị\s+trí\s*:)(?=$|[\s.,;:!?)}\]"'])|\b(?:analyst|engineer|developer|specialist|intern|consultant|architect|thực\s+tập\s+sinh|chuyên\s+viên|nhân\s+viên|kỹ\s+sư)\b[^.|]{0,48}\btại\s+hpt\b)/i;
 
 export const HPT_FALSE_POSITIVE_NOISE_RE =
-  /\b(hải phòng tourist|hai phong tourist|hypertension|pulmonary|hyperparathyroidism|high[- ]pressure turbine|blade inspection|bệnh nhân|huyết áp|phẫu thuật|y khoa|clinical study)\b/i;
+  /(?:\b(?:hải phòng tourist|hai phong tourist|hypertension|pulmonary|hyperparathyroidism|high[- ]pressure turbine|blade inspection|bệnh nhân|huyết áp|phẫu thuật|y khoa|clinical study)\b|hptvietnam\.vn|nongsanxuatkhau|ai\s+x-ray|showroom\s+(?:công\s+nghệ\s+)?ai\s*(?:và|&)\s*tự\s+động\s+hóa|công\s+ty\s+tnhh[^.|]{0,48}\bhpt\b|^\s*\d{10}\s*-\s*công\s+ty\b)/i;
 
 export const HPT_VALID_CONTEXT_RE =
-  /(0301447436|hsoc\b|hpt\s+cyber|công nghệ|tin học|hạ tầng|chuyển đổi số|tích hợp hệ thống|an toàn thông tin|an ninh mạng|bảo mật|soc\b|erp\b|cyber|ai\b|trí tuệ nhân tạo|điện toán|cloud|lượng tử|microsoft|ibm|netapp|cisco|oracle|fortinet|vnpt|vinasa|vnisa|sao khuê|cổ phiếu|mã hpt|hpt\s*:|upcom|hnx|hose|ubck|chứng khoán|cổ tức|chốt quyền|đkcc|phát hành|cổ đông|hđqt|hội đồng quản trị|đhđcđ|nghị quyết|báo cáo tài chính|quản trị công ty|lợi nhuận|doanh thu|đấu thầu|trúng thầu|gói thầu|nhà thầu|ngô vi đồng|đinh hà duy linh)/i;
+  /(0301447436|hpt\s+cyber|công nghệ|tin học|hạ tầng|chuyển đổi số|tích hợp hệ thống|an toàn thông tin|an ninh mạng|bảo mật|soc\b|erp\b|cyber|ai\b|trí tuệ nhân tạo|điện toán|cloud|lượng tử|microsoft|ibm|netapp|cisco|oracle|fortinet|vnpt|vinasa|vnisa|sao khuê|thái hà|thực tập|môi trường làm việc|review\s+về\s+(?:cty|công\s+ty)\s+hpt|cổ phiếu|mã hpt|hpt\s*:|upcom|hnx|hose|ubck|chứng khoán|cổ tức|chốt quyền|đkcc|phát hành|cổ đông|hđqt|hội đồng quản trị|đhđcđ|nghị quyết|báo cáo tài chính|quản trị công ty|lợi nhuận|doanh thu|đấu thầu|trúng thầu|gói thầu|nhà thầu|ngô vi đồng|đinh hà duy linh)/i;
+
+// Direct URL patterns for official/self-owned HPT accounts across Facebook, LinkedIn (/posts, /pulse, /company), Threads, and TikTok
+export const HPT_SELF_SOCIAL_URL_RE = new RegExp(
+  [
+    // Facebook official pages, sub-brand pages (e.g. HPTVietnamCorp, Hpt.RPAsolution, LifeAtHPT), & legacy /pages/...HPT...
+    '(?:facebook\\.com|fb\\.com)\\/(?:pages\\/[^/?#]*\\bhpt\\b[^/?#]*|(?:pg\\/|people\\/[^/?#]*\\bhpt\\b[^/?#]*\\/)?(?:hpt(?:[._-]?[a-z0-9._-]+)?|life[._-]?at[._-]?hpt|tuyen[._-]?dung[._-]?hpt|hsoc(?:[._-]?vietnam)?|cong[._-]?nghe[._-]?tin[._-]?hoc[._-]?hpt))(?:[/?#]|$)',
+    // LinkedIn company page
+    'linkedin\\.com\\/company\\/(?:hpt[-_a-z0-9]*|life-at-hpt[-_a-z0-9]*|hsoc[-_a-z0-9]*|cong-nghe-tin-hoc-hpt[-_a-z0-9]*)(?:[/?#]|$)',
+    // LinkedIn /posts/ authored by HPT accounts (author slug immediately follows /posts/ before '_')
+    'linkedin\\.com\\/posts\\/(?:hpt(?:-(?:vietnam(?:-corporation)?|corp(?:oration)?|cyber(?:-security)?|group|jsc|it|tech|careers?|tuyen-dung))?|life-at-hpt|hsoc(?:-vietnam|-hpt)?|cong-nghe-tin-hoc-hpt)(?:_|[-_]?activity[-_]|[/?#]|$)',
+    // LinkedIn /pulse/ articles authored by HPT accounts (author slug at end of article slug before optional short ID)
+    'linkedin\\.com\\/pulse\\/(?:[^/?#]*-(?:hpt-vietnam(?:-corporation)?|hpt-cyber-security|life-at-hpt|hsoc-vietnam|cong-nghe-tin-hoc-hpt)(?:-[a-z0-9]{4,8})?|(?:hpt-vietnam(?:-corporation)?|hpt-cyber-security|life-at-hpt))(?:[/?#]|$)',
+    // Threads (@handle)
+    'threads\\.(?:net|com)\\/@?(?:hpt(?:[._-]?(?:vietnam(?:[._-]?corp(?:oration)?)?|vn|corp|cyber(?:[._-]?security)?|careers?|group|jsc))?|life[._-]?at[._-]?hpt|tuyen[._-]?dung[._-]?hpt|hsoc(?:[._-]?vietnam)?|cong[._-]?nghe[._-]?tin[._-]?hoc[._-]?hpt)(?:[/?#]|$)',
+    // TikTok (@handle)
+    'tiktok\\.com\\/@(?:hpt(?:[._-]?(?:vietnam(?:[._-]?corp(?:oration)?)?|vn|corp|cyber(?:[._-]?security)?|careers?|group|jsc))?|life[._-]?at[._-]?hpt|tuyen[._-]?dung[._-]?hpt|hsoc(?:[._-]?vietnam)?|cong[._-]?nghe[._-]?tin[._-]?hoc[._-]?hpt)(?:[/?#]|$)',
+  ].join('|'),
+  'i',
+);
+
+const SOCIAL_PLATFORM_CONTEXT_RE =
+  /(?:facebook\.com|fb\.com|\bfacebook\b|linkedin\.com|\blinkedin\b|threads\.net|threads\.com|\bthreads\b|tiktok\.com|\btiktok\b)/i;
+
+const HPT_OFFICIAL_SOCIAL_HANDLE_RE =
+  /@(?:hpt(?:[._-]?(?:vietnam(?:[._-]?corp(?:oration)?)?|vn|corp|cyber(?:[._-]?security)?|careers?))?|life[._-]?at[._-]?hpt|tuyen[._-]?dung[._-]?hpt|hsoc(?:[._-]?vietnam)?)\b/i;
+
+const HPT_OFFICIAL_SOCIAL_AUTHOR_SOURCE_RE =
+  /^(?:(?:facebook|linkedin|threads|tiktok)\s*[·|:-]\s*)?(?:hpt\s+vietnam(?:\s+corporation)?|công\s+ty\s+(?:cổ\s+phần\s+|cp\s+)?dịch\s+vụ\s+công\s+nghệ\s+tin\s+học\s+hpt|công\s+nghệ\s+tin\s+học\s+hpt|life\s+at\s+hpt|hpt\s+cyber\s+security|hsoc\s+vietnam)\s*$/i;
+
+export function isHptSelfSocialPost(
+  url: string,
+  title = '',
+  snippet = '',
+  source = '',
+): boolean {
+  if (url && HPT_SELF_SOCIAL_URL_RE.test(url)) return true;
+  if (source && HPT_OFFICIAL_SOCIAL_AUTHOR_SOURCE_RE.test(source.trim())) return true;
+
+  const combinedMeta = `${url} ${source} ${title} ${snippet}`;
+  if (!SOCIAL_PLATFORM_CONTEXT_RE.test(combinedMeta)) return false;
+
+  const text = `${title} ${snippet}`;
+  if (HPT_OFFICIAL_SOCIAL_HANDLE_RE.test(text)) return true;
+  if (/(?:\bhpt\.vn\b|#lifeathpt\b|#hptvietnamcorporation\b)/i.test(text)) return true;
+
+  if (
+    /\b(?:bài\s+đăng\s+của|post\s+by|video\s+tiktok\s+từ|tiktok\s+video\s+from)\s+(?:hpt\s+vietnam(?:\s+corporation)?|life\s+at\s+hpt|hpt\s+cyber\s+security|công\s+nghệ\s+tin\s+học\s+hpt)\b/i.test(
+      text,
+    )
+  ) {
+    return true;
+  }
+
+  const coreTitle = title
+    .replace(/\s*[-|•]\s*(?:Facebook|LinkedIn|Threads(?:\s*,\s*Say\s+more)?|TikTok)\s*$/i, '')
+    .trim();
+  if (!coreTitle) return false;
+
+  // Profile/tab title on FB/LinkedIn/Threads/TikTok (e.g. "HPT Vietnam Corporation - Videos")
+  if (
+    /^(?:hpt\s+vietnam(?:\s+corporation)?|life\s+at\s+hpt|hpt\s+cyber\s+security|công\s+nghệ\s+tin\s+học\s+hpt)\s*(?:\([^)]*\))?\s*(?:[-–—|•]\s*(?:videos?|photos?|reels?|posts?|about|events?|mentions?|reviews?))?$/i.test(
+      coreTitle,
+    )
+  ) {
+    return true;
+  }
+
+  // Prefix author attribution (e.g. "HPT Vietnam Corporation on LinkedIn: ...", "HPT Vietnam Corporation - ...")
+  if (
+    /^(?:hpt\s+vietnam(?:\s+corporation)?|life\s+at\s+hpt|hpt\s+cyber\s+security|công\s+nghệ\s+tin\s+học\s+hpt)\s*(?:\([^)]*\))?\s*(?:on\s+(?:linkedin|threads)\b|•\s*threads\b|đã\s+đăng\b|posted\s+on\b|[-–—:|•]\s+)/i.test(
+      coreTitle,
+    )
+  ) {
+    return true;
+  }
+
+  // Suffix author attribution on LinkedIn Pulse / LinkedIn posts / TikTok ("... | HPT Vietnam Corporation")
+  if (
+    /(?:\||—|\s-\s)\s*(?:hpt\s+vietnam(?:\s+corporation)?|life\s+at\s+hpt|hpt\s+cyber\s+security)(?:\s+(?:posted\s+on\s+the\s+topic|on\s+linkedin|official))?\s*(?:\([^)]*\))?\s*$/i.test(
+      coreTitle,
+    )
+  ) {
+    return true;
+  }
+
+  // Self-PR product showcase post on social media (e.g. "HPT SAALEM - ... HPT đã triển khai thành công...")
+  if (/^hpt\s+[a-z0-9]{2,16}\s*[-–—:]\s+.{12,}\bhpt\s+(?:đã\s+triển\s+khai|cung\s+cấp|mang\s+đến|giới\s+thiệu)\b/i.test(coreTitle)) {
+    return true;
+  }
+
+  return false;
+}
 
 export function isAuthenticHptMention(
   title: string,
   snippet = '',
   url = '',
   customKeywords: readonly string[] = [],
+  source = '',
 ): boolean {
   const lowerUrl = url.toLowerCase();
-  // Explicitly block company self-PR from hpt.vn AND all recruitment/job-board domains per user instruction
-  if (lowerUrl.includes('hpt.vn') || HPT_RECRUITMENT_DOMAIN_RE.test(lowerUrl)) {
+  // Explicitly block company self-PR from hpt.vn, HPT's own social channels, static quote/directory pages, AND recruitment domains
+  if (
+    lowerUrl.includes('hpt.vn') ||
+    HPT_RECRUITMENT_DOMAIN_RE.test(lowerUrl) ||
+    HPT_STATIC_DIRECTORY_URL_RE.test(url) ||
+    isHptSelfSocialPost(url, title, snippet, source)
+  ) {
     return false;
   }
 
   const combined = `${title} ${snippet}`.trim();
   if (!combined) return false;
 
-  // Strictly reject hiring / recruitment ads across all feeds
+  // Strictly reject hiring / recruitment ads and non-HPT namesake domains/phrases across all feeds
   if (HPT_RECRUITMENT_NOISE_RE.test(combined)) return false;
-  if (HPT_FALSE_POSITIVE_NOISE_RE.test(combined)) return false;
+  if (HPT_FALSE_POSITIVE_NOISE_RE.test(`${combined} ${lowerUrl}`)) return false;
 
   const lowerCombined = combined.toLowerCase();
   const matchedCustom = customKeywords.some((kw) => {
@@ -115,6 +259,15 @@ export function isAuthenticHptMention(
   if (matchedCustom) return true;
 
   if (!HPT_WORD_OR_TAX_RE.test(combined)) return false;
+  // If matched via 'HSOC' alone without 'HPT' or tax code '0301447436', require Vietnamese language or Vietnam mention to block foreign 'HSOC' acronyms (e.g. UK roofing / student societies)
+  if (
+    !/\b(HPT|0301447436)\b/i.test(combined) &&
+    !/[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]|việt\s*nam|vietnam/i.test(
+      combined,
+    )
+  ) {
+    return false;
+  }
   return HPT_VALID_CONTEXT_RE.test(combined);
 }
 
@@ -165,7 +318,7 @@ export function classifyHptExternalItem(
   }
 
   const isSocialForum =
-    /reddit\.com|t\.me\/|youtube\.com|youtu\.be|voz\.vn|tinhte\.vn|f319\.com|f247\.com|spiderum\.com/.test(
+    /facebook\.com|fb\.com|\bfacebook\b|linkedin\.com|\blinkedin\b|tiktok\.com|\btiktok\b|threads\.net|threads\.com|\bthreads\b|reddit\.com|t\.me\/|youtube\.com|youtu\.be|voz\.vn|tinhte\.vn|f319\.com|f247\.com|spiderum\.com/.test(
       hay,
     );
 
@@ -209,7 +362,10 @@ export function classifyHptExternalItem(
     );
 
   let socialBadge = 'BÁO MỚI · BING · DIỄN ĐÀN';
-  if (/reddit\.com/.test(hay)) socialBadge = 'REDDIT · DIỄN ĐÀN';
+  if (/facebook\.com|fb\.com|\bfacebook\b/.test(hay)) socialBadge = 'FACEBOOK · CÔNG KHAI';
+  else if (/linkedin\.com|\blinkedin\b/.test(hay)) socialBadge = 'LINKEDIN · MẠNG XÃ HỘI';
+  else if (/tiktok\.com|\btiktok\b|threads\.net|threads\.com|\bthreads\b/.test(hay)) socialBadge = 'TIKTOK · THREADS';
+  else if (/reddit\.com/.test(hay)) socialBadge = 'REDDIT · DIỄN ĐÀN';
   else if (/t\.me\//.test(hay)) socialBadge = 'TELEGRAM · KÊNH CÔNG KHAI';
   else if (/youtube\.com|youtu\.be/.test(hay)) socialBadge = 'YOUTUBE · VIDEO';
   else if (/voz\.vn|tinhte\.vn|f319\.com|f247\.com|spiderum\.com/.test(hay)) socialBadge = 'DIỄN ĐÀN · CỘNG ĐỒNG';
