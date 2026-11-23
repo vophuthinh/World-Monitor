@@ -392,6 +392,19 @@ export function mergeDuplicateHptItems(existing: HptCompanyItem, incoming: HptCo
   };
 }
 
+const HPT_ITEM_RETENTION_MS = 7 * 86_400_000;
+const HPT_MAX_ITEMS = 60;
+
+/** Search results rotate between runs, so keep previously seen items (up to 7 days old) instead of replacing the list. */
+export function mergeRetainedHptItems(
+  fresh: readonly HptCompanyItem[],
+  previous: readonly HptCompanyItem[],
+  now: number,
+): HptCompanyItem[] {
+  const kept = previous.filter((it) => now - it.publishedAt <= HPT_ITEM_RETENTION_MS);
+  return deduplicateHptItems([...fresh, ...kept]).slice(0, HPT_MAX_ITEMS);
+}
+
 export function deduplicateHptItems(items: readonly HptCompanyItem[]): HptCompanyItem[] {
   const merged: HptCompanyItem[] = [];
 
@@ -528,7 +541,7 @@ export async function fetchHptCompanyIntelligence(
     !isHptSelfSocialPost(it.url, it.title, '', it.source);
 
   const cleanExternalOnly = rawCollected.filter(isCleanExternalItem);
-  let deduped = deduplicateHptItems(cleanExternalOnly).slice(0, 60);
+  let deduped = mergeRetainedHptItems(cleanExternalOnly, previous?.items.filter(isCleanExternalItem) ?? [], now);
   const freshStock = stockRes.status === 'fulfilled' ? stockRes.value : null;
   const hasFreshItems = freshCollected.some(isCleanExternalItem);
 
@@ -537,9 +550,6 @@ export async function fetchHptCompanyIntelligence(
   }
 
   const itemsRetained = !hasFreshItems && (deduped.length > 0 || Boolean(previous?.items.length));
-  if (deduped.length === 0 && previous?.items.length) {
-    deduped = deduplicateHptItems(previous.items.filter(isCleanExternalItem)).slice(0, 60);
-  }
 
   await enrichTopDisclosuresWithPdfLinks(deduped);
   const enriched = await maybeEnrichHptWithGroqSentiment(deduped);
