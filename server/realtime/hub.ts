@@ -7,6 +7,16 @@ export function isInAsiaEastSeaTheater(lat: number, lon: number): boolean {
   return lat >= -10 && lat <= 46 && lon >= 92 && lon <= 148;
 }
 
+function isAlertCandidate(f: GeoPointFeature): boolean {
+  const inAsia = isInAsiaEastSeaTheater(f.lat, f.lon);
+  const speed = typeof f.meta?.speedKt === 'number' ? f.meta.speedKt : NaN;
+  return (f.layer === 'earthquakes' && ((f.magnitude ?? 0) >= 5.8 || (inAsia && (f.magnitude ?? 0) >= 4.8))) ||
+    (f.layer === 'natural' && f.severity === 'critical') ||
+    (f.layer === 'military' && inAsia && !f.meta?.onGround && speed >= 80 &&
+      ['bomber', 'awacs', 'recon', 'drone'].includes(f.category)) ||
+    (f.layer === 'vessels' && inAsia && speed > 2 && f.category === 'naval_patrol');
+}
+
 export class RealtimeHub {
   private readonly subscribers = new Set<RealtimeSubscriber>();
   private readonly seenAlertIds = new Set<string>();
@@ -44,7 +54,7 @@ export class RealtimeHub {
     if (firstSeenAt === undefined) {
       this.seededInitial.set(sourceKey, now);
       for (const f of features) {
-        this.seenAlertIds.add(f.id);
+        if (isAlertCandidate(f)) this.seenAlertIds.add(f.id);
       }
       return;
     }
@@ -53,45 +63,14 @@ export class RealtimeHub {
     // seed those quietly so cold boot never spams alerts.
     if (sourceKey === 'maritime-ws' && now - firstSeenAt < 20_000) {
       for (const f of features) {
-        const speedKt = Number(f.meta?.speedKt ?? 0);
-        if (speedKt > 2) this.seenAlertIds.add(f.id);
+        if (isAlertCandidate(f)) this.seenAlertIds.add(f.id);
       }
       return;
     }
 
     for (const f of features) {
-      const inAsiaTheater = isInAsiaEastSeaTheater(f.lat, f.lon);
-      const speedKt = Number(f.meta?.speedKt ?? 0);
-      const onGround = Boolean(f.meta?.onGround);
-
-      // Do NOT mark 0-knot moored ships as seen yet; wait until they actually get underway (> 2 kn)
-      if (f.layer === 'vessels' && speedKt <= 2) {
-        continue;
-      }
-      if (f.layer === 'military' && (onGround || speedKt < 80)) {
-        continue;
-      }
-
-      if (this.seenAlertIds.has(f.id)) continue;
+      if (this.seenAlertIds.has(f.id) || !isAlertCandidate(f)) continue;
       this.seenAlertIds.add(f.id);
-
-      const mag = f.magnitude ?? 0;
-      const isCriticalQuake =
-        f.layer === 'earthquakes' && (mag >= 5.8 || (inAsiaTheater && mag >= 4.8));
-      const isCriticalDisaster = f.layer === 'natural' && f.severity === 'critical';
-      const isSpecialMil =
-        f.layer === 'military' &&
-        inAsiaTheater &&
-        (f.category === 'bomber' ||
-          f.category === 'awacs' ||
-          f.category === 'recon' ||
-          f.category === 'drone');
-      const isNavalPatrol =
-        f.layer === 'vessels' && f.category === 'naval_patrol' && inAsiaTheater && speedKt > 2;
-
-      if (!isCriticalQuake && !isCriticalDisaster && !isSpecialMil && !isNavalPatrol) {
-        continue;
-      }
 
       const badge =
         f.layer === 'earthquakes'

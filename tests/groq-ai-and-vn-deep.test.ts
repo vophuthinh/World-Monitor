@@ -22,6 +22,7 @@ import {
   resolveNyFedSpreadAndProb,
   smoothFactorScore,
 } from '../shared/macro-health';
+
 import { SnapshotStore } from '../server/cache/snapshot-store';
 import {
   computeTechnicalIndicators,
@@ -53,6 +54,45 @@ import {
   parseSitrepResponseText,
 } from '../server/lib/groq-intel';
 import { RegimeHistoryLedger } from '../server/lib/regime-ledger';
+
+it('treats a flat price history as neutral and keeps zero or negative real yields in ERP', () => {
+  expect(computeTechnicalIndicators(Array(60).fill(100)).rsi14).toBe(50);
+  expect(computeTechnicalIndicators(Array.from({ length: 60 }, (_, i) => 100 + i)).rsi14).toBe(100);
+  expect(computeVietnamEquityRiskPremium(20, 0)?.erpPct).toBe(5);
+  expect(computeVietnamEquityRiskPremium(20, -0.5)?.erpPct).toBe(5.5);
+  expect(computeVietnamEquityRiskPremium(20, NaN)).toBeNull();
+});
+
+it('does not fabricate missing ERP or four-week net liquidity change in AI context', () => {
+  const now = Date.now();
+  const metric = (id: string, value: number) => ({
+    id, label: id, subtitle: id, value, change: 0, unit: 'B', date: '2026-11-20', sparkline: [],
+  });
+  const store = new SnapshotStore('/tmp/wm-ai-context-unused');
+  store.set('markets-crypto', {
+    quotes: [{ symbol: 'VN-Index', name: 'VN', group: 'index', price: 1200, changePercent24h: 0, peRatio: 15, updatedAt: now, source: 'test' }],
+    crypto: [], fearGreed: null, macro: [], updatedAt: now,
+    fred: [metric('WALCL', 7_000_000), metric('WTREGEN', 500_000), metric('RRPONTSYD', 100)],
+  }, 3_600_000, 1, now);
+  const context = buildMonitorLiveContext(store, now);
+  expect(context).toContain('ERP không rõ');
+  expect(context).toContain('biến động 4T không rõ');
+  expect(context).not.toContain('ERP 0%');
+  expect(context).not.toContain('0B$ 4T');
+});
+
+it('marks missing VN-Index and VN30 changes as unknown in AI context', () => {
+  const now = Date.now();
+  const store = new SnapshotStore('/tmp/wm-ai-context-unused');
+  store.set('markets-crypto', {
+    quotes: [{ symbol: 'VN-Index', name: 'VN', group: 'index', price: 1200, changePercent24h: null, updatedAt: now, source: 'test' }],
+    vn30: [{ symbol: 'VCB', name: 'VCB', sector: 'bank', priceThousandVnd: 80, changePercent: null, volume: null, sparkline: [80], updatedAt: now }],
+    crypto: [], fearGreed: null, macro: [], updatedAt: now,
+  }, 3_600_000, 1, now);
+  const context = buildMonitorLiveContext(store, now);
+  expect(context).toContain('VN-Index: 1200 (biến động không rõ)');
+  expect(context).toContain('VCB 80.00k (biến động không rõ)');
+});
 
 describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / GPS-BGP', () => {
   it('defines active Groq 2026 frontier models and parses AI Sitrep structured bullets cleanly', () => {
@@ -128,10 +168,12 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     expect(ctx).toContain('VN-Index: 1288.5');
     expect(ctx).toContain('USD/VND: 25480');
     expect(ctx).toContain('133.5');
+    expect(ctx).toContain('dữ liệu cũ hoặc chưa rõ');
 
     const fallback = buildDeterministicSitrep(store, now);
     expect(fallback.provider).toBe('deterministic');
     expect(fallback.bullets.length).toBe(4);
+    expect(fallback.bullets.find((bullet) => bullet.tag.includes('VÀNG'))?.text).toContain('dữ liệu cũ hoặc chưa rõ');
   });
 
   it('normalizes Vietnam domestic gold (SJC & 9999) in triệu VND/lượng + computes world gold parity spread', () => {
@@ -526,12 +568,12 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     expect(health.us?.warningFlags.some((f) => f.text.includes('10Y–2Y đảo ngược'))).toBe(true);
     expect(health.us?.warningFlags.some((f) => f.text.includes('PPI'))).toBe(true);
 
-    const compass = evaluateInvestmentCompass({
+    const compassMarkets: Parameters<typeof evaluateInvestmentCompass>[0] = {
       quotes: [
         { symbol: 'Copper', name: 'Dr. Copper', group: 'commodity', price: 5.48, changePercent24h: 1.4, updatedAt: 1700000000000, source: 'Yahoo' },
-        { symbol: 'Gold', name: 'Gold', group: 'commodity', price: 3550, changePercent24h: 0.2, updatedAt: 1700000000000, source: 'Yahoo' },
+        { symbol: 'Gold', name: 'Gold', group: 'commodity', price: 3550, changePercent24h: 0.2, observedAt: 1700000000000, updatedAt: 1700000000000, source: 'Yahoo' },
         { symbol: 'SOX Semi', name: 'PHLX Semiconductor', group: 'index', price: 8408, changePercent24h: 1.8, updatedAt: 1700000000000, source: 'Yahoo' },
-        { symbol: 'USD/VND', name: 'USD/VND', group: 'fx', price: 25780, changePercent24h: 0, updatedAt: 1700000000000, source: 'FX' },
+        { symbol: 'USD/VND', name: 'USD/VND', group: 'fx', price: 25780, changePercent24h: 0, observedAt: 1700000000000, updatedAt: 1700000000000, source: 'FX' },
       ],
       crypto: [],
       fearGreed: null,
@@ -544,8 +586,10 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
           sellPerLuongMillionVnd: 133.5,
           spreadMillionVnd: 1.5,
           premiumVsWorldMillionVnd: 23.5,
+          worldParityRetained: false,
           changeBuyPercent: 0,
           changeSellPercent: 0,
+          observedAt: 1700000000000,
           updatedAt: 1700000000000,
           source: 'Mi Hồng',
         },
@@ -560,7 +604,8 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
         { id: 'PERMIT', label: 'Permits', subtitle: 'Permits', value: -8.67, change: -1.1, unit: '%', date: '2026-10-01', pillar: 'leading', sparkline: [-6.5, -7.5, -8.67] },
       ],
       updatedAt: 1700000000000,
-    }, [], 1700000000000);
+    };
+    const compass = evaluateInvestmentCompass(compassMarkets, [], 1700000000000);
 
     expect(compass).not.toBeNull();
     expect(compass?.stance).toBe('selective_growth');
@@ -571,6 +616,13 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     expect(compass?.favoredAssets).toHaveLength(1);
     expect(compass?.sectorRotation).toBeUndefined();
     expect(compass?.avoidAssets.some((a) => a.includes('SJC'))).toBe(true);
+    const staleGold = evaluateInvestmentCompass({
+      ...compassMarkets,
+      vnGold: compassMarkets.vnGold?.map((gold) => ({ ...gold, worldParityRetained: true })),
+    }, [], 1700000000000);
+    expect(staleGold?.avoidAssets.some((a) => a.includes('SJC'))).toBe(false);
+    const agedGold = evaluateInvestmentCompass(compassMarkets, [], 1700000000000 + 6 * 3_600_000 + 1);
+    expect(agedGold?.avoidAssets.some((a) => a.includes('SJC'))).toBe(false);
   });
 
   it('computes Quant v2.0 metrics: Fed Net Liquidity, NY Fed Probit Recession Prob, 4-Quadrant Z-Score, World Bank Buffers & MA200 Dual Confirmation', () => {
@@ -707,7 +759,7 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     expect(val?.pbRatio).toBe(1.8);
     expect(val?.volumeVs90dRatio).toBe(1.36);
 
-    const erp = computeVietnamEquityRiskPremium(val?.peRatio);
+    const erp = computeVietnamEquityRiskPremium(val?.peRatio, 5.2);
     expect(erp?.erpPct).toBeCloseTo(4.36, 1);
 
     const breadth = computeVn30MarketBreadth([

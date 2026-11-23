@@ -6,7 +6,7 @@ export function FxRatesSection({ fxQuotes }: {
   return (
     <section>
       <h2 className="font-mono text-[11px] font-semibold tracking-wider text-slate-300">
-        TỶ GIÁ NGOẠI HỐI TRỰC TIẾP
+        TỶ GIÁ NGOẠI HỐI
       </h2>
       <div className="mt-1.5 grid grid-cols-2 gap-1.5">
         {fxQuotes.map((fx) => {
@@ -39,7 +39,10 @@ export function FxRatesSection({ fxQuotes }: {
                   maximumFractionDigits: isVnd ? 0 : 4,
                 })}
               </div>
-              <div className="truncate text-[10px] text-slate-400">{fx.name}</div>
+              <div className="truncate text-[10px] text-slate-400">{fx.name}{fx.retained ? ' · dữ liệu cũ' : ''}</div>
+              <div className="text-[10px] text-slate-400">
+                Giá lúc: {fx.observedAt ? new Date(fx.observedAt).toLocaleString('vi-VN') : 'không rõ'}
+              </div>
             </div>
           );
         })}

@@ -14,7 +14,7 @@ const PAIR_TO_DISPLAY: Record<string, string> = {
   DOGEUSDT: 'DOGE',
   ADAUSDT: 'ADA',
   TRXUSDT: 'TRX',
-  PAXGUSDT: 'Gold',
+  PAXGUSDT: 'PAXG',
 };
 
 interface BinanceMiniTickerFrame {
@@ -151,22 +151,24 @@ export class BinanceRealtimeStream {
       for (const coin of currentSnap.crypto) {
         const live = tickBySym.get(coin.symbol);
         if (live) {
+          coin.marketDataFetchedAt ??= coin.updatedAt;
           coin.priceUsd = live.price;
           coin.changePercent24h = live.changePercent24h;
           coin.updatedAt = now;
         }
       }
-      const goldTick = tickBySym.get('Gold');
+      const goldTick = tickBySym.get('PAXG');
       if (goldTick) {
-        const existingGold = currentSnap.quotes.find((q) => q.symbol === 'Gold');
+        const existingGold = currentSnap.quotes.find((q) => q.symbol === 'PAXG');
         if (existingGold) {
           existingGold.price = goldTick.price;
           existingGold.changePercent24h = goldTick.changePercent24h;
           existingGold.updatedAt = now;
+          existingGold.retained = false;
         } else {
           currentSnap.quotes.push({
-            symbol: 'Gold',
-            name: 'Vàng giao ngay (PAXG/USD Realtime)',
+            symbol: 'PAXG',
+            name: 'PAX Gold / USDT',
             group: 'commodity',
             price: goldTick.price,
             changePercent24h: goldTick.changePercent24h,

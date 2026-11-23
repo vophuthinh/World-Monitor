@@ -56,7 +56,6 @@ const MarketsMacroTab = memo(function MarketsMacroTab({
   priceFlashes,
   refreshingIds,
   onForceRefresh,
-  streamConnected,
   onFlyToLocation,
   translateVi,
 }: MarketsMacroTabProps) {
@@ -106,12 +105,12 @@ const MarketsMacroTab = memo(function MarketsMacroTab({
   const macroHealth = useMemo(
     () => evaluateMacroHealth(markets, predictions),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [markets.updatedAt, markets.fred, markets.macro, markets.vnMacroPulse, markets.expiredMacroNotices, usdVndPrice, vniQuoteRef, predictions],
+    [markets.updatedAt, markets.fred, markets.macro, markets.vnMacroPulse, markets.expiredMacroNotices, usdVndPrice, vniQuoteRef, predictions, calendarNow],
   );
   const expiredNotices = useMemo(
     () => collectExpiredMacroNotices(markets),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [markets.updatedAt, markets.fred, markets.vnMacroPulse, markets.expiredMacroNotices, usdVndPrice, vniQuoteRef],
+    [markets.updatedAt, markets.fred, markets.vnMacroPulse, markets.expiredMacroNotices, usdVndPrice, vniQuoteRef, calendarNow],
   );
   const investmentCompass = useMemo(
     () => evaluateInvestmentCompass(markets, predictions),
@@ -123,6 +122,7 @@ const MarketsMacroTab = memo(function MarketsMacroTab({
       markets.vnMacroPulse,
       markets.vn30,
       markets.fearGreed?.value,
+      calendarNow,
       predictions,
       usdVndPrice,
       copperPrice,
@@ -241,13 +241,13 @@ const MarketsMacroTab = memo(function MarketsMacroTab({
       <FredSection markets={markets} />
 
       {/* Global & Vietnam Indices + Strategic Commodities */}
-      <IndicesCommoditiesSection indexAndCommodityQuotes={indexAndCommodityQuotes} priceFlashes={priceFlashes} streamConnected={streamConnected} />
+      <IndicesCommoditiesSection indexAndCommodityQuotes={indexAndCommodityQuotes} priceFlashes={priceFlashes} />
 
       {/* Stablecoin Peg Monitor */}
       <StablecoinSection stablecoins={stablecoins} />
 
       {/* Crypto & Fear & Greed Sentiment */}
-      <CryptoSentimentSection markets={markets} priceFlashes={priceFlashes} streamConnected={streamConnected} volatileCrypto={volatileCrypto} />
+      <CryptoSentimentSection markets={markets} priceFlashes={priceFlashes} volatileCrypto={volatileCrypto} />
 
       {/* World Bank Macroeconomic Table */}
       <WorldBankSection markets={markets} />

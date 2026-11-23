@@ -77,6 +77,11 @@ function isCompassValue(v: unknown): boolean {
   return v !== undefined && v !== null && Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) < 360;
 }
 
+function aisSpeed(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value < 102.2
+    ? Number(value.toFixed(1)) : null;
+}
+
 export function classifyMmsiCountry(mmsi: number | string): string {
   const str = String(mmsi).trim();
   if (str.length < 3) return 'International';
@@ -162,8 +167,8 @@ export function normalizeDigitrafficVessels(
     const mmsi = Number(item.mmsi ?? item.properties?.mmsi ?? 0);
     if (!mmsi) continue;
 
-    const sog = Number(item.properties?.sog ?? 0);
-    const cog = Number(item.properties?.cog ?? 0);
+    const speedKt = aisSpeed(item.properties?.sog);
+    const cog = isCompassValue(item.properties?.cog) ? Number(item.properties?.cog) : NaN;
     const rawHeading = Number(item.properties?.heading ?? cog);
     const validHeading =
       Number.isFinite(rawHeading) && rawHeading >= 0 && rawHeading < 360
@@ -175,20 +180,18 @@ export function normalizeDigitrafficVessels(
     // `cog` defaults to 0 above, so judge from the raw properties.
     const headingKnown = isCompassValue(item.properties?.heading) || isCompassValue(item.properties?.cog);
 
-    const ts = Number(item.properties?.timestampExternal) || now;
-    if (now - ts > 30 * 60_000) continue;
+    const ts = Number(item.properties?.timestampExternal);
+    if (!Number.isFinite(ts) || ts <= 0 || ts > now || now - ts > 30 * 60_000) continue;
 
     const flag = classifyMmsiCountry(mmsi);
-    const speedKt = Number.isFinite(sog) ? Number(sog.toFixed(1)) : 0;
-
     candidates.push({
-      sog: speedKt,
+      sog: speedKt ?? -1,
       feature: {
         id: `ais:${mmsi}`,
         layer: 'vessels',
         title: `MMSI ${mmsi} (${flag})`,
-        subtitle: `Tàu AIS trực tiếp · ${speedKt} kn · Hướng ${validHeading}°`,
-        category: speedKt >= 12 ? 'cargo' : 'vessel',
+        subtitle: `Tàu AIS trực tiếp · ${speedKt === null ? 'Tốc độ không rõ' : `${speedKt} kn`} · ${headingKnown ? `Hướng ${validHeading}°` : 'Hướng không rõ'}`,
+        category: speedKt !== null && speedKt >= 12 ? 'cargo' : 'vessel',
         severity: flag === 'Russia' ? 'medium' : 'info',
         lat,
         lon,
@@ -200,9 +203,10 @@ export function normalizeDigitrafficVessels(
           mmsi: String(mmsi),
           country: flag,
           speedKt,
+          courseDeg: Number.isFinite(cog) ? cog : null,
           headingDeg: validHeading,
           headingKnown,
-          onGround: speedKt < 0.5,
+          onGround: speedKt !== null && speedKt < 0.5,
           corridor: 'Baltic / Northern Maritime',
         },
       },
@@ -266,12 +270,7 @@ export function parseAisStreamMessage(
     const msg = JSON.parse(rawJson) as AisStreamEnvelope;
     const meta = msg?.MetaData;
     const mmsi = Number(meta?.MMSI ?? 0);
-    const lat = Number(meta?.latitude);
-    const lon = Number(meta?.longitude);
-
-    if (!mmsi || !Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
-      return null;
-    }
+    if (!mmsi) return null;
 
     const staticMsg = msg.Message?.ShipStaticData;
     const extClassB = msg.Message?.ExtendedClassBPositionReport;
@@ -298,40 +297,40 @@ export function parseAisStreamMessage(
       msg.Message?.PositionReport ??
       msg.Message?.StandardClassBPositionReport ??
       msg.Message?.ExtendedClassBPositionReport;
+    if (!pos && (!staticMsg || !existingVessel)) return null;
+    const lat = pos ? Number(meta?.latitude) : existingVessel!.lat;
+    const lon = pos ? Number(meta?.longitude) : existingVessel!.lon;
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
 
-    const prevSpeed = Number(existingVessel?.meta.speedKt ?? 0);
-    const prevHeading = Number(existingVessel?.heading ?? 0);
+    const sentAt = typeof meta?.time_utc === 'string' ? Date.parse(meta.time_utc) : NaN;
+    if (pos && (!Number.isFinite(sentAt) || sentAt <= 0 || sentAt > now ||
+      now - sentAt > 25 * 60_000 || (existingVessel && sentAt < existingVessel.timestamp))) return null;
 
-    const sog = pos?.Sog !== undefined ? Number(pos.Sog) : prevSpeed;
-    const cog = pos?.Cog !== undefined ? Number(pos.Cog) : prevHeading;
-    const rawHdg = pos?.TrueHeading !== undefined ? Number(pos.TrueHeading) : cog;
-    const heading =
-      Number.isFinite(rawHdg) && rawHdg >= 0 && rawHdg < 360
-        ? Math.round(rawHdg)
-        : Number.isFinite(cog)
-          ? Math.round(cog) % 360
-          : prevHeading;
-
-    // Keep a previously known heading only when this report carries neither field.
-    const headingKnown =
-      isCompassValue(pos?.TrueHeading) ||
-      isCompassValue(pos?.Cog) ||
-      (pos?.TrueHeading === undefined && pos?.Cog === undefined && existingVessel?.meta.headingKnown === true);
+    const speedKt = pos ? aisSpeed(pos.Sog) : aisSpeed(existingVessel?.meta.speedKt);
+    const course = pos
+      ? (isCompassValue(pos.Cog) ? Number(pos.Cog) : null)
+      : (typeof existingVessel?.meta.courseDeg === 'number' ? existingVessel.meta.courseDeg : null);
+    const carryHeading = pos?.TrueHeading === undefined && pos?.Cog === undefined &&
+      existingVessel?.meta.headingKnown === true;
+    const headingKnown = pos
+      ? isCompassValue(pos.TrueHeading) || course !== null || carryHeading
+      : existingVessel?.meta.headingKnown === true;
+    const heading = pos
+      ? Math.round(isCompassValue(pos.TrueHeading) ? Number(pos.TrueHeading) : course ?? (carryHeading ? existingVessel?.heading ?? 0 : 0)) % 360
+      : existingVessel!.heading ?? 0;
 
     const flag = classifyMmsiCountry(mmsi);
     const { category, roleLabel, severity } = classifyVesselRole(shipName, effectiveType);
-    const speedKt = Number.isFinite(sog) ? Number(sog.toFixed(1)) : 0;
-
     return {
       id: `ais:${mmsi}`,
       layer: 'vessels',
       title: `${shipName} (${flag})`,
-      subtitle: `${roleLabel} · ${speedKt} kn · Hướng ${heading}°${destination ? ` · Đích ${destination}` : ''}`,
+      subtitle: `${roleLabel} · ${speedKt === null ? 'Tốc độ không rõ' : `${speedKt} kn`} · ${headingKnown ? `Hướng ${heading}°` : 'Hướng không rõ'}${destination ? ` · Đích ${destination}` : ''}`,
       category,
       severity,
       lat,
       lon,
-      timestamp: now,
+      timestamp: pos ? sentAt : existingVessel!.timestamp,
       source: 'AISStream.io Live WebSocket',
       url: `https://www.marinetraffic.com/en/ais/details/ships/mmsi:${mmsi}`,
       heading,
@@ -341,10 +340,12 @@ export function parseAisStreamMessage(
         country: flag,
         roleLabel,
         speedKt,
+        courseDeg: course,
+        positionTimeBasis: pos ? 'source-message-time' : existingVessel!.meta.positionTimeBasis ?? 'unknown',
         headingDeg: heading,
         headingKnown,
         destination: destination ?? null,
-        onGround: speedKt < 0.5,
+        onGround: speedKt !== null && speedKt < 0.5,
         corridor:
           lat >= 3 && lat <= 23.5 && lon >= 102 && lon <= 121.5
             ? 'Biển Đông / Việt Nam'
@@ -413,7 +414,6 @@ export class MaritimeVesselStreamManager {
   }
 
   async fetchSnapshot(): Promise<GeoPointFeature[]> {
-    const now = Date.now();
     try {
       const payload = await fetchJsonWithTimeout<DigitrafficAisPayload>(DIGITRAFFIC_AIS_URL, {
         timeoutMs: 10_000,
@@ -423,13 +423,16 @@ export class MaritimeVesselStreamManager {
           'Digitraffic-User': 'WorldMonitorVN/1.0',
         },
       });
-      this.openAisVessels = normalizeDigitrafficVessels(payload, now);
-    } catch (err) {
-      if (this.wsVessels.size === 0 && this.openAisVessels.length === 0) {
-        throw err;
+      const vessels = normalizeDigitrafficVessels(payload, Date.now());
+      if (payload.features?.length && vessels.length === 0) {
+        throw new Error('Digitraffic AIS returned no valid fresh positions');
       }
+      this.openAisVessels = vessels;
+    } catch (err) {
+      this.getCombinedVessels();
+      throw err;
     }
-    return this.getCombinedVessels(now);
+    return this.getCombinedVessels();
   }
 
   getCombinedVessels(now = Date.now()): GeoPointFeature[] {
@@ -438,6 +441,7 @@ export class MaritimeVesselStreamManager {
         this.wsVessels.delete(key);
       }
     }
+    this.openAisVessels = this.openAisVessels.filter((v) => v.timestamp <= now && now - v.timestamp <= 30 * 60_000);
     const merged = new Map<string, GeoPointFeature>();
     // Put Biển Đông / Malacca / Hormuz / Red Sea AISStream WebSocket vessels FIRST so they are never truncated
     for (const [k, v] of this.wsVessels) merged.set(k, v);
@@ -488,10 +492,10 @@ export class MaritimeVesselStreamManager {
               const oldestKey = this.wsVessels.keys().next().value;
               if (oldestKey) this.wsVessels.delete(oldestKey);
             }
-            if (this.staticCache.size > 1_200) {
-              const oldestMmsi = this.staticCache.keys().next().value;
-              if (oldestMmsi !== undefined) this.staticCache.delete(oldestMmsi);
-            }
+          }
+          if (this.staticCache.size > 1_200) {
+            const oldestMmsi = this.staticCache.keys().next().value;
+            if (oldestMmsi !== undefined) this.staticCache.delete(oldestMmsi);
           }
         });
       };

@@ -58,6 +58,34 @@ vi.mock('maplibre-gl', () => ({
 }));
 
 import { WorldMap } from '../client/src/components/WorldMap';
+import { advanceDeadReckoning } from '../shared/dead-reckoning';
+
+it('does not restart stale position interpolation when a poll resets the anchor', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const now = Date.now();
+  const aircraft = { id: 'old', layer: 'military' as const, title: 'old', category: 'jet', severity: 'low' as const, lat: 10, lon: 100, timestamp: now - 60_000, source: 'test', heading: 90, meta: { speedKt: 400 } };
+  const props: WorldMapProps = {
+    isGlobe: false, basemap: 'dark-matter',
+    activeLayers: { military: true, vessels: true, cyberThreats: false, cyberArcs: false, gpsOutages: false, earthquakes: true, natural: false, geopolitics: true, militaryBases: false, aiDatacenters: false, chokepoints: true, nuclear: false, financeCenters: false, cables: false, weatherRadar: false },
+    radarOpacity: 0.5, weatherRadar: null, military: [aircraft], vessels: [], cyberThreats: [], cyberArcs: [], gpsOutages: [],
+    militaryAnchorMs: now - 60_000, vesselsAnchorMs: now, deadReckoning: true, earthquakes: [], natural: [], geopolitics: [],
+    militaryBases: [], aiDatacenters: [], chokepoints: [], nuclear: [], financeCenters: [], cables: [],
+    vietnamSovereignty: [], vietnamZones: [], vietnamSeaLabels: [], cameraTarget: null, onSelectFeature: vi.fn(),
+  };
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(<WorldMap {...props} />));
+    const setData = mocks.MockMap.current.sources.get('military-src')!.setData;
+    await act(async () => root.render(<WorldMap {...props} militaryAnchorMs={now} military={[{ ...aircraft }]} />));
+    const feature = setData.mock.calls.at(-1)![0].features[0];
+    expect(feature.geometry.coordinates[0]).toBeCloseTo(advanceDeadReckoning([aircraft], now, 22)[0].lon, 6);
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+  }
+});
 
 it('avoids redundant source updates and applies the latest data after movement', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

@@ -1,5 +1,6 @@
 import { ArrowsClockwise, Coins } from '@phosphor-icons/react';
 import type { CollectorId, MarketSnapshot } from '@shared/types';
+import { isFreshGoldComparison, isFreshMarketObservation } from '@shared/macro/core';
 
 export function VnGoldSection({ markets, onForceRefresh, refreshingIds }: {
   markets: MarketSnapshot;
@@ -7,6 +8,9 @@ export function VnGoldSection({ markets, onForceRefresh, refreshingIds }: {
   refreshingIds?: ReadonlySet<string>;
 }) {
   if (!(markets.vnGold && markets.vnGold.length > 0)) return null;
+  const now = Date.now();
+  const gold = markets.quotes.find((quote) => quote.symbol === 'Gold');
+  const fx = markets.quotes.find((quote) => quote.symbol === 'USD/VND');
   return (
     <section>
       <div className="flex items-center justify-between">
@@ -39,11 +43,12 @@ export function VnGoldSection({ markets, onForceRefresh, refreshingIds }: {
                     {g.code}
                   </span>
                   <span className="truncate text-xs font-semibold text-slate-100">{g.name}</span>
+                  {(g.retained || !isFreshMarketObservation(g.observedAt, now)) && <span className="text-[10px] text-amber-300">dữ liệu cũ hoặc chưa rõ</span>}
                 </div>
                 {g.worldParityPerLuongMillionVnd !== undefined &&
                   g.premiumVsWorldMillionVnd !== undefined && (
                     <div className="mt-0.5 font-mono text-[9.5px] text-slate-400 tabular-nums">
-                      Quy đổi TG: {g.worldParityPerLuongMillionVnd.toFixed(2)} tr · Chênh{' '}
+                      Quy đổi TG{!isFreshGoldComparison(g, gold, fx, now) ? ' (tham chiếu cũ hoặc chưa rõ)' : ''}: {g.worldParityPerLuongMillionVnd.toFixed(2)} tr · Chênh{' '}
                       <span
                         className={
                           g.premiumVsWorldMillionVnd >= 0 ? 'text-amber-300' : 'text-emerald-300'
@@ -70,7 +75,7 @@ export function VnGoldSection({ markets, onForceRefresh, refreshingIds }: {
                 </div>
                 <div className="text-[9.5px] text-slate-500">
                   Biên độ {g.spreadMillionVnd.toFixed(2)} tr
-                  {g.updatedLabel ? ` · ${g.updatedLabel.split(' ')[1] ?? g.updatedLabel}` : ''}
+                  {g.updatedLabel ? ` · ${g.updatedLabel}` : ' · không rõ thời điểm nguồn'}
                 </div>
               </div>
             </div>

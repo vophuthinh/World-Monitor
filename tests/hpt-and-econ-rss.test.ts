@@ -5,7 +5,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SnapshotStore } from '../server/cache/snapshot-store';
 import {
   HPT_EXTERNAL_FEEDS,
+  canonicalizeHptUrl,
   classifyHptExternalItem,
+  deduplicateHptItems,
+  fetchHptCompanyIntelligence,
   isAuthenticHptMention,
   isHptSelfSocialPost,
   normalizeSimplizeHptSummary,
@@ -17,6 +20,7 @@ import {
   parseMetaPageMentionsJson,
   parseRedditHptSearchJson,
   parseSearxngHptSearchJson,
+  parseSerperHptSearchJson,
   parseTelegramPublicChannelHtml,
   resolveSearxngBaseUrl,
 } from '../server/collectors/hpt-company-intel';
@@ -578,7 +582,13 @@ describe('Economic RSS Feeds & Independent External HPT (UPCoM · MST 0301447436
       ),
     ).toBe(true);
 
-    // 5. Sister fanpage self-post via Meta Graph API (e.g. "Life at HPT" tagging main page) MUST be dropped
+    // 5. Sister fanpage self-post via Meta Graph API (e.g. "Life at HPT" tagging main page) & legacy URL-encoded /pages/...HPT/<id> MUST be dropped
+    expect(
+      isHptSelfSocialPost(
+        'https://www.facebook.com/pages/Cty%20c%E1%BB%95%20ph%E1%BA%A7n%20C%C3%B4ng%20ngh%E1%BB%87%20Tin%20H%E1%BB%8Dc%20HPT/151329082327557/',
+        'Cty cổ phần Công nghệ Tin Học HPT - Facebook',
+      ),
+    ).toBe(true);
     expect(
       isHptSelfSocialPost('https://www.facebook.com/LifeAtHPT/posts/555', 'Sự kiện nội bộ', '', 'Life at HPT'),
     ).toBe(true);
@@ -699,5 +709,220 @@ describe('Economic RSS Feeds & Independent External HPT (UPCoM · MST 0301447436
     expect(items[1].source).toBe('f319.com (SearXNG · brave)');
     expect(items[1].dateLabel).toBe('Không rõ ngày');
     expect(items[1].publishedAt).toBe(fallbackNow - 30 * 86_400_000);
+
+    // Serper.dev Google SERP JSON parser keeps authentic external mentions and drops self-posts / static quotes
+    const serperItems = parseSerperHptSearchJson(
+      {
+        organic: [
+          {
+            title: 'HPT Vietnam Corporation công bố giải thưởng mới',
+            link: 'https://www.facebook.com/HPTVietnamCorp/posts/999888777',
+            snippet: 'Bài tự đăng từ Fanpage chính thức của HPT',
+            date: '2 giờ trước',
+          },
+          {
+            title: "HPT Vietnam Corporation's Post",
+            link: 'https://www.google.com/goto?url=CAEStQEBxCJF17furFbs923',
+            snippet: 'Google Knowledge Panel self-post card của Công nghệ Tin học HPT',
+            date: '1 ngày trước',
+          },
+          {
+            title: 'UIT và HPT tăng cường hợp tác đào tạo nhân lực an toàn thông tin',
+            link: 'https://www.facebook.com/UIT.Fanpage/posts/1515918327240833/',
+            snippet: 'Trường ĐH CNTT ĐHQG-HCM ký kết cùng Công nghệ Tin học HPT.',
+            date: '4 giờ trước',
+          },
+          {
+            title: 'Nguyen Minh on LinkedIn: Trải nghiệm triển khai giải pháp bảo mật cùng Công nghệ Tin học HPT',
+            link: 'https://www.linkedin.com/posts/nguyen-minh-123_cong-nghe-tin-hoc-hpt-activity-726999',
+            snippet: 'Đội ngũ kỹ sư an ninh mạng SOC hỗ trợ rất sát sao.',
+            date: '10 thg 11, 2026',
+          },
+        ],
+      },
+      fallbackNow,
+    );
+    expect(serperItems).toHaveLength(2);
+    expect(serperItems[0].badge).toBe('FACEBOOK · CÔNG KHAI');
+    expect(serperItems[0].source).toBe('Facebook (Serper Google)');
+    expect(serperItems[0].publishedAt).toBe(fallbackNow - 4 * 3_600_000);
+    expect(serperItems[1].badge).toBe('LINKEDIN · MẠNG XÃ HỘI');
+    expect(serperItems[1].source).toBe('LinkedIn (Serper Google)');
+    expect(serperItems[1].dateLabel).toBe('10/11/2026');
+  });
+
+  it('deduplicates overlapping HPT items across Google News RSS, Serper, SearXNG, FireAnt & CafeF and blocks duplicate Telegram alerts when source ID changes', async () => {
+    // 1. Canonical URL normalization collapses m./www., tracking params, FireAnt /binh-luan, and Facebook slug vs numeric ID
+    expect(
+      canonicalizeHptUrl('https://m.facebook.com/UIT.Fanpage/posts/uit-va-hpt-hop-tac/1515918327240833/?mibextid=abc'),
+    ).toBe('fb:page:uit.fanpage:1515918327240833');
+    expect(
+      canonicalizeHptUrl('https://www.facebook.com/UIT.Fanpage/posts/1515918327240833'),
+    ).toBe('fb:page:uit.fanpage:1515918327240833');
+    expect(
+      canonicalizeHptUrl('https://fireant.vn/bai-viet/hpt-tra-co-tuc/42138090/binh-luan?utm_source=x'),
+    ).toBe('fireant.vn/bai-viet/hpt-tra-co-tuc/42138090');
+
+    // 2. Cross-source story deduplication merges Google RSS full title + Serper direct Facebook video URL (matched via decoded URL slug!)
+    const merged = deduplicateHptItems([
+      {
+        id: 'hpt-ext:https://news.google.com/rss/articles/CBMiWrappedHtv1',
+        title:
+          'HTV - Đài truyền hình TP.HCM. . 30 NĂM LÀM DOANH NGHIỆP, ĐỌC SÁCH LUÔN LÀ MỘT TIÊU CHÍ VĂN HÓA CỦA HPT. Theo ông Ngô Vi Đồng',
+        category: 'press_social',
+        badge: 'FACEBOOK · CÔNG KHAI',
+        source: 'Facebook',
+        publishedAt: 1795300000000,
+        url: 'https://news.google.com/rss/articles/CBMiWrappedHtv1',
+        sentiment: 'positive',
+      },
+      {
+        id: 'hpt-sp:https://www.facebook.com/htv.hcm/videos/1109490385373907',
+        title: 'Chủ tịch HĐQT Công ty CP Dịch vụ Công nghệ tin học HPT ...',
+        category: 'press_social',
+        badge: 'FACEBOOK · CÔNG KHAI',
+        source: 'Facebook (Serper Google)',
+        publishedAt: 1795200000000,
+        dateLabel: 'Không rõ ngày',
+        url: 'https://www.facebook.com/htv.hcm/videos/30-n%C4%83m-l%C3%A0m-doanh-nghi%E1%BB%87p-%C4%91%E1%BB%8Dc-s%C3%A1ch-lu%C3%B4n-l%C3%A0-m%E1%BB%99t-ti%C3%AAu-ch%C3%AD-v%C4%83n-h%C3%B3a-c%E1%BB%A7a-hpttheo-%C3%B4ng-ng/1109490385373907/',
+        sentiment: 'positive',
+      },
+      {
+        id: 'hpt-sx:https://www.facebook.com/UIT.Fanpage/posts/1515918327240833',
+        title: 'UIT VÀ HPT TĂNG CƯỜNG HỢP TÁC, CÙNG KIẾN TẠO THẾ HỆ ...',
+        category: 'press_social',
+        badge: 'FACEBOOK · CÔNG KHAI',
+        source: 'Facebook (SearXNG · google)',
+        publishedAt: 1795290000000,
+        url: 'https://www.facebook.com/UIT.Fanpage/posts/1515918327240833/',
+        sentiment: 'positive',
+      },
+      {
+        id: 'hpt-sp:https://m.facebook.com/UIT.Fanpage/posts/slug/1515918327240833',
+        title: '🤝 UIT VÀ HPT TĂNG CƯỜNG HỢP TÁC, CÙNG KIẾN TẠO THẾ HỆ NHÂN LỰC CÔNG NGHỆ CHẤT LƯỢNG CAO',
+        category: 'press_social',
+        badge: 'FACEBOOK · CÔNG KHAI',
+        source: 'Facebook (Serper Google)',
+        publishedAt: 1795290000000,
+        url: 'https://m.facebook.com/UIT.Fanpage/posts/uit-va-hpt/1515918327240833/?fbclid=IwAR123',
+        sentiment: 'positive',
+      },
+    ]);
+
+    expect(merged).toHaveLength(2);
+    // HTV item keeps full untruncated title from RSS AND direct unwrapped Facebook URL from Serper!
+    expect(merged[0].title).toContain('30 NĂM LÀM DOANH NGHIỆP, ĐỌC SÁCH LUÔN LÀ MỘT TIÊU CHÍ VĂN HÓA CỦA HPT');
+    expect(merged[0].url).toContain('https://www.facebook.com/htv.hcm/videos/');
+    expect(merged[0].publishedAt).toBe(1795300000000);
+    // UIT item collapses SearXNG + Serper mobile URL into 1 card with full title
+    expect(merged[1].title).toContain('NHÂN LỰC CÔNG NGHỆ CHẤT LƯỢNG CAO');
+
+    // 3. TelegramAlertEngine does NOT send a 2nd alert when the same story switches from Google RSS ID to Serper direct URL ID
+    const tempDir = mkdtempSync(join(tmpdir(), 'wm-tg-dedup-'));
+    try {
+      const sentTexts: string[] = [];
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+        if (init?.body) {
+          const parsed = JSON.parse(String(init.body)) as { text?: string };
+          if (parsed.text) sentTexts.push(parsed.text);
+        }
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      });
+
+      const store = new SnapshotStore(tempDir);
+      const tg = new TelegramAlertEngine(tempDir, {
+        botToken: '123456789:AAHtesttoken1234',
+        chatId: '999999999',
+      });
+
+      store.set('hpt-intel', { stock: null, items: [], sourceCount: 1, aiSentimentEnabled: false, updatedAt: 10 }, 60_000, 0);
+      await tg.evaluateCollectorUpdate('hpt-intel', store);
+
+      // First tick: story arrives via Google News RSS wrapper URL
+      store.set(
+        'hpt-intel',
+        {
+          stock: null,
+          sourceCount: 2,
+          aiSentimentEnabled: false,
+          updatedAt: 100,
+          items: [
+            {
+              id: 'hpt-ext:https://news.google.com/rss/articles/CBMiStory1',
+              title: 'Agribank và Công nghệ Tin học HPT ký kết hợp tác triển khai quản lý rủi ro',
+              category: 'it_press_partner',
+              badge: 'BÁO CHUYÊN NGÀNH CNTT',
+              source: 'Agribank',
+              publishedAt: 95,
+              url: 'https://news.google.com/rss/articles/CBMiStory1',
+              sentiment: 'positive',
+            },
+          ],
+        },
+        60_000,
+        1,
+      );
+      await tg.evaluateCollectorUpdate('hpt-intel', store);
+      expect(sentTexts).toHaveLength(1);
+
+      // Second tick: exact same story upgraded to Serper direct URL (`id` changed from `hpt-ext:...` to `hpt-sp:...`)
+      store.set(
+        'hpt-intel',
+        {
+          stock: null,
+          sourceCount: 3,
+          aiSentimentEnabled: false,
+          updatedAt: 200,
+          items: [
+            {
+              id: 'hpt-sp:https://www.agribank.com.vn/vn/ve-agribank/tin-tuc/hpt-ky-ket',
+              title: 'Agribank và Công nghệ Tin học HPT ký kết hợp tác triển khai quản lý rủi ro',
+              category: 'it_press_partner',
+              badge: 'BÁO CHUYÊN NGÀNH CNTT',
+              source: 'agribank.com.vn (Serper Google)',
+              publishedAt: 95,
+              url: 'https://www.agribank.com.vn/vn/ve-agribank/tin-tuc/hpt-ky-ket',
+              sentiment: 'positive',
+            },
+          ],
+        },
+        60_000,
+        1,
+      );
+      await tg.evaluateCollectorUpdate('hpt-intel', store);
+      // Must still be 1 — zero duplicate Telegram alert!
+      expect(sentTexts).toHaveLength(1);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps financial filings for different quarters despite their common prefix', () => {
+    const common = 'Công ty Cổ phần Dịch vụ Công nghệ Tin học HPT công bố báo cáo tài chính ';
+    const item = (quarter: number) => ({
+      id: `filing-${quarter}`, title: `${common}quý ${quarter} năm 2026`,
+      category: 'exchange_filing' as const, badge: 'CBTT', source: 'HNX',
+      publishedAt: Date.now(), url: `https://example.com/${quarter}`, sentiment: 'neutral' as const,
+    });
+    expect(deduplicateHptItems([item(1), item(2)])).toHaveLength(2);
+  });
+
+  it('reports an outage instead of renewing a wholly retained HPT snapshot', async () => {
+    for (const key of ['SERPER_API_KEY', 'GOOGLE_CSE_API_KEY', 'GOOGLE_CSE_CX', 'META_PAGE_ID', 'META_PAGE_ACCESS_TOKEN', 'GROQ_API_KEY', 'GEMINI_API_KEY']) {
+      vi.stubEnv(key, '');
+    }
+    vi.stubEnv('SEARXNG_BASE_URL', 'off');
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+    const previous = {
+      stock: null,
+      items: [{ id: 'old', title: 'Tin HPT', category: 'press_social' as const, badge: 'B', source: 'S', publishedAt: 1, url: 'https://example.com/old', sentiment: 'neutral' as const }],
+      sourceCount: 1, aiSentimentEnabled: false, updatedAt: 1,
+    };
+    try {
+      await expect(fetchHptCompanyIntelligence(previous)).rejects.toThrow('sources failed');
+    } finally {
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+    }
   });
 });

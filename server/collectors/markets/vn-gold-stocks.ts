@@ -41,6 +41,19 @@ export const GOLD_CODE_LABELS: Record<string, string> = {
   '750': 'Vàng tây 18K (750)',
 };
 
+function parseMihongDateTime(value: string | undefined): number | undefined {
+  const match = value?.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return undefined;
+  const [, dayText, monthText, yearText, hourText, minuteText, secondText = '0'] = match;
+  const day = Number(dayText), month = Number(monthText), year = Number(yearText);
+  const hour = Number(hourText), minute = Number(minuteText), second = Number(secondText);
+  const localTime = Date.UTC(year, month - 1, day, hour, minute, second);
+  const date = new Date(localTime);
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day ||
+      date.getUTCHours() !== hour || date.getUTCMinutes() !== minute || date.getUTCSeconds() !== second) return undefined;
+  return localTime - 7 * 3_600_000;
+}
+
 export function normalizeMihongGoldPrices(
   items: MihongGoldItem[],
   goldUsdPerOz?: number,
@@ -65,6 +78,7 @@ export function normalizeMihongGoldPrices(
     const buyMillion = rawBuy >= 50_000_000 ? rawBuy / 1_000_000 : (rawBuy * 10) / 1_000_000;
     const sellMillion = rawSell >= 50_000_000 ? rawSell / 1_000_000 : (rawSell * 10) / 1_000_000;
     const isPure999 = code === 'SJC' || code === '999';
+    const observedAt = parseMihongDateTime(row.dateTime);
 
     out.push({
       code,
@@ -80,6 +94,7 @@ export function normalizeMihongGoldPrices(
           ? Number((sellMillion - worldParity).toFixed(2))
           : undefined,
       updatedLabel: row.dateTime,
+      ...(observedAt !== undefined ? { observedAt } : {}),
       updatedAt: now,
       source: 'Mi Hồng / SJC Live Domestic',
     });
@@ -124,7 +139,16 @@ export const VN30_LEADERS: readonly Vn30Target[] = [
 export interface VndDchartPayload {
   c?: number[];
   v?: number[];
+  t?: number[];
   s?: string;
+}
+
+export function dchartObservationTime(payload: VndDchartPayload, minPrice: number, now: number): number | undefined {
+  const index = (payload.c ?? []).reduce((last, value, i) =>
+    typeof value === 'number' && Number.isFinite(value) && value > minPrice ? i : last, -1);
+  const seconds = payload.t?.[index];
+  const timestamp = typeof seconds === 'number' ? seconds * 1000 : NaN;
+  return Number.isFinite(timestamp) && timestamp > 0 && timestamp <= now ? timestamp : undefined;
 }
 
 export function normalizeVn30DchartQuote(
@@ -136,10 +160,10 @@ export function normalizeVn30DchartQuote(
   if (closes.length === 0) return null;
 
   const latest = closes[closes.length - 1];
-  const prev = closes.length >= 2 ? closes[closes.length - 2] : latest;
-  const changePct = prev > 0 ? ((latest - prev) / prev) * 100 : 0;
-  const volumes = payload?.v ?? [];
-  const latestVol = Number(volumes[volumes.length - 1] ?? 0);
+  const prev = closes.length >= 2 ? closes[closes.length - 2] : undefined;
+  const changePct = prev !== undefined ? ((latest - prev) / prev) * 100 : null;
+  const latestIndex = (payload.c ?? []).findLastIndex((v) => typeof v === 'number' && Number.isFinite(v) && v > 0);
+  const latestVol = payload.v?.[latestIndex];
   const tech = computeTechnicalIndicators(closes);
 
   return {
@@ -147,10 +171,11 @@ export function normalizeVn30DchartQuote(
     name: target.name,
     sector: target.sector,
     priceThousandVnd: Number(latest.toFixed(2)),
-    changePercent: Number(changePct.toFixed(2)),
-    volume: Number.isFinite(latestVol) ? latestVol : 0,
+    changePercent: changePct === null ? null : Number(changePct.toFixed(2)),
+    volume: typeof latestVol === 'number' && Number.isFinite(latestVol) && latestVol >= 0 ? latestVol : null,
     sparkline: closes.slice(-10).map((c) => Number(c.toFixed(2))),
     ...tech,
+    observedAt: dchartObservationTime(payload, 0, now),
     updatedAt: now,
   };
 }

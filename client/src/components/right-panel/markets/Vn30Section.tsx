@@ -15,7 +15,7 @@ export function Vn30Section({ markets }: {
       </div>
       <div className="mt-1.5 grid grid-cols-2 gap-1.5">
         {markets.vn30.map((st) => {
-          const up = st.changePercent >= 0;
+          const up = st.changePercent != null && st.changePercent >= 0;
           return (
             <div
               key={st.symbol}
@@ -31,6 +31,9 @@ export function Vn30Section({ markets }: {
                   Lấy: {st.updatedAt > 0 ? new Date(st.updatedAt).toLocaleString('vi-VN') : 'không rõ'}
                   {st.retained && <span className="text-amber-300"> · Giữ lại</span>}
                 </div>
+                <div className="text-[10px] text-slate-400">
+                  Phiên: {st.observedAt ? new Date(st.observedAt).toLocaleDateString('vi-VN', { timeZone: 'UTC' }) : 'không rõ'}
+                </div>
               </div>
               <div className="shrink-0 text-right font-mono tabular-nums">
                 <div className="text-xs font-semibold text-slate-100">
@@ -38,11 +41,10 @@ export function Vn30Section({ markets }: {
                 </div>
                 <div
                   className={`text-[10px] font-semibold ${
-                    up ? 'text-emerald-400' : 'text-rose-400'
+                    st.changePercent == null ? 'text-slate-400' : up ? 'text-emerald-400' : 'text-rose-400'
                   }`}
                 >
-                  {up ? '+' : ''}
-                  {st.changePercent.toFixed(2)}%
+                  {st.changePercent == null ? 'không rõ' : `${up ? '+' : ''}${st.changePercent.toFixed(2)}%`}
                 </div>
               </div>
             </div>

@@ -3,10 +3,9 @@ import { MiniSparkline } from '../shared';
 import type { MarketQuote } from '@shared/types';
 import type { FlashDirection } from '../../../hooks/useMonitorData';
 
-export function IndicesCommoditiesSection({ indexAndCommodityQuotes, priceFlashes, streamConnected }: {
+export function IndicesCommoditiesSection({ indexAndCommodityQuotes, priceFlashes }: {
   indexAndCommodityQuotes: MarketQuote[];
   priceFlashes: Record<string, FlashDirection>;
-  streamConnected: boolean;
 }) {
   return (
     <section>
@@ -15,7 +14,7 @@ export function IndicesCommoditiesSection({ indexAndCommodityQuotes, priceFlashe
       </h2>
       <div className="mt-1.5 divide-y divide-slate-800/80 rounded border border-slate-800/95 bg-[#0d1524]">
         {indexAndCommodityQuotes.map((q) => {
-          const up = q.changePercent24h >= 0;
+          const up = q.changePercent24h != null && q.changePercent24h >= 0;
           const isVn = q.symbol.includes('VN');
           const flash = priceFlashes[q.symbol];
           return (
@@ -39,11 +38,16 @@ export function IndicesCommoditiesSection({ indexAndCommodityQuotes, priceFlashe
                   <span className="rounded bg-slate-800 px-1 py-0.2 font-mono text-[9.5px] uppercase text-slate-400">
                     {q.group}
                   </span>
-                  {q.symbol === 'Gold' && streamConnected && (
-                    <span className="font-mono text-[9px] text-emerald-400">LIVE 1S</span>
-                  )}
+                  {q.retained && <span className="text-[9px] text-amber-300">dữ liệu cũ</span>}
                 </div>
                 <div className="truncate text-[10.5px] text-slate-400">{q.name}</div>
+                {(q.source === 'Yahoo Finance Chart v8' || q.source === 'HOSE / VNDirect Feed' || q.source === 'HOSE / Stooq Feed') && (
+                  <div className="text-[10px] text-slate-400">
+                    {q.symbol === 'VN-Index' ? 'Phiên' : 'Giá lúc'}: {q.observedAt
+                      ? q.symbol === 'VN-Index' ? new Date(q.observedAt).toLocaleDateString('vi-VN', { timeZone: 'UTC' }) : new Date(q.observedAt).toLocaleString('vi-VN')
+                      : 'không rõ'}
+                  </div>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-2.5">
                 <MiniSparkline values={q.sparkline} positive={up} />
@@ -54,12 +58,13 @@ export function IndicesCommoditiesSection({ indexAndCommodityQuotes, priceFlashe
                   </div>
                   <div
                     className={`inline-flex items-center gap-0.5 text-[10.5px] ${
-                      up ? 'text-emerald-400' : 'text-rose-400'
+                      q.changePercent24h == null ? 'text-slate-400' : up ? 'text-emerald-400' : 'text-rose-400'
                     }`}
                   >
-                    {up ? <TrendUp size={11} /> : <TrendDown size={11} />}
-                    {up ? '+' : ''}
-                    {q.changePercent24h.toFixed(2)}%
+                    {q.changePercent24h == null ? 'không rõ' : (
+                      <>{up ? <TrendUp size={11} /> : <TrendDown size={11} />}
+                        {up ? '+' : ''}{q.changePercent24h.toFixed(2)}%</>
+                    )}
                   </div>
                 </div>
               </div>

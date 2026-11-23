@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import type { HptCompanyIntelSnapshot } from '@shared/types';
+import type { HptCompanyIntelSnapshot, HptCompanyItem } from '@shared/types';
 import type { SnapshotStore } from '../cache/snapshot-store';
+import { buildHptStoryFingerprint, canonicalizeHptUrl } from '../collectors/hpt/config';
 
 interface PersistedTelegramState {
   sentCount: number;
@@ -85,6 +86,29 @@ export class TelegramAlertEngine {
     }
   }
 
+  private buildDedupeKeys(it: Pick<HptCompanyItem, 'id' | 'url' | 'title'>): string[] {
+    const keys = [`hpt:${it.id}`];
+    if (typeof it.url === 'string' && it.url.trim() !== '') {
+      const canonUrl = canonicalizeHptUrl(it.url);
+      if (canonUrl) keys.push(`hpt-url:${canonUrl}`);
+    }
+    if (typeof it.title === 'string' && it.title.trim() !== '') {
+      const storyKey = buildHptStoryFingerprint(it.title);
+      if (storyKey.length >= 12) keys.push(`hpt-story:${storyKey}`);
+    }
+    return keys;
+  }
+
+  private hasSeenAnyKey(keys: readonly string[]): boolean {
+    return keys.some((k) => this.state.seenIds.includes(k));
+  }
+
+  private markAllKeysSeen(keys: readonly string[]): void {
+    for (const k of keys) {
+      this.markSeen(k);
+    }
+  }
+
   private resolveCredentials(): { botToken?: string; chatId?: string } {
     const botToken = (this.credentialsOverride?.botToken ?? process.env.TELEGRAM_BOT_TOKEN ?? '').trim();
     const chatId = (this.credentialsOverride?.chatId ?? process.env.TELEGRAM_CHAT_ID ?? '').trim();
@@ -127,7 +151,8 @@ export class TelegramAlertEngine {
         this.state.lastError = json.description || `HTTP ${resp.status}`;
         this.saveToDisk();
         const status = json.error_code ?? resp.status;
-        return status >= 400 && status < 500 && status !== 429
+        const invalidMessage = status === 400 && /can't parse entities|message is too long|message text is empty/i.test(json.description ?? '');
+        return invalidMessage
           ? 'permanent_failure'
           : 'retryable_failure';
       }
@@ -175,11 +200,11 @@ export class TelegramAlertEngine {
     const hpt = store.get<HptCompanyIntelSnapshot>('hpt-intel', now);
     if (!hpt) return;
 
-    // Seed baseline IDs on first HPT collector pass so server boot never re-sends existing items
+    // Seed baseline IDs, canonical URLs, and story fingerprints on first pass so boot never re-sends existing items
     if (!this.state.baselineDone) {
       for (const it of hpt.items ?? []) {
         if (typeof it.id === 'string' && it.id !== '') {
-          this.markSeen(`hpt:${it.id}`);
+          this.markAllKeysSeen(this.buildDedupeKeys(it));
         }
       }
       this.state.baselineDone = true;
@@ -210,9 +235,10 @@ export class TelegramAlertEngine {
         console.warn('[telegram] skipping malformed HPT alert item');
         continue;
       }
-      if (this.state.seenIds.includes(`hpt:${it.id}`)) continue;
+      const dedupeKeys = this.buildDedupeKeys(it);
+      if (this.hasSeenAnyKey(dedupeKeys)) continue;
       if (refNow - it.publishedAt > maxAlertAgeMs) {
-        this.markSeen(`hpt:${it.id}`);
+        this.markAllKeysSeen(dedupeKeys);
         continue;
       }
       unseen.push(it);
@@ -224,6 +250,7 @@ export class TelegramAlertEngine {
     }
 
     for (const item of unseen.slice(0, 4)) {
+      if (this.hasSeenAnyKey(this.buildDedupeKeys(item))) continue;
       const url = safeHttpUrl(item.url);
       const isNegative = item.sentiment === 'negative';
       const header = isNegative
@@ -240,7 +267,7 @@ export class TelegramAlertEngine {
 
       const delivered = await this.sendMessageHtml(lines.join('\n'));
       if (delivered === 'sent' || delivered === 'permanent_failure') {
-        this.markSeen(`hpt:${item.id}`);
+        this.markAllKeysSeen(this.buildDedupeKeys(item));
         this.saveToDisk();
       }
     }

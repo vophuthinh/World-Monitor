@@ -138,7 +138,7 @@ export interface MarketQuote {
   name: string;
   group: 'index' | 'commodity' | 'fx';
   price: number;
-  changePercent24h: number;
+  changePercent24h: number | null;
   unit?: string;
   sparkline?: number[];
   ma50?: number;
@@ -153,6 +153,7 @@ export interface MarketQuote {
   valuationRetained?: boolean;
   valuationFetchedAt?: number;
   retained?: boolean;
+  observedAt?: number;
   updatedAt: number;
   source: string;
 }
@@ -167,9 +168,12 @@ export interface VnGoldQuote {
   changeSellPercent: number;
   worldParityPerLuongMillionVnd?: number;
   premiumVsWorldMillionVnd?: number;
+  worldParityRetained?: boolean;
   updatedLabel?: string;
+  observedAt?: number;
   updatedAt: number;
   source: string;
+  retained?: boolean;
 }
 
 export interface Vn30StockQuote {
@@ -177,12 +181,13 @@ export interface Vn30StockQuote {
   name: string;
   sector: string;
   priceThousandVnd: number;
-  changePercent: number;
-  volume: number;
+  changePercent: number | null;
+  volume: number | null;
   sparkline: number[];
   ma50?: number;
   ma200?: number;
   rsi14?: number;
+  observedAt?: number;
   updatedAt: number;
   retained?: boolean;
 }
@@ -216,16 +221,19 @@ export interface CryptoQuote {
   symbol: string;
   name: string;
   priceUsd: number;
-  changePercent24h: number;
-  marketCapUsd: number;
-  volume24hUsd: number;
+  changePercent24h: number | null;
+  marketCapUsd: number | null;
+  volume24hUsd: number | null;
   updatedAt: number;
+  marketDataFetchedAt?: number;
+  retained?: boolean;
 }
 
 export interface FearGreedSnapshot {
   value: number;
   classification: string;
   updatedAt: number;
+  retained?: boolean;
 }
 
 export interface MacroCountryIndicator {
@@ -571,8 +579,9 @@ export interface HptStockSnapshot {
   exchange: 'UPCoM · HNX';
   companyName: string;
   priceThousandVnd: number;
-  changePercent: number;
-  volume: number;
+  changePercent?: number;
+  volume?: number;
+  priceKind?: 'trade' | 'reference';
   highThousandVnd?: number;
   lowThousandVnd?: number;
   sparkline: number[];
@@ -586,6 +595,8 @@ export interface HptCompanyIntelSnapshot {
   stock: HptStockSnapshot | null;
   items: HptCompanyItem[];
   sourceCount: number;
+  stockRetained?: boolean;
+  itemsRetained?: boolean;
   aiSentimentEnabled: boolean;
   updatedAt: number;
 }
@@ -901,6 +912,8 @@ export interface LiveFastResponse {
   quotes: MarketQuote[];
   crypto: CryptoQuote[];
   fearGreed: FearGreedSnapshot | null;
+  vnGold: VnGoldQuote[];
+  vn30: Vn30StockQuote[];
   fred: FredMacroMetric[];
   vnMacroPulse?: VietnamLiveMacroPulse;
   expiredMacroNotices?: { vn: ExpiredMacroMetricNotice[]; us: ExpiredMacroMetricNotice[] };
@@ -910,7 +923,7 @@ export interface LiveFastResponse {
 }
 
 export interface LivePriceTick {
-  symbol: string; // e.g. 'BTC', 'ETH', 'SOL', 'Gold'
+  symbol: string; // e.g. 'BTC', 'ETH', 'SOL', 'PAXG'
   price: number;
   changePercent24h: number;
   volume24hUsd?: number;

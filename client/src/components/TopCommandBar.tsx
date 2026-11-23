@@ -556,7 +556,7 @@ export const TopCommandBar = memo(function TopCommandBar({
                   {item.label}
                 </span>
                 <span className="font-medium text-slate-100">{item.price}</span>
-                {item.chg !== 0 && (
+                {item.chg != null && item.chg !== 0 && (
                   <span className={item.chg > 0 ? 'text-emerald-400' : 'text-rose-400'}>
                     {item.chg > 0 ? '+' : ''}
                     {item.chg.toFixed(2)}%

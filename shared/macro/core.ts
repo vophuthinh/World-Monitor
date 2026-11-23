@@ -2,12 +2,32 @@ import type {
   EconomicRegime,
   FredMacroMetric,
   MacroQuadrant,
+  MarketQuote,
   PredictionItem,
   SectorRotationRecommendation,
   Vn30StockQuote,
+  VnGoldQuote,
 } from '../types';
 /** Quốc hội CPI target, applies to full-year / YTD average CPI. */
 export const VN_CPI_TARGET_PCT = 4.5;
+
+export function isFreshMarketObservation(observedAt: number | undefined, now: number): boolean {
+  return observedAt !== undefined && Number.isFinite(observedAt) && observedAt > 0 &&
+    observedAt <= now && now - observedAt <= 6 * 3_600_000;
+}
+
+export function isFreshGoldComparison(
+  domestic: VnGoldQuote,
+  gold: MarketQuote | undefined,
+  fx: MarketQuote | undefined,
+  now: number,
+): boolean {
+  return !domestic.retained && domestic.worldParityRetained === false &&
+    !gold?.retained && !fx?.retained &&
+    isFreshMarketObservation(domestic.observedAt, now) &&
+    isFreshMarketObservation(gold?.observedAt, now) &&
+    isFreshMarketObservation(fx?.observedAt, now);
+}
 
 export function isFreshVietnamMonthlyPeriod(period: string | undefined, now: number): boolean {
   const monthPeriod = period?.match(/^T(1[0-2]|[1-9])\/(20\d{2})$/);
@@ -208,16 +228,17 @@ export function computeFedNetLiquidity(params: {
 
 /**
  * Equity Risk Premium (Damodaran / Fed Model):
- * ERP (%) = Earnings Yield (100 / P/E) - Live 10Y Government Bond Yield (falls back to 5.2% only when live bond yield unavailable)
+ * ERP (%) = Earnings Yield (100 / P/E) - Live 10Y Government Bond Yield.
  */
 export function computeVietnamEquityRiskPremium(
   peRatio: number | undefined,
-  referenceYieldPct = 5.2,
+  referenceYieldPct: number,
 ): { earningsYieldPct: number; erpPct: number; bondYieldUsed: number } | null {
   if (peRatio === undefined || !Number.isFinite(peRatio) || peRatio <= 2 || peRatio >= 80) {
     return null;
   }
-  const cleanRef = Number.isFinite(referenceYieldPct) && referenceYieldPct > 0 ? referenceYieldPct : 5.2;
+  if (!Number.isFinite(referenceYieldPct)) return null;
+  const cleanRef = referenceYieldPct;
   const earningsYieldPct = Number((100 / peRatio).toFixed(2));
   const erpPct = Number((earningsYieldPct - cleanRef).toFixed(2));
   return { earningsYieldPct, erpPct, bondYieldUsed: Number(cleanRef.toFixed(2)) };

@@ -17,6 +17,10 @@ export interface CoinGeckoItem {
   total_volume?: number | null;
 }
 
+function finiteNumber(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
 export function normalizeCoinGeckoMarkets(items: CoinGeckoItem[], now = Date.now()): CryptoQuote[] {
   if (!Array.isArray(items)) {
     throw new Error('Malformed CoinGecko markets array');
@@ -25,17 +29,17 @@ export function normalizeCoinGeckoMarkets(items: CoinGeckoItem[], now = Date.now
   for (const item of items) {
     const price = Number(item.current_price);
     if (!item.id || !Number.isFinite(price) || price <= 0) continue;
+    const change = finiteNumber(item.price_change_percentage_24h);
     out.push({
       id: item.id,
       symbol: String(item.symbol ?? item.id).toUpperCase(),
       name: item.name || item.id,
       priceUsd: price,
-      changePercent24h: Number.isFinite(Number(item.price_change_percentage_24h))
-        ? Number(Number(item.price_change_percentage_24h).toFixed(2))
-        : 0,
-      marketCapUsd: Number(item.market_cap ?? 0),
-      volume24hUsd: Number(item.total_volume ?? 0),
+      changePercent24h: change === null ? null : Number(change.toFixed(2)),
+      marketCapUsd: finiteNumber(item.market_cap),
+      volume24hUsd: finiteNumber(item.total_volume),
       updatedAt: now,
+      marketDataFetchedAt: now,
     });
   }
   return out;
@@ -93,15 +97,17 @@ export async function fetchCryptoQuotes(now: number): Promise<CryptoQuote[]> {
     const usd = row.quotes?.USD;
     const price = Number(usd?.price);
     if (!Number.isFinite(price) || price <= 0) continue;
+    const change = finiteNumber(usd?.percent_change_24h);
     out.push({
       id: PAPRIKA_TARGETS.get(row.id)!,
       symbol: String(row.symbol ?? '').toUpperCase(),
       name: row.name ?? row.id,
       priceUsd: price,
-      changePercent24h: Number((usd?.percent_change_24h ?? 0).toFixed(2)),
-      marketCapUsd: Number(usd?.market_cap ?? 0),
-      volume24hUsd: Number(usd?.volume_24h ?? 0),
+      changePercent24h: change === null ? null : Number(change.toFixed(2)),
+      marketCapUsd: finiteNumber(usd?.market_cap),
+      volume24hUsd: finiteNumber(usd?.volume_24h),
       updatedAt: now,
+      marketDataFetchedAt: now,
     });
   }
   if (out.length === 0) throw new Error('All crypto quote providers failed');
@@ -122,10 +128,11 @@ export function normalizeFearGreed(payload: FearGreedPayload, now = Date.now()):
   const val = Number(entry.value);
   if (!Number.isFinite(val) || val < 0 || val > 100) return null;
   const rawTs = Number(entry.timestamp);
+  if (!Number.isFinite(rawTs) || rawTs <= 0 || rawTs * 1000 > now) return null;
   return {
     value: Math.round(val),
     classification: entry.value_classification || 'Neutral',
-    updatedAt: Number.isFinite(rawTs) && rawTs > 0 ? rawTs * 1000 : now,
+    updatedAt: rawTs * 1000,
   };
 }
 

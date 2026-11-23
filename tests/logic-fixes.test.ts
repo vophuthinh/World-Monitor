@@ -54,6 +54,23 @@ describe('dead-reckoning heading handling', () => {
 });
 
 describe('CollectorScheduler onSync hook', () => {
+  it('reports failed refreshes as failures even when returning retained data', async () => {
+    const store = new SnapshotStore(mkdtempSync(join(tmpdir(), 'wm-logic-fixes-')));
+    const calls: boolean[] = [];
+    let fail = false;
+    const scheduler = new CollectorScheduler(store, (_id, _data, succeeded) => calls.push(succeeded));
+    scheduler.registerCollector({
+      id: 'military-flights', label: 'x', intervalMs: 1000, retainMs: 1_000_000,
+      countItems: (data: number[]) => data.length,
+      fetcher: async () => { if (fail) throw new Error('offline'); return [1]; },
+    });
+    await scheduler.refreshCollector('military-flights');
+    fail = true;
+    expect(await scheduler.refreshCollector('military-flights')).toEqual([1]);
+    expect(calls).toEqual([true, false]);
+    expect(store.getHealth('military-flights')?.status).toBe('stale');
+  });
+
   it('does not reject refreshCollector when the hook throws and still stores the snapshot', async () => {
     const store = new SnapshotStore(mkdtempSync(join(tmpdir(), 'wm-logic-fixes-')));
     const scheduler = new CollectorScheduler(store, () => {
@@ -384,7 +401,7 @@ describe('headingKnown for AIS vessels (both sources)', () => {
     const { parseAisStreamMessage } = await import('../server/collectors/maritime-vessels');
     const msg = (pos: Record<string, unknown>) =>
       JSON.stringify({
-        MetaData: { MMSI: 574000001, latitude: 10.5, longitude: 107.5, ShipName: 'TEST' },
+        MetaData: { MMSI: 574000001, latitude: 10.5, longitude: 107.5, ShipName: 'TEST', time_utc: new Date().toISOString() },
         Message: { PositionReport: { Sog: 12, ...pos } },
       });
     const known = (pos: Record<string, unknown>) =>
@@ -416,7 +433,7 @@ describe('review follow-up coverage', () => {
     const { parseAisStreamMessage } = await import('../server/collectors/maritime-vessels');
     const parse = (pos: Record<string, unknown>, existing?: GeoPointFeature) =>
       (parseAisStreamMessage as (j: string, n: number, c: undefined, e?: GeoPointFeature) => GeoPointFeature | null)(
-        JSON.stringify({ MetaData: { MMSI: 574000002, latitude: 10.5, longitude: 107.5, ShipName: 'T' }, Message: { PositionReport: { Sog: 12, ...pos } } }),
+        JSON.stringify({ MetaData: { MMSI: 574000002, latitude: 10.5, longitude: 107.5, ShipName: 'T', time_utc: new Date().toISOString() }, Message: { PositionReport: { Sog: 12, ...pos } } }),
         Date.now(),
         undefined,
         existing,
@@ -557,7 +574,7 @@ describe('Telegram red-team follow-ups', () => {
     const delivered: string[] = [];
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (_u, init) => {
       const text: string = JSON.parse(String(init?.body)).text;
-      if (text.includes('poison')) return new Response(JSON.stringify({ ok: false, description: 'bad request' }), { status: 400 });
+      if (text.includes('poison')) return new Response(JSON.stringify({ ok: false, description: "Bad Request: can't parse entities" }), { status: 400 });
       delivered.push(text);
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
     });
@@ -566,6 +583,36 @@ describe('Telegram red-team follow-ups', () => {
     store.set('hpt-intel', snapOf([mkItem('poison1'), mkItem('poison2'), mkItem('poison3'), mkItem('poison4'), mkItem('good5')]), 60_000, 5);
     for (let pass = 0; pass < 5; pass += 1) await tg.evaluateCollectorUpdate('hpt-intel', store);
     expect(delivered.some((t) => t.includes('good5'))).toBe(true);
+  });
+
+  it.each([400, 401, 403])('retries alerts after Telegram configuration error %i recovers', async (status) => {
+    const dir = mkdtempSync(join(tmpdir(), 'wm-tg-auth-'));
+    writeFileSync(join(dir, 'telegram-alerts.json'), JSON.stringify({ sentCount: 0, seenIds: ['hpt:seed'] }));
+    let authorized = false;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      new Response(JSON.stringify(authorized ? { ok: true } : { ok: false, error_code: status, description: 'chat not found' }), { status: authorized ? 200 : status }));
+    const store = new SnapshotStore(dir);
+    const tg = new TelegramAlertEngine(dir, creds);
+    store.set('hpt-intel', snapOf([mkItem('auth1')]), 60_000, 1);
+    await tg.evaluateCollectorUpdate('hpt-intel', store);
+    authorized = true;
+    await tg.evaluateCollectorUpdate('hpt-intel', store);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('sends distinct filings even when their first 42 title characters match', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wm-tg-filings-'));
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    const store = new SnapshotStore(dir);
+    const tg = new TelegramAlertEngine(dir, creds);
+    store.set('hpt-intel', snapOf([]), 60_000, 0);
+    await tg.evaluateCollectorUpdate('hpt-intel', store);
+    const prefix = 'Công ty Cổ phần Dịch vụ Công nghệ Tin học HPT công bố báo cáo quý ';
+    store.set('hpt-intel', snapOf([mkItem('q1', { title: `${prefix}1` })]), 60_000, 1);
+    await tg.evaluateCollectorUpdate('hpt-intel', store);
+    store.set('hpt-intel', snapOf([mkItem('q2', { title: `${prefix}2` })]), 60_000, 1);
+    await tg.evaluateCollectorUpdate('hpt-intel', store);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('omits the link for non-http(s) URLs instead of putting them in href', async () => {

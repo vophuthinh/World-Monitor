@@ -4,6 +4,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MacroHealthSection } from '../client/src/components/right-panel/MacroHealthSection';
 import { RightIntelPanel } from '../client/src/components/RightIntelPanel';
+import { CryptoSentimentSection } from '../client/src/components/right-panel/markets/CryptoSentimentSection';
+import { IndicesCommoditiesSection } from '../client/src/components/right-panel/markets/IndicesCommoditiesSection';
+import { VnGoldSection } from '../client/src/components/right-panel/markets/VnGoldSection';
+import { Vn30Section } from '../client/src/components/right-panel/markets/Vn30Section';
 import type { EconomyHealthReport, MarketSnapshot } from '../shared/types';
 
 vi.mock('../client/src/components/right-panel/LiveIntelTab', () => ({ LiveIntelTab: () => <div>Intel content</div> }));
@@ -29,6 +33,37 @@ afterEach(async () => {
 });
 
 describe('market UI interactions', () => {
+  it('shows unknown changes rather than invented zero percentages', async () => {
+    await act(async () => root.render(<>
+      <IndicesCommoditiesSection indexAndCommodityQuotes={[{ symbol: 'VN-Index', name: 'VN', group: 'index', price: 1200, changePercent24h: null, updatedAt: 1, source: 'HOSE' }]} priceFlashes={{}} />
+      <Vn30Section markets={{ ...markets, vn30: [{ symbol: 'VCB', name: 'VCB', sector: 'bank', priceThousandVnd: 80, changePercent: null, volume: null, sparkline: [80], updatedAt: 1 }] }} />
+    </>));
+    expect(container.textContent?.match(/không rõ/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(container.textContent).not.toContain('0.00%');
+  });
+
+  it('displays missing market cap and warns when price or gold comparison freshness is unknown', async () => {
+    const coin = { id: 'bitcoin', symbol: 'BTC', name: 'Bitcoin', priceUsd: 100, changePercent24h: 0, marketCapUsd: null, volume24hUsd: null, updatedAt: 1 };
+    const quote = { symbol: 'Gold', name: 'Gold', group: 'commodity' as const, price: 2500, changePercent24h: 0, updatedAt: 1, source: 'Yahoo Finance Chart v8' };
+    const gold = { code: 'SJC', name: 'SJC', buyPerLuongMillionVnd: 80, sellPerLuongMillionVnd: 81, spreadMillionVnd: 1, changeBuyPercent: 0, changeSellPercent: 0, worldParityPerLuongMillionVnd: 70, premiumVsWorldMillionVnd: 11, worldParityRetained: true, updatedAt: 1, source: 'test' };
+    await act(async () => root.render(<>
+      <CryptoSentimentSection markets={markets} priceFlashes={{}} volatileCrypto={[coin]} />
+      <IndicesCommoditiesSection indexAndCommodityQuotes={[quote]} priceFlashes={{}} />
+      <VnGoldSection markets={{ ...markets, vnGold: [gold] }} />
+    </>));
+    expect(container.textContent).toContain('MCap —');
+    expect(container.textContent).toContain('Giá lúc: không rõ');
+    expect(container.textContent).toContain('tham chiếu cũ hoặc chưa rõ');
+  });
+
+  it('marks sentiment stale when its observation expires while the tab remains open', async () => {
+    const old = Date.now() - 8 * 86_400_000;
+    await act(async () => root.render(
+      <CryptoSentimentSection markets={{ ...markets, fearGreed: { value: 70, classification: 'Greed', updatedAt: old } }} priceFlashes={{}} volatileCrypto={[]} />,
+    ));
+    expect(container.textContent).toContain('F&G: 70/100 (Greed) · dữ liệu cũ');
+  });
+
   it('switches the macro region and pressed state', async () => {
     const us = { ...report, id: 'US' as const, title: 'Mỹ' };
     function Wrapper() {

@@ -1,12 +1,17 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { once } from 'node:events';
+import { serve } from '@hono/node-server';
+import { getConnInfo } from '@hono/node-server/conninfo';
+import { serveStatic } from '@hono/node-server/serve-static';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BootstrapResponse, LiveFastResponse, MarketSnapshot, SourceHealth } from '../shared/types';
 import { createApp } from '../server/app';
 import { CollectorScheduler } from '../server/cache/scheduler';
 import { SnapshotStore } from '../server/cache/snapshot-store';
 import { evaluateMacroHealth } from '../shared/macro-health';
+import { buildDeterministicSitrep, buildMonitorLiveContext } from '../server/lib/groq-intel';
 
 describe('Hono Backend API Routes', () => {
   let cacheDir: string;
@@ -91,12 +96,73 @@ describe('Hono Backend API Routes', () => {
     expect(fastRes.status).toBe(200);
     const fastBody = (await fastRes.json()) as LiveFastResponse;
     expect(fastBody.earthquakes).toHaveLength(1);
+    expect(fastBody.vn30).toEqual([]);
+    expect(fastBody.vnGold).toEqual([]);
 
     const healthRes = await app.request('/api/health');
     expect(healthRes.status).toBe(200);
     const healthBody = (await healthRes.json()) as SourceHealth[];
     expect(Array.isArray(healthBody)).toBe(true);
     expect(healthBody.find((h) => h.id === 'earthquakes')?.status).toBe('ok');
+  });
+
+  it('serves the API through the Node adapter over HTTP', async () => {
+    const app = createApp(scheduler);
+    const staticPath = join(cacheDir, 'adapter-test.html');
+    await writeFile(staticPath, 'static adapter test');
+    app.get('/adapter-static', serveStatic({ path: staticPath }));
+    app.get('/adapter-address', (c) => c.text(getConnInfo(c).remote.address ?? 'missing'));
+    const server = serve({ fetch: app.fetch, hostname: '127.0.0.1', port: 0 });
+    try {
+      await once(server, 'listening');
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('Missing test server address');
+      const res = await fetch(`http://127.0.0.1:${address.port}/api/health`);
+      expect(res.status).toBe(200);
+      expect((await res.json() as SourceHealth[]).some((h) => h.id === 'earthquakes')).toBe(true);
+      expect(await (await fetch(`http://127.0.0.1:${address.port}/adapter-static`)).text()).toBe('static adapter test');
+      expect(await (await fetch(`http://127.0.0.1:${address.port}/adapter-address`)).text()).toBe('127.0.0.1');
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((err?: Error) => err ? reject(err) : resolve()));
+    }
+  });
+
+  it('does not restore expired vessel positions from the snapshot cache', async () => {
+    const now = Date.now();
+    store.set('maritime-vessels', [
+      { id: 'old', layer: 'vessels', title: 'old', category: 'vessel', severity: 'info', lat: 10, lon: 100, timestamp: now - 31 * 60_000, source: 'AIS', meta: {} },
+      { id: 'fresh', layer: 'vessels', title: 'fresh', category: 'vessel', severity: 'info', lat: 10, lon: 100, timestamp: now - 60_000, source: 'AIS', meta: {} },
+    ], 3_600_000);
+    const app = createApp(scheduler, undefined, { getLiveVessels: () => [] });
+    const bootstrap = await (await app.request('/api/bootstrap')).json() as BootstrapResponse;
+    const fast = await (await app.request('/api/live-fast')).json() as LiveFastResponse;
+    expect(bootstrap.layers.vessels.map((v) => v.id)).toEqual(['fresh']);
+    expect(fast.vessels.map((v) => v.id)).toEqual(['fresh']);
+    expect(buildMonitorLiveContext(store, now)).toContain('Tàu AIS: 1');
+    expect(buildDeterministicSitrep(store, now).headline).toContain('1 tàu AIS');
+  });
+
+  it('uses the same live AIS selection in APIs and newly generated AI summaries', async () => {
+    const now = Date.now();
+    const live = [
+      { id: 'ws1', layer: 'vessels' as const, title: '1', category: 'vessel', severity: 'info' as const, lat: 10, lon: 100, timestamp: now, source: 'AIS', meta: {} },
+      { id: 'ws2', layer: 'vessels' as const, title: '2', category: 'vessel', severity: 'info' as const, lat: 10, lon: 100, timestamp: now, source: 'AIS', meta: {} },
+    ];
+    store.set('maritime-vessels', [live[0]], 3_600_000);
+    const app = createApp(scheduler, undefined, { getLiveVessels: () => live });
+    vi.stubEnv('GROQ_API_KEY', '');
+    vi.stubEnv('GEMINI_API_KEY', '');
+    try {
+      const fast = await (await app.request('/api/live-fast')).json() as LiveFastResponse;
+      expect(fast.vessels).toHaveLength(2);
+      expect(buildMonitorLiveContext(store, now, live)).toContain('Tàu AIS: 2');
+      expect(buildDeterministicSitrep(store, now, live).headline).toContain('2 tàu AIS');
+      const res = await app.request('/api/ai-sitrep/refresh', { method: 'POST' });
+      expect(res.status).toBe(200);
+      expect((await res.json() as { headline: string }).headline).toContain('2 tàu AIS');
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('marks market data retained on bootstrap and fast poll after a whole collector failure', async () => {
@@ -131,6 +197,54 @@ describe('Hono Backend API Routes', () => {
     expect(fast.fred[0].retained).toBe(true);
     expect(fast.vnMacroPulse?.fieldMeta?.manufacturingPmi?.retained).toBe(true);
     expect(store.get<MarketSnapshot>('markets-crypto')?.fred?.[0].retained).toBe(false);
+  });
+
+  it('marks old gold observations and omits expired sentiment even in a fresh market snapshot', async () => {
+    const now = Date.now();
+    const old = now - 6 * 3_600_000 - 1_000;
+    const markets: MarketSnapshot = {
+      quotes: [
+        { symbol: 'Gold', name: 'Gold', group: 'commodity', price: 2500, changePercent24h: 0, observedAt: now, updatedAt: now, source: 'Yahoo' },
+        { symbol: 'USD/VND', name: 'FX', group: 'fx', price: 25000, changePercent24h: 0, observedAt: now, updatedAt: now, source: 'FX' },
+      ],
+      crypto: [], fearGreed: { value: 70, classification: 'Greed', updatedAt: now - 8 * 86_400_000 },
+      vnGold: [{ code: 'SJC', name: 'SJC', buyPerLuongMillionVnd: 80, sellPerLuongMillionVnd: 90,
+        spreadMillionVnd: 10, changeBuyPercent: 0, changeSellPercent: 0, observedAt: old,
+        updatedAt: now, worldParityPerLuongMillionVnd: 70, premiumVsWorldMillionVnd: 20,
+        worldParityRetained: false, retained: false, source: 'Mi Hong' }],
+      macro: [], updatedAt: now,
+    };
+    scheduler.registerCollector({
+      id: 'markets-crypto', label: 'Markets', intervalMs: 60_000, retainMs: 3_600_000,
+      countItems: () => 1, fetcher: async () => markets,
+    });
+
+    store.set('markets-crypto', markets, 3_600_000);
+    const app = createApp(scheduler);
+    const bootstrap = await (await app.request('/api/bootstrap')).json() as BootstrapResponse;
+    const fast = await (await app.request('/api/live-fast')).json() as LiveFastResponse;
+    for (const result of [bootstrap.markets, fast]) {
+      expect(result.fearGreed).toBeNull();
+      expect(result.vnGold?.[0]).toMatchObject({ retained: true, worldParityRetained: true });
+    }
+    expect(store.get<MarketSnapshot>('markets-crypto')?.vnGold?.[0].retained).toBe(false);
+  });
+
+  it('marks cached ER-API observations stale as their age crosses the limit', async () => {
+    const now = Date.now();
+    const markets: MarketSnapshot = {
+      quotes: [{ symbol: 'USD/VND', name: 'FX', group: 'fx', price: 25000, changePercent24h: null,
+        observedAt: now - 2 * 86_400_000 - 1_000, updatedAt: now,
+        source: 'ExchangeRate-API (open.er-api)', retained: false }],
+      crypto: [], fearGreed: null, macro: [], updatedAt: now,
+    };
+    store.set('markets-crypto', markets, 3_600_000);
+    const app = createApp(scheduler);
+    const bootstrap = await (await app.request('/api/bootstrap')).json() as BootstrapResponse;
+    const fast = await (await app.request('/api/live-fast')).json() as LiveFastResponse;
+    expect(bootstrap.markets.quotes[0].retained).toBe(true);
+    expect(fast.quotes[0].retained).toBe(true);
+    expect(store.get<MarketSnapshot>('markets-crypto')?.quotes[0].retained).toBe(false);
   });
 
   it('preserves expired market diagnostics across an outage and restart without restoring score inputs', async () => {

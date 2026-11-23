@@ -19,7 +19,13 @@ export function buildVietnamMacroHealth(
   },
   now = Date.now(),
 ): EconomyHealthReport | null {
-  if (!vn || (vn.gdpGrowthPct === null && pulse?.quarterlyGdpPct === undefined)) return null;
+  if (vn?.gdpGrowthPct == null && pulse?.quarterlyGdpPct === undefined) return null;
+  const worldBankMissing = !vn;
+  vn ??= {
+    countryCode: 'VNM', countryName: 'Việt Nam', regionLabel: 'Việt Nam', isVietnam: true,
+    gdpGrowthPct: null, gdpGrowthYear: null, gdpCurrentUsd: null, gdpCurrentYear: null,
+    cpiInflationPct: null, cpiYear: null,
+  };
 
   const fm = pulse?.fieldMeta;
   const wbRetained = Boolean(vn.retained);
@@ -525,6 +531,9 @@ export function buildVietnamMacroHealth(
     : undefined;
 
   const warningFlags: EconomyHealthReport['warningFlags'] = [];
+  if (worldBankMissing) {
+    warningFlags.push({ severity: 'warn', text: 'Thiếu dữ liệu World Bank; báo cáo chỉ sử dụng các chỉ báo Việt Nam hiện có.' });
+  }
   if (gdp >= 7.0 && pmiHealthy) {
     const resolvedTradeMonths = ytdTradeMonths ?? (pulse?.ytdCpiMonths ? String(pulse.ytdCpiMonths) : undefined);
     const tradePeriodLabel = resolvedTradeMonths ? `${resolvedTradeMonths} tháng ` : 'năm ';

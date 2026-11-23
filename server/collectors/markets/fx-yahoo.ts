@@ -12,7 +12,8 @@ export function normalizeErApiFx(payload: ErApiPayload, now = Date.now()): Marke
   if (!rates || typeof rates !== 'object') {
     throw new Error('Malformed open.er-api FX payload');
   }
-  const updatedAt = payload.time_last_update_unix ? payload.time_last_update_unix * 1000 : now;
+  const sourceTime = typeof payload.time_last_update_unix === 'number' ? payload.time_last_update_unix * 1000 : NaN;
+  const observedAt = Number.isFinite(sourceTime) && sourceTime > 0 && sourceTime <= now ? sourceTime : undefined;
   const pairs: MarketQuote[] = [];
 
   const addDirectUsdBase = (code: string, symbol: string, name: string, decimals = 2) => {
@@ -23,8 +24,9 @@ export function normalizeErApiFx(payload: ErApiPayload, now = Date.now()): Marke
         name,
         group: 'fx',
         price: Number(val.toFixed(decimals)),
-        changePercent24h: 0,
-        updatedAt,
+        changePercent24h: null,
+        ...(observedAt !== undefined ? { observedAt } : {}),
+        updatedAt: now,
         source: 'ExchangeRate-API (open.er-api)',
       });
     }
@@ -38,8 +40,9 @@ export function normalizeErApiFx(payload: ErApiPayload, now = Date.now()): Marke
         name,
         group: 'fx',
         price: Number((1 / val).toFixed(decimals)),
-        changePercent24h: 0,
-        updatedAt,
+        changePercent24h: null,
+        ...(observedAt !== undefined ? { observedAt } : {}),
+        updatedAt: now,
         source: 'ExchangeRate-API (open.er-api)',
       });
     }
@@ -60,9 +63,11 @@ export interface YahooChartPayload {
     result?: Array<{
       meta?: {
         regularMarketPrice?: number;
+        regularMarketTime?: number;
         previousClose?: number;
         chartPreviousClose?: number;
       };
+      timestamp?: Array<number | null>;
       indicators?: {
         quote?: Array<{
           close?: Array<number | null>;
@@ -112,7 +117,7 @@ export function computeTechnicalIndicators(closes: readonly number[]): {
   }
 
   const rsi14 =
-    avgLoss <= 1e-9 ? 100 : Number((100 - 100 / (1 + avgGain / avgLoss)).toFixed(1));
+    avgLoss <= 1e-9 ? (avgGain <= 1e-9 ? 50 : 100) : Number((100 - 100 / (1 + avgGain / avgLoss)).toFixed(1));
 
   return {
     ...(ma50 !== undefined ? { ma50 } : {}),
@@ -141,22 +146,29 @@ export function normalizeYahooChartQuote(
   const prev = Number(
     result.meta?.previousClose ??
       (closes.length >= 2 ? closes[closes.length - 2] : undefined) ??
-      result.meta?.chartPreviousClose ??
-      price,
+      result.meta?.chartPreviousClose,
   );
   const changePct =
-    Number.isFinite(prev) && prev > 0 ? ((price - prev) / prev) * 100 : 0;
+    Number.isFinite(prev) && prev > 0 ? ((price - prev) / prev) * 100 : null;
   const tech = computeTechnicalIndicators(closes);
+  const rawCloses = result.indicators?.quote?.[0]?.close ?? [];
+  const lastCloseIndex = rawCloses.findLastIndex((value) => typeof value === 'number' && Number.isFinite(value) && value > 0);
+  const marketTime = result.meta?.regularMarketPrice != null
+    ? result.meta.regularMarketTime
+    : result.timestamp?.[lastCloseIndex];
+  const observedAt = typeof marketTime === 'number' && Number.isFinite(marketTime) &&
+    marketTime > 0 && marketTime * 1000 <= now ? marketTime * 1000 : undefined;
 
   return {
     symbol: displaySymbol,
     name,
     group,
     price: Number(price.toFixed(price >= 100 ? 2 : 3)),
-    changePercent24h: Number(changePct.toFixed(2)),
+    changePercent24h: changePct === null ? null : Number(changePct.toFixed(2)),
     unit,
     sparkline: closes.length >= 2 ? closes.slice(-10).map((v) => Number(v.toFixed(2))) : undefined,
     ...tech,
+    ...(observedAt !== undefined ? { observedAt } : {}),
     updatedAt: now,
     source: 'Yahoo Finance Chart v8',
   };

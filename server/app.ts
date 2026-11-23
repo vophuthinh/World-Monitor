@@ -6,6 +6,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { THEATER_PRESETS, buildStaticGeoBundle } from '@shared/registries/index';
 import { collectExpiredMacroNotices } from '@shared/macro-health';
+import { resolveFreshVessels } from '@shared/maritime-freshness';
 import type {
   AiSitrepSnapshot,
   BootstrapResponse,
@@ -227,7 +228,7 @@ export function createApp(
   });
 
   app.get('/api/ai-sitrep', async (c) => {
-    const sitrep = await generateAiSitrep(store, false);
+    const sitrep = await generateAiSitrep(store, false, options.getLiveVessels);
     store.set('ai-sitrep', sitrep, 2 * 3_600_000, sitrep.bullets.length);
     return c.json(sitrep);
   });
@@ -243,7 +244,7 @@ export function createApp(
         429,
       );
     }
-    const sitrep = await generateAiSitrep(store, true);
+    const sitrep = await generateAiSitrep(store, true, options.getLiveVessels);
     store.set('ai-sitrep', sitrep, 2 * 3_600_000, sitrep.bullets.length);
     return c.json(sitrep);
   });
@@ -252,7 +253,7 @@ export function createApp(
     try {
       const body = (await c.req.json()) as { question?: string };
       const clientIp = clientIpOf(c);
-      const res = await answerMonitorQuestion(String(body?.question ?? ''), store, clientIp);
+      const res = await answerMonitorQuestion(String(body?.question ?? ''), store, clientIp, options.getLiveVessels);
       return c.json(res);
     } catch (err) {
       return c.json(
@@ -338,10 +339,8 @@ export function createApp(
     const predictionsPayload = store.get<PredictionItem[]>('polymarket', now) ?? [];
 
     const liveWsVessels = options.getLiveVessels?.();
-    const resolvedVessels = (
-      liveWsVessels && liveWsVessels.length > 0
-        ? liveWsVessels
-        : store.get<GeoPointFeature[]>('maritime-vessels', now) ?? []
+    const resolvedVessels = resolveFreshVessels(
+      store.get<GeoPointFeature[]>('maritime-vessels', now) ?? [], now, liveWsVessels,
     ).slice(0, 500);
 
     const liveUnifiedNews = options.getUnifiedNews?.();
@@ -405,10 +404,9 @@ export function createApp(
       : undefined;
 
     const liveWsVessels = options.getLiveVessels?.();
-    const resolvedVessels =
-      liveWsVessels && liveWsVessels.length > 0
-        ? liveWsVessels
-        : store.get<GeoPointFeature[]>('maritime-vessels', now) ?? [];
+    const resolvedVessels = resolveFreshVessels(
+      store.get<GeoPointFeature[]>('maritime-vessels', now) ?? [], now, liveWsVessels,
+    );
 
     const payload: LiveFastResponse = {
       serverTime: now,
@@ -419,6 +417,8 @@ export function createApp(
       quotes: rawMarkets?.quotes ?? [],
       crypto: rawMarkets?.crypto ?? [],
       fearGreed: rawMarkets?.fearGreed ?? null,
+      vnGold: rawMarkets?.vnGold ?? [],
+      vn30: rawMarkets?.vn30 ?? [],
       fred: rawMarkets?.fred ?? [],
       ...(rawMarkets?.vnMacroPulse ? { vnMacroPulse: rawMarkets.vnMacroPulse } : {}),
       ...(expiredMacroNotices ? { expiredMacroNotices } : {}),

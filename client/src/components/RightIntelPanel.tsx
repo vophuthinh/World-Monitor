@@ -44,6 +44,7 @@ export interface RightIntelPanelProps {
   policyLegal?: PolicyLegalSnapshot;
   vietnamEnv?: VietnamEnvSnapshot;
   hptIntel?: HptCompanyIntelSnapshot;
+  hptSourceStale?: boolean;
   aiSitrep?: AiSitrepSnapshot;
   regimeHistory?: RegimeHistoryPoint[];
   military: GeoPointFeature[];
@@ -80,6 +81,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
   policyLegal,
   vietnamEnv,
   hptIntel,
+  hptSourceStale,
   aiSitrep,
   regimeHistory = [],
   military,
@@ -327,6 +329,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
           {activeTab === 'hpt' && (
             <HptCorporateTab
               hptIntel={hptIntel}
+              sourceStale={hptSourceStale}
               sentimentStats={hptSentimentStats}
               refreshingIds={refreshingIds}
               onForceRefresh={onForceRefresh}

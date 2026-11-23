@@ -129,7 +129,7 @@ export const HPT_RECRUITMENT_NOISE_RE =
   /(?:\b(?:tuyển\s+dụng|cần\s+tuyển|tin\s+tuyển|thông\s+báo\s+tuyển|tuyển\s+gấp|việc\s+làm\s+tại\s+hpt|cơ\s+hội\s+nghề\s+nghiệp|mô\s+tả\s+công\s+việc|hiring|job\s+opening|we\s+are\s+hiring|reviews\s*&\s*jobs)\b|(?:^|\s)(?:ứng\s+tuyển|tìm\s+kiếm\s+(?:nhân\s+sự|ứng\s+viên|đồng\s+đội)|cho\s+các\s+vị\s+trí\s*:)(?=$|[\s.,;:!?)}\]"'])|\b(?:analyst|engineer|developer|specialist|intern|consultant|architect|thực\s+tập\s+sinh|chuyên\s+viên|nhân\s+viên|kỹ\s+sư)\b[^.|]{0,48}\btại\s+hpt\b)/i;
 
 export const HPT_FALSE_POSITIVE_NOISE_RE =
-  /(?:\b(?:hải phòng tourist|hai phong tourist|hypertension|pulmonary|hyperparathyroidism|high[- ]pressure turbine|blade inspection|bệnh nhân|huyết áp|phẫu thuật|y khoa|clinical study)\b|hptvietnam\.vn|nongsanxuatkhau|ai\s+x-ray|showroom\s+(?:công\s+nghệ\s+)?ai\s*(?:và|&)\s*tự\s+động\s+hóa|công\s+ty\s+tnhh[^.|]{0,48}\bhpt\b|^\s*\d{10}\s*-\s*công\s+ty\b)/i;
+  /(?:\b(?:hải phòng tourist|hai phong tourist|hypertension|pulmonary|hyperparathyroidism|high[- ]pressure turbine|blade inspection|bệnh nhân|huyết áp|phẫu thuật|y khoa|clinical study)\b|hptvietnam\.vn|nongsanxuatkhau|ai\s+x-ray|showroom\s+(?:công\s+nghệ\s+)?ai\s*(?:và|&)\s*tự\s+động\s+hóa|công\s+ty\s+tnhh[^.|]{0,90}\bhpt\b|^\s*\d{10}\s*-\s*công\s+ty\b|(?:hpt\s+vietnam(?:\s+corporation)?|công\s+nghệ\s+tin\s+học\s+hpt)'s\s+post\b|công\s+ty[^|.-]{0,45}\bhpt\s*-\s*trang\s+chủ\b|\bhồ\s+sơ\s+(?:lãnh\s+đạo|doanh\s+nghiệp)\b|\bthông\s+tin\s+cá\s+nhân\b[^|]{0,50}\bhpt\b|\bgiá\s+cổ\s+phiếu\s+(?:ctcp|công\s+ty)[^|]{0,50}\bhôm\s+nay\b|^hpt\s*:\s*ctcp\s+dịch\s+vụ\s+công\s+nghệ\s+tin\s+học\s+hpt(?:\s*-\s*hpt\s+vietnam\s+corporation)?\s*$|^công\s+ty\s+(?:cổ\s+phần|cp)\s+dịch\s+vụ\s+công\s+nghệ\s+tin\s+học\s+hpt\s*$)/i;
 
 export const HPT_VALID_CONTEXT_RE =
   /(0301447436|hpt\s+cyber|công nghệ|tin học|hạ tầng|chuyển đổi số|tích hợp hệ thống|an toàn thông tin|an ninh mạng|bảo mật|soc\b|erp\b|cyber|ai\b|trí tuệ nhân tạo|điện toán|cloud|lượng tử|microsoft|ibm|netapp|cisco|oracle|fortinet|vnpt|vinasa|vnisa|sao khuê|thái hà|thực tập|môi trường làm việc|review\s+về\s+(?:cty|công\s+ty)\s+hpt|cổ phiếu|mã hpt|hpt\s*:|upcom|hnx|hose|ubck|chứng khoán|cổ tức|chốt quyền|đkcc|phát hành|cổ đông|hđqt|hội đồng quản trị|đhđcđ|nghị quyết|báo cáo tài chính|quản trị công ty|lợi nhuận|doanh thu|đấu thầu|trúng thầu|gói thầu|nhà thầu|ngô vi đồng|đinh hà duy linh)/i;
@@ -137,8 +137,8 @@ export const HPT_VALID_CONTEXT_RE =
 // Direct URL patterns for official/self-owned HPT accounts across Facebook, LinkedIn (/posts, /pulse, /company), Threads, and TikTok
 export const HPT_SELF_SOCIAL_URL_RE = new RegExp(
   [
-    // Facebook official pages, sub-brand pages (e.g. HPTVietnamCorp, Hpt.RPAsolution, LifeAtHPT), & legacy /pages/...HPT...
-    '(?:facebook\\.com|fb\\.com)\\/(?:pages\\/[^/?#]*\\bhpt\\b[^/?#]*|(?:pg\\/|people\\/[^/?#]*\\bhpt\\b[^/?#]*\\/)?(?:hpt(?:[._-]?[a-z0-9._-]+)?|life[._-]?at[._-]?hpt|tuyen[._-]?dung[._-]?hpt|hsoc(?:[._-]?vietnam)?|cong[._-]?nghe[._-]?tin[._-]?hoc[._-]?hpt))(?:[/?#]|$)',
+    // Facebook official pages, sub-brand pages (e.g. HPTVietnamCorp, Hpt.RPAsolution, LifeAtHPT), & legacy /pages/...HPT/<id>
+    '(?:facebook\\.com|fb\\.com)\\/(?:pages\\/[^/?#]*\\bhpt\\b[^/?#]*(?:\\/\\d+)?|(?:pg\\/|people\\/[^/?#]*\\bhpt\\b[^/?#]*\\/)?(?:hpt(?:[._-]?[a-z0-9._-]+)?|life[._-]?at[._-]?hpt|tuyen[._-]?dung[._-]?hpt|hsoc(?:[._-]?vietnam)?|cong[._-]?nghe[._-]?tin[._-]?hoc[._-]?hpt))(?:[/?#]|$)',
     // LinkedIn company page
     'linkedin\\.com\\/company\\/(?:hpt[-_a-z0-9]*|life-at-hpt[-_a-z0-9]*|hsoc[-_a-z0-9]*|cong-nghe-tin-hoc-hpt[-_a-z0-9]*)(?:[/?#]|$)',
     // LinkedIn /posts/ authored by HPT accounts (author slug immediately follows /posts/ before '_')
@@ -168,7 +168,17 @@ export function isHptSelfSocialPost(
   snippet = '',
   source = '',
 ): boolean {
-  if (url && HPT_SELF_SOCIAL_URL_RE.test(url)) return true;
+  let decodedUrl = url;
+  if (url) {
+    try {
+      decodedUrl = decodeURIComponent(url);
+    } catch {
+      decodedUrl = url;
+    }
+  }
+  if (decodedUrl && (HPT_SELF_SOCIAL_URL_RE.test(decodedUrl) || HPT_SELF_SOCIAL_URL_RE.test(url))) {
+    return true;
+  }
   if (source && HPT_OFFICIAL_SOCIAL_AUTHOR_SOURCE_RE.test(source.trim())) return true;
 
   const combinedMeta = `${url} ${source} ${title} ${snippet}`;
@@ -378,6 +388,200 @@ export function classifyHptExternalItem(
 }
 
 // ============================================================================
-// 1b. Custom RSS / RSSHub & Public Telegram Channel Watchlist Store
+// 1b. Canonical Cross-Source URL & Story Deduplication Helpers
 // ============================================================================
 
+const TRACKING_QUERY_PARAMS = new Set([
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_term',
+  'utm_content',
+  'fbclid',
+  'gclid',
+  'oc',
+  'mibextid',
+  'ref',
+  'refsrc',
+]);
+
+export function canonicalizeHptUrl(rawUrl: string): string {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return '';
+  try {
+    const u = new URL(trimmed);
+    u.hash = '';
+    let host = u.hostname.toLowerCase().replace(/^(?:www|m|web|vn)\./, '');
+    if (host === 'fb.com') host = 'facebook.com';
+    if (host === 'threads.com') host = 'threads.net';
+
+    // Collapse Facebook post/video/photo URLs that share the same numeric post ID (with or without UTF-8 slug)
+    if (host === 'facebook.com') {
+      const groupPost = u.pathname.match(/^\/groups\/([^/]+)\/(?:posts|permalink)\/(\d{8,})/i);
+      if (groupPost) return `fb:group:${groupPost[1].toLowerCase()}:${groupPost[2]}`;
+
+      const pageMedia = u.pathname.match(/^\/([^/]+)\/(?:posts|videos|photos)\/(?:[^/]+\/)?(\d{8,})/i);
+      if (pageMedia) return `fb:page:${pageMedia[1].toLowerCase()}:${pageMedia[2]}`;
+
+      const storyFbid = u.searchParams.get('story_fbid') ?? u.searchParams.get('fbid');
+      const ownerId = u.searchParams.get('id') ?? u.searchParams.get('set') ?? '';
+      if (storyFbid) return `fb:story:${ownerId}:${storyFbid}`;
+    }
+
+    for (const key of [...u.searchParams.keys()]) {
+      if (TRACKING_QUERY_PARAMS.has(key.toLowerCase())) {
+        u.searchParams.delete(key);
+      }
+    }
+
+    let path = u.pathname
+      .replace(/\/(?:binh-luan|tags|comments)\/?$/i, '')
+      .replace(/\/+$/, '');
+    if (!path) path = '/';
+
+    const qs = u.searchParams.toString();
+    return `${host}${path}${qs ? `?${qs}` : ''}`;
+  } catch {
+    return trimmed.toLowerCase();
+  }
+}
+
+export function normalizeHptStoryText(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(
+      /\s*[-|•]\s*(?:facebook|linkedin|tiktok|threads|fireant|vietstock|vietstockfinance|cafef|24hmoney|báo\s+mới|vnexpress|vneconomy)\s*$/i,
+      '',
+    )
+    .replace(/\s*(?:\.{2,}|…)\s*$/, '')
+    .replace(/^(?:forbes|htv(?:\s*-\s*đài\s+truyền\s+hình\s+tp\.?\s*hcm)?)\s*[-.:]+\s*/i, '')
+    .replace(/^hpt\s*[-:]\s*/i, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function buildHptStoryFingerprint(title: string): string {
+  return normalizeHptStoryText(title);
+}
+
+export function extractHptReadableUrlSlugText(rawUrl: string): string {
+  if (!rawUrl || rawUrl.includes('news.google.com/rss/articles/')) return '';
+  try {
+    const u = new URL(rawUrl);
+    const decodedPath = decodeURIComponent(u.pathname);
+    const segments = decodedPath
+      .split('/')
+      .map((s) => s.replace(/\.(?:html?|chn|epi|aspx)$/i, '').replace(/-(?:post|c)?\d{5,}$/i, ''))
+      .filter((s) => s.length >= 20 && !/^\d+$/.test(s) && !/^[0-9a-f-]{32,}$/i.test(s));
+    if (segments.length === 0) return '';
+    // Pick the longest human-readable slug segment
+    const best = segments.sort((a, b) => b.length - a.length)[0];
+    return best
+      .toLowerCase()
+      .replace(/[-_+]+/g, ' ')
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  } catch {
+    return '';
+  }
+}
+
+const STORY_STOPWORDS = new Set([
+  'cong',
+  'ty',
+  'co',
+  'phan',
+  'dich',
+  'vu',
+  'nghe',
+  'tin',
+  'hoc',
+  'hpt',
+  'viet',
+  'nam',
+  'vietnam',
+  'corporation',
+  'cua',
+  'va',
+  'voi',
+  'cho',
+  'tai',
+  'trong',
+  'nam',
+  'ngay',
+  'cac',
+  'nhung',
+  'duoc',
+  'theo',
+]);
+
+function stripDiacritics(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd');
+}
+
+export function extractHptContentTokens(text: string): string[] {
+  const clean = stripDiacritics(normalizeHptStoryText(text));
+  return [...new Set(clean.split(' ').filter((w) => w.length >= 2 && !STORY_STOPWORDS.has(w)))];
+}
+
+export function areSameHptStory(
+  a: { title: string; url: string; publishedAt: number; category: string },
+  b: { title: string; url: string; publishedAt: number; category: string },
+): boolean {
+  const urlA = canonicalizeHptUrl(a.url);
+  const urlB = canonicalizeHptUrl(b.url);
+  if (urlA && urlB && urlA === urlB) return true;
+
+  const normA = normalizeHptStoryText(a.title);
+  const normB = normalizeHptStoryText(b.title);
+  if (!normA || !normB) return false;
+  if (normA === normB) return true;
+  if (a.category === 'exchange_filing' || b.category === 'exchange_filing') return false;
+
+  // Different reporting periods or figures must not be merged by fuzzy matching.
+  const numbersA = normA.match(/\d+/g) ?? [];
+  const numbersB = normB.match(/\d+/g) ?? [];
+  if (numbersA.length > 0 && numbersB.length > 0 && numbersA.join(',') !== numbersB.join(',')) return false;
+  if (a.category !== b.category) return false;
+
+  // Cross-match URL slug against title (catches Serper/SearXNG subtitle + slug vs Google RSS full post text)
+  const slugA = extractHptReadableUrlSlugText(a.url);
+  const slugB = extractHptReadableUrlSlugText(b.url);
+  const asciiNormA = stripDiacritics(normA);
+  const asciiNormB = stripDiacritics(normB);
+  const asciiSlugA = slugA ? stripDiacritics(slugA) : '';
+  const asciiSlugB = slugB ? stripDiacritics(slugB) : '';
+
+  if (asciiSlugA.length >= 24 && asciiNormB.includes(asciiSlugA.slice(0, 28))) return true;
+  if (asciiSlugB.length >= 24 && asciiNormA.includes(asciiSlugB.slice(0, 28))) return true;
+  if (asciiSlugA.length >= 28 && asciiSlugB.length >= 28 && asciiSlugA.slice(0, 32) === asciiSlugB.slice(0, 32)) {
+    return true;
+  }
+  // Token overlap check for syndicated press articles within 21 days of each other
+  if (
+    (/(?:\.{2,}|…)\s*$/.test(a.title) || /(?:\.{2,}|…)\s*$/.test(b.title)) &&
+    Math.abs(a.publishedAt - b.publishedAt) <= 21 * 86_400_000
+  ) {
+    const tokA = extractHptContentTokens(a.title);
+    const tokB = extractHptContentTokens(b.title);
+    if (tokA.length >= 5 && tokB.length >= 5) {
+      const setB = new Set(tokB);
+      let shared = 0;
+      for (const t of tokA) {
+        if (setB.has(t)) shared += 1;
+      }
+      const minLen = Math.min(tokA.length, tokB.length);
+      const unionLen = tokA.length + tokB.length - shared;
+      if (shared / minLen >= 0.85 || (unionLen > 0 && shared / unionLen >= 0.72)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}

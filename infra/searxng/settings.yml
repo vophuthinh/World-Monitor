@@ -21,8 +21,13 @@ search:
     - json
     - rss
 
-# Disable fuzzy/encyclopedia engines (e.g. bing scraper strips Vietnamese quotes and matches single words like "Công"/"cổ")
+# Dedicated Google Programmable Search CX + exact-phrase engines; fuzzy/encyclopedia engines disabled
 engines:
+  - name: google cse
+    engine: google_cse
+    shortcut: goc
+    CX: "c74fed0a86aff44a1"
+    disabled: false
   - name: google
     engine: google
     shortcut: g

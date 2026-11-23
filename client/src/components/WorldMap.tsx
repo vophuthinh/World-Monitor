@@ -404,7 +404,7 @@ export const WorldMap = memo(function WorldMap({
       if (map.getSource(`${id}-src`) && cached && cached.input === input && cached.anchor === anchor && cached.enabled === state.deadReckoning) {
         return cached.points;
       }
-      const points = state.deadReckoning ? advanceDeadReckoning(input, Date.now(), maxAge, anchor) : input;
+      const points = state.deadReckoning ? advanceDeadReckoning(input, Date.now(), maxAge) : input;
       movingDataRef.current[id] = { input, anchor, enabled: state.deadReckoning, points };
       return points;
     };
@@ -1078,7 +1078,7 @@ export const WorldMap = memo(function WorldMap({
       if (state.activeLayers.military && state.military.length > 0) {
         const milSrc = map.getSource('military-src') as GeoJSONSource | undefined;
         if (milSrc) {
-          const advanced = advanceDeadReckoning(state.military, now, 36, state.militaryAnchorMs);
+          const advanced = advanceDeadReckoning(state.military, now, 36);
           milSrc.setData(pointsToFeatureCollection(advanced));
         }
       }
@@ -1087,7 +1087,7 @@ export const WorldMap = memo(function WorldMap({
       if (tickStep % 2 === 0 && state.activeLayers.vessels && state.vessels.length > 0) {
         const vslSrc = map.getSource('vessels-src') as GeoJSONSource | undefined;
         if (vslSrc) {
-          const advancedVessels = advanceDeadReckoning(state.vessels, now, 50, state.vesselsAnchorMs);
+          const advancedVessels = advanceDeadReckoning(state.vessels, now, 50);
           vslSrc.setData(pointsToFeatureCollection(advancedVessels));
         }
       }

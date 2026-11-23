@@ -1,5 +1,6 @@
 import { computeGlobalThreatLevel, computeTheaterPostures, selectTopHotPolymarket } from '@shared/intelligence';
 import { evaluateInvestmentCompass, evaluateMacroHealth } from '@shared/macro-health';
+import { resolveFreshVessels } from '@shared/maritime-freshness';
 import type {
   AiAskResponse,
   AiSitrepBullet,
@@ -141,9 +142,9 @@ export async function callGroqChatCompletion(
   return null;
 }
 
-export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now()): string {
+export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now(), liveVessels?: readonly GeoPointFeature[]): string {
   const military = store.get<GeoPointFeature[]>('military-flights', now) ?? [];
-  const vessels = store.get<GeoPointFeature[]>('maritime-vessels', now) ?? [];
+  const vessels = resolveFreshVessels(store.get<GeoPointFeature[]>('maritime-vessels', now) ?? [], now, liveVessels);
   const cyber = store.get<GeoPointFeature[]>('cyber-threats', now) ?? [];
   const gpsOutages = store.get<GeoPointFeature[]>('gps-outages', now) ?? [];
   const earthquakes = store.get<GeoPointFeature[]>('earthquakes', now) ?? [];
@@ -194,7 +195,7 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now()):
       .slice(0, 8)
       .map(
         (q) =>
-          `${q.symbol}: ${q.price}${q.unit ? ` ${q.unit}` : ''} (${q.changePercent24h >= 0 ? '+' : ''}${q.changePercent24h}%)`,
+          `${q.symbol}: ${q.price}${q.unit ? ` ${q.unit}` : ''} (${q.changePercent24h == null ? 'biến động không rõ' : `${q.changePercent24h >= 0 ? '+' : ''}${q.changePercent24h}%`})`,
       )
       .join(', ');
     lines.push(`[THỊ TRƯỜNG & TỶ GIÁ] ${qSummary}`);
@@ -204,9 +205,9 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now()):
         .slice(0, 3)
         .map(
           (g) =>
-            `${g.name} (${g.code}): Mua ${g.buyPerLuongMillionVnd.toFixed(2)} - Bán ${g.sellPerLuongMillionVnd.toFixed(2)} tr/lượng${
+            `${g.name} (${g.code}): Mua ${g.buyPerLuongMillionVnd.toFixed(2)} - Bán ${g.sellPerLuongMillionVnd.toFixed(2)} tr/lượng${g.retained ? ' [dữ liệu cũ hoặc chưa rõ]' : ''}${
               g.premiumVsWorldMillionVnd !== undefined
-                ? ` (Chênh thế giới +${g.premiumVsWorldMillionVnd.toFixed(1)} tr)`
+                ? ` (Chênh thế giới +${g.premiumVsWorldMillionVnd.toFixed(1)} tr${g.retained || g.worldParityRetained !== false ? ', tham chiếu cũ hoặc chưa rõ' : ''})`
                 : ''
             }`,
         )
@@ -219,7 +220,7 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now()):
         .slice(0, 8)
         .map(
           (s) =>
-            `${s.symbol} ${s.priceThousandVnd.toFixed(2)}k (${s.changePercent >= 0 ? '+' : ''}${s.changePercent.toFixed(2)}%)`,
+            `${s.symbol} ${s.priceThousandVnd.toFixed(2)}k (${s.changePercent == null ? 'biến động không rõ' : `${s.changePercent >= 0 ? '+' : ''}${s.changePercent.toFixed(2)}%`})`,
         )
         .join(', ');
       lines.push(`[CỔ PHIẾU VN30] ${vn30Summary}`);
@@ -255,11 +256,11 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now()):
     if (compass) {
       const netLiqPart =
         compass.netLiquidityBillions !== undefined
-          ? ` | Fed Net Liquidity: $${(compass.netLiquidityBillions / 1000).toFixed(2)}T (${compass.netLiquidityDelta4wBillions && compass.netLiquidityDelta4wBillions >= 0 ? '+' : ''}${compass.netLiquidityDelta4wBillions ?? 0}B$ 4T)`
+          ? ` | Fed Net Liquidity: $${(compass.netLiquidityBillions / 1000).toFixed(2)}T${compass.netLiquidityDelta4wBillions !== undefined ? ` (${compass.netLiquidityDelta4wBillions >= 0 ? '+' : ''}${compass.netLiquidityDelta4wBillions}B$ 4T)` : ' (biến động 4T không rõ)'}`
           : '';
       const pePart =
         compass.vnIndexPe !== undefined
-          ? ` | VN-Index P/E ${compass.vnIndexPe.toFixed(2)}x (ERP ${compass.vnErpPct && compass.vnErpPct >= 0 ? '+' : ''}${compass.vnErpPct ?? 0}%)`
+          ? ` | VN-Index P/E ${compass.vnIndexPe.toFixed(2)}x${compass.vnErpPct !== undefined ? ` (ERP ${compass.vnErpPct >= 0 ? '+' : ''}${compass.vnErpPct}%)` : ' (ERP không rõ)'}`
           : '';
       const allocPart =
         compass.allocations.length > 0
@@ -274,7 +275,7 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now()):
     if (markets.crypto.length > 0) {
       const topCoins = markets.crypto
         .slice(0, 4)
-        .map((c) => `${c.symbol} $${c.priceUsd} (${c.changePercent24h >= 0 ? '+' : ''}${c.changePercent24h}%)`)
+        .map((c) => `${c.symbol} $${c.priceUsd} (${c.changePercent24h === null ? 'biến động không rõ' : `${c.changePercent24h >= 0 ? '+' : ''}${c.changePercent24h}%`})`)
         .join(', ');
       lines.push(
         `[CRYPTO] ${topCoins}${markets.fearGreed ? ` | Fear&Greed: ${markets.fearGreed.value}/100 (${markets.fearGreed.classification})` : ''}`,
@@ -329,7 +330,7 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now()):
       ? ` [MST ${f.taxCode}${f.peRatio ? `, P/E=${f.peRatio}x` : ''}${f.pbRatio ? `, P/B=${f.pbRatio}x` : ''}${f.marketCapBillionVnd ? `, Vốn hóa=${f.marketCapBillionVnd} tỷ` : ''}${f.ytdChangePct !== undefined ? `, YTD=${f.ytdChangePct >= 0 ? '+' : ''}${f.ytdChangePct}%` : ''}]`
       : '';
     const stockStr = st
-      ? `Cổ phiếu HPT (UPCoM): ${st.priceThousandVnd.toFixed(2)} nghìn ₫ (${st.changePercent >= 0 ? '+' : ''}${st.changePercent.toFixed(2)}%)${fundStr}. `
+      ? `Cổ phiếu HPT (UPCoM)${st.priceKind === 'reference' ? ' giá tham chiếu' : ''}: ${st.priceThousandVnd.toFixed(2)} nghìn ₫${st.changePercent !== undefined ? ` (${st.changePercent >= 0 ? '+' : ''}${st.changePercent.toFixed(2)}%)` : ''}${fundStr}. `
       : '';
     const topHptNews = hptIntel.items
       .slice(0, 5)
@@ -421,11 +422,11 @@ export function parseSitrepResponseText(raw: string): {
   };
 }
 
-export function buildDeterministicSitrep(store: SnapshotStore, now = Date.now()): AiSitrepSnapshot {
+export function buildDeterministicSitrep(store: SnapshotStore, now = Date.now(), liveVessels?: readonly GeoPointFeature[]): AiSitrepSnapshot {
   const military = store.get<GeoPointFeature[]>('military-flights', now) ?? [];
-  const vessels = store.get<GeoPointFeature[]>('maritime-vessels', now) ?? [];
+  const vessels = resolveFreshVessels(store.get<GeoPointFeature[]>('maritime-vessels', now) ?? [], now, liveVessels);
   const cyber = store.get<GeoPointFeature[]>('cyber-threats', now) ?? [];
-  const markets = store.get<MarketSnapshot>('markets-crypto', now);
+  const markets = getRetainedMarketSnapshot(store, now);
   const policy = store.get<PolicyLegalSnapshot>('policy-legal', now);
   const vnEnv = store.get<VietnamEnvSnapshot>('vietnam-env', now);
 
@@ -445,8 +446,8 @@ export function buildDeterministicSitrep(store: SnapshotStore, now = Date.now())
       {
         tag: 'THỊ TRƯỜNG & VÀNG SJC',
         text: [
-          sjc ? `Vàng SJC ${sjc.buyPerLuongMillionVnd.toFixed(1)}–${sjc.sellPerLuongMillionVnd.toFixed(1)} tr/lượng` : null,
-          vnIndex ? `VN-Index ${vnIndex.price} (${vnIndex.changePercent24h >= 0 ? '+' : ''}${vnIndex.changePercent24h}%)` : null,
+          sjc ? `Vàng SJC ${sjc.buyPerLuongMillionVnd.toFixed(1)}–${sjc.sellPerLuongMillionVnd.toFixed(1)} tr/lượng${sjc.retained ? ' (dữ liệu cũ hoặc chưa rõ)' : ''}` : null,
+          vnIndex ? `VN-Index ${vnIndex.price} (${vnIndex.changePercent24h == null ? 'biến động không rõ' : `${vnIndex.changePercent24h >= 0 ? '+' : ''}${vnIndex.changePercent24h}%`})` : null,
           usdVnd ? `USD/VND ${usdVnd.price.toLocaleString('en-US')}` : null,
         ]
           .filter(Boolean)
@@ -482,6 +483,7 @@ function countPopulatedCollectors(store: SnapshotStore, now: number): number {
 export async function generateAiSitrep(
   store: SnapshotStore,
   forceRefresh = false,
+  getLiveVessels?: () => GeoPointFeature[],
 ): Promise<AiSitrepSnapshot> {
   const now = Date.now();
   const populated = countPopulatedCollectors(store, now);
@@ -495,7 +497,8 @@ export async function generateAiSitrep(
     return cachedSitrep.snapshot;
   }
 
-  const context = buildMonitorLiveContext(store, now);
+  const liveVessels = getLiveVessels?.();
+  const context = buildMonitorLiveContext(store, now, liveVessels);
   const llm = await callGroqChatCompletion(
     [
       {
@@ -527,7 +530,7 @@ export async function generateAiSitrep(
     }
   }
 
-  const fallback = buildDeterministicSitrep(store, now);
+  const fallback = buildDeterministicSitrep(store, now, liveVessels);
   cachedSitrep = { snapshot: fallback, populatedCount: populated };
   return fallback;
 }
@@ -538,6 +541,7 @@ export async function answerMonitorQuestion(
   rawQuestion: string,
   store: SnapshotStore,
   clientIp = 'local',
+  getLiveVessels?: () => GeoPointFeature[],
 ): Promise<AiAskResponse> {
   const question = rawQuestion.trim().slice(0, 400);
   if (!question) {
@@ -551,7 +555,8 @@ export async function answerMonitorQuestion(
   }
   askCooldownByIp.set(clientIp, now);
 
-  const context = buildMonitorLiveContext(store, now);
+  const liveVessels = getLiveVessels?.();
+  const context = buildMonitorLiveContext(store, now, liveVessels);
   const llm = await callGroqChatCompletion(
     [
       {
@@ -578,7 +583,7 @@ export async function answerMonitorQuestion(
     };
   }
 
-  const det = buildDeterministicSitrep(store, now);
+  const det = buildDeterministicSitrep(store, now, liveVessels);
   return {
     question,
     answer: det.bullets.map((b) => `• [${b.tag}] ${b.text}`).join('\n'),

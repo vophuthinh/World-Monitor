@@ -63,6 +63,9 @@ Chỉ tab đầu được tải khi mở trang; 5 tab còn lại nạp khi bạn
 - **18 bộ thu thập** chạy theo chu kỳ từ 30 giây đến 6 giờ (xem `server/index.ts`). Nếu một lượt quét chưa xong thì lượt sau không chạy chồng.
 - **Cache hai tầng:** đọc ghi trên RAM, ghi nguyên tử xuống `.cache/*.json`. Khi nguồn lỗi, hệ thống giữ lại bản trước đó và đánh dấu là cũ.
 - **Thiếu hoặc quá cũ thì không bịa:** chỉ tiêu vĩ mô thiếu dữ liệu bị bỏ khỏi điểm số. Dữ liệu giữ lại quá 7 ngày không được dùng để chấm điểm. Kỳ quan sát cũ (FRED theo ngày, tuần, tháng, quý lần lượt 14, 30, 120, 240 ngày; World Bank hơn 3 năm) được cảnh báo rõ trên giao diện.
+- **Giá và thời điểm nguồn:** tỷ giá ER-API giữ riêng thời điểm quan sát và thời điểm tải; thiếu thời điểm hoặc quá 48 giờ được đánh dấu cũ. Giá phiên Yahoo và VN-Index không rõ thời điểm hoặc quá 7 ngày được đánh dấu cũ. Thiếu giá đóng cửa phiên trước thì biến động VN-Index và VN30 hiển thị không rõ. Giá vàng Mi Hồng không rõ hoặc quá 6 giờ được đánh dấu tham khảo cũ và không tạo cảnh báo chênh lệch; Fear & Greed thiếu thời điểm hoặc quá 7 ngày không được coi là mới.
+- **Vị trí AIS:** vị trí Digitraffic quá 30 phút hoặc không rõ thời điểm không được hiển thị; AISStream yêu cầu thời gian gửi hợp lệ trong 25 phút. Thời gian gửi không đảm bảo là thời gian đo vị trí. Tin AIS tĩnh không làm mới vị trí; nội suy tàu chỉ dùng hướng chuyển động và tốc độ khả dụng. Nguồn Digitraffic lỗi được phản ánh trong trạng thái collector, kể cả khi còn dữ liệu lưu tạm.
+- **MapLibre:** `npm audit` có thể vẫn báo GHSA-jrc7-96c5-q579 cho v5.24.1 dù [ghi chú phát hành v5.24.1](https://github.com/maplibre/maplibre-gl-js/releases/tag/v5.24.1) xác nhận đã đưa bản sửa #8189 vào v5. Kiểm thử attribution bao gồm trường hợp các thuộc tính nguy hiểm liền nhau; cảnh báo phụ thuộc vẫn cần được theo dõi.
 - **Số liệu thời gian thực** (giá crypto Binance, xác suất Polymarket, vị trí tàu, luồng tin) đẩy xuống trình duyệt qua SSE tại `/api/stream`.
 - **Lịch gắn nhãn "Ước tính"** không phải ngày công bố đã xác nhận. Hãy đối chiếu lịch chính thức.
 
@@ -99,6 +102,7 @@ Mọi biến đều tùy chọn. **Không đưa file `.env` lên kho mã nguồn
 | `FRED_API_KEY` | Chuỗi lãi suất, lợi suất, lạm phát kỳ vọng, thanh khoản Fed |
 | `NASA_FIRMS_API_KEY` | Điểm nóng nhiệt vệ tinh độ phân giải 375 m |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Bot chạy ngầm, báo tin mới về HPT (không có giao diện cấu hình) |
+| `SERPER_API_KEY` | Tìm kiếm Google JSON qua `serper.dev` cho tin HPT (lưu đệm đĩa, tự giới hạn tối đa 1 lượt/giờ) |
 | `SEARXNG_BASE_URL` | Máy tìm kiếm SearXNG cục bộ cho tin HPT trên mạng xã hội (bật bằng `npm run searxng:up`, đặt `off` để tắt) |
 | `HPT_TELEGRAM_CHANNELS` | Kênh Telegram công khai bổ sung để quét tin HPT (phân tách bằng dấu phẩy) |
 | `GOOGLE_CSE_API_KEY`, `GOOGLE_CSE_CX` | Google Programmable Search gói miễn phí, tự giới hạn dưới 72 lượt/ngày |
@@ -106,6 +110,14 @@ Mọi biến đều tùy chọn. **Không đưa file `.env` lên kho mã nguồn
 | `PORT` (mặc định `8787`), `HOST` (mặc định `127.0.0.1`) | Cổng và địa chỉ mà server lắng nghe |
 | `ALLOWED_ORIGINS` | Origin bổ sung được gọi API, đồng thời mở rộng danh sách `Host` hợp lệ |
 | `TRUST_PROXY` | Đặt `1` khi chạy sau reverse proxy để tính giới hạn theo `X-Forwarded-For` |
+
+Tab HPT cảnh báo khi giá hoặc tin được giữ lại từ lần trước; nếu toàn bộ nguồn mất kết nối, trạng thái nguồn chuyển sang lỗi thay vì làm mới thời gian dữ liệu cũ. Serper chờ ít nhất một giờ giữa các lần thử, kể cả khi kết quả rỗng hoặc yêu cầu lỗi; nếu không ghi được cache, giới hạn qua lần khởi động lại không được bảo đảm. Cảnh báo Telegram chưa gửi do lỗi cấu hình sẽ được thử lại trong cửa sổ tin mới 72 giờ.
+
+Giá tham chiếu HPT được ghi rõ và không giả định biến động hoặc khối lượng giao dịch. SearXNG và Google CSE cũng giới hạn tần suất khi truy vấn lỗi hoặc trả rỗng; giới hạn này chỉ tồn tại trong phiên chạy.
+
+Giá PAXG/USDT từ Binance là công cụ riêng, không thay thế giá vàng kỳ hạn COMEX. Giá, tiền số và vàng Việt Nam được giữ lại tối đa 6 giờ khi nguồn tương ứng lỗi và hiển thị nhãn dữ liệu cũ; Fear & Greed giữ tối đa 7 ngày khi các nguồn khác vẫn cập nhật. Nếu mọi nguồn thị trường và vĩ mô đều lỗi, collector không gia hạn snapshot cũ và toàn bộ snapshot hết hạn sau tối đa 6 giờ. Kết nối SSE không bảo đảm nguồn giá đang hoạt động.
+
+Giá Yahoo, tỷ giá ER-API và phiên VN-Index/VN30 hiển thị thời điểm quan sát do nguồn cung cấp (hoặc “không rõ”), tách biệt với thời điểm tải; giá thiếu thời điểm hoặc quá 7 ngày không dùng để chấm điểm vĩ mô. Khi nguồn chỉ trả một phần, các mã còn thiếu được giữ lại tối đa 6 giờ và đánh dấu cũ. Chênh lệch vàng dùng đầu vào cũ hơn 6 giờ hoặc không rõ thời điểm chỉ mang tính tham khảo và không dùng cho cảnh báo La bàn. Vốn hóa, khối lượng và biến động tiền số không có dữ liệu được hiển thị là không rõ; vốn hóa và khối lượng quá 6 giờ bị ẩn độc lập với giá Binance realtime.
 
 ## API và bảo mật
 

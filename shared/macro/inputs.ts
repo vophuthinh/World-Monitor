@@ -1,4 +1,4 @@
-import type { EconomyHealthReport, ExpiredMacroMetricNotice, MarketSnapshot, PredictionItem, VietnamMacroPulseFieldKey } from '../types';
+import type { EconomyHealthReport, ExpiredMacroMetricNotice, MarketQuote, MarketSnapshot, PredictionItem, VietnamMacroPulseFieldKey } from '../types';
 import { isFreshVietnamMonthlyPeriod } from './core';
 import { buildVietnamMacroHealth } from './vietnam';
 import { buildUsGlobalMacroHealth } from './us';
@@ -8,6 +8,13 @@ const RETAINED_MAX_AGE_MS = 7 * 86_400_000;
 function expiredRetained(retained: boolean | undefined, fetchedAt: number | undefined, now: number): boolean {
   return retained === true && (fetchedAt === undefined || !Number.isFinite(fetchedAt) || fetchedAt <= 0 ||
     fetchedAt > now || now - fetchedAt > RETAINED_MAX_AGE_MS);
+}
+
+function expiredPrice(quote: MarketQuote, now: number): boolean {
+  const tracksSourceTime = quote.source === 'Yahoo Finance Chart v8' || quote.source === 'ExchangeRate-API (open.er-api)' ||
+    quote.source === 'HOSE / VNDirect Feed' || quote.source === 'HOSE / Stooq Feed';
+  return expiredRetained(quote.retained, quote.updatedAt, now) ||
+    (tracksSourceTime && expiredRetained(true, quote.observedAt, now));
 }
 
 function isCurrentVnStatYear(period: string | undefined, currentVnYear: number): boolean {
@@ -85,25 +92,27 @@ export function collectExpiredMacroNotices(
   }
 
   const fxQuote = markets.quotes.find((q) => q.symbol === 'USD/VND');
-  if (fxQuote && expiredRetained(fxQuote.retained, fxQuote.updatedAt, now)) {
+  if (fxQuote && expiredPrice(fxQuote, now)) {
+    const observedAt = fxQuote.observedAt ??
+      (fxQuote.source === 'ExchangeRate-API (open.er-api)' ? undefined : fxQuote.updatedAt);
     vn.push({
       id: 'vn-fx',
       label: 'Tỷ giá USD/VND',
       sourceLabel: fxQuote.source || 'ER-API',
       lastValueLabel: `${Math.round(fxQuote.price).toLocaleString('en-US')}₫`,
-      ...(fxQuote.updatedAt > 0 ? { fetchedAt: fxQuote.updatedAt } : {}),
+      ...(observedAt && observedAt > 0 ? { fetchedAt: observedAt } : {}),
     });
   }
 
   const vniQuote = markets.quotes.find((q) => q.symbol === 'VN-Index');
   if (vniQuote) {
-    if (expiredRetained(vniQuote.retained, vniQuote.updatedAt, now)) {
+    if (expiredPrice(vniQuote, now)) {
       vn.push({
         id: 'vn-index',
         label: 'Chỉ số VN-Index',
         sourceLabel: vniQuote.source || 'HOSE',
         lastValueLabel: `${vniQuote.price.toFixed(2)} pts`,
-        ...(vniQuote.updatedAt > 0 ? { fetchedAt: vniQuote.updatedAt } : {}),
+        ...(vniQuote.observedAt && vniQuote.observedAt > 0 ? { fetchedAt: vniQuote.observedAt } : {}),
       });
     } else if (
       vniQuote.peRatio !== undefined &&
@@ -181,7 +190,7 @@ export function usableMacroInputs(markets: MarketSnapshot, now: number): MarketS
   }
 
   const quotes = markets.quotes
-    .filter((quote) => !expiredRetained(quote.retained, quote.updatedAt, now))
+    .filter((quote) => !expiredPrice(quote, now))
     .map((quote) => {
       if (!expiredRetained(quote.valuationRetained, quote.valuationFetchedAt, now)) return quote;
       const { peRatio, pbRatio, close52wLow, close52wHigh, volumeVs90dRatio, ...withoutValuation } = quote;
@@ -192,7 +201,8 @@ export function usableMacroInputs(markets: MarketSnapshot, now: number): MarketS
     ...markets,
     quotes,
     fred: markets.fred?.filter((metric) => !expiredRetained(metric.retained, metric.fetchedAt, now)),
-    vn30: markets.vn30?.filter((quote) => !expiredRetained(true, quote.updatedAt, now)),
+    vn30: markets.vn30?.filter((quote) => !expiredRetained(true, quote.updatedAt, now) &&
+      !expiredRetained(true, quote.observedAt, now)),
     vnGold: markets.vnGold?.filter((quote) => !expiredRetained(true, quote.updatedAt, now)),
     vnMacroPulse: pulse,
   };

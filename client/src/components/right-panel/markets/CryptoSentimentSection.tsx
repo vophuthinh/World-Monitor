@@ -1,30 +1,29 @@
-import { Broadcast, Gauge } from '@phosphor-icons/react';
+import { Gauge } from '@phosphor-icons/react';
 import { formatCompactUsd } from '../shared';
 import type { CryptoQuote, MarketSnapshot } from '@shared/types';
 import type { FlashDirection } from '../../../hooks/useMonitorData';
 
-export function CryptoSentimentSection({ markets, priceFlashes, streamConnected, volatileCrypto }: {
+export function CryptoSentimentSection({ markets, priceFlashes, volatileCrypto }: {
   markets: MarketSnapshot;
   priceFlashes: Record<string, FlashDirection>;
-  streamConnected: boolean;
   volatileCrypto: CryptoQuote[];
 }) {
+  const now = Date.now();
+  const sentimentIsStale = markets.fearGreed && (
+    markets.fearGreed.retained || !Number.isFinite(markets.fearGreed.updatedAt) ||
+    markets.fearGreed.updatedAt <= 0 || markets.fearGreed.updatedAt > now ||
+    now - markets.fearGreed.updatedAt > 7 * 86_400_000
+  );
   return (
     <section>
       <div className="flex items-center justify-between">
         <h2 className="flex items-center gap-1.5 font-mono text-[11px] font-semibold tracking-wider text-slate-300">
-          <span>TIỀN SỐ REALTIME</span>
-          {streamConnected && (
-            <span className="inline-flex items-center gap-1 rounded bg-emerald-500/15 px-1.5 py-0.2 text-[9.5px] text-emerald-300">
-              <Broadcast size={10} className="animate-pulse" />
-              WS 1S
-            </span>
-          )}
+          <span>TIỀN SỐ</span>
         </h2>
         {markets.fearGreed && (
           <span className="inline-flex items-center gap-1 font-mono text-[10.5px] text-cyan-300 tabular-nums">
             <Gauge size={13} />
-            F&amp;G: {markets.fearGreed.value}/100 ({markets.fearGreed.classification})
+            F&amp;G: {markets.fearGreed.value}/100 ({markets.fearGreed.classification}){sentimentIsStale ? ' · dữ liệu cũ' : ''}
           </span>
         )}
       </div>
@@ -50,7 +49,7 @@ export function CryptoSentimentSection({ markets, priceFlashes, streamConnected,
 
       <div className="mt-1.5 divide-y divide-slate-800/80 rounded border border-slate-800/95 bg-[#0d1524]">
         {volatileCrypto.map((coin) => {
-          const up = coin.changePercent24h >= 0;
+          const up = coin.changePercent24h !== null && coin.changePercent24h >= 0;
           const flash = priceFlashes[coin.symbol];
           return (
             <div
@@ -68,6 +67,7 @@ export function CryptoSentimentSection({ markets, priceFlashes, streamConnected,
                   {coin.symbol}
                 </span>
                 <span className="ml-1.5 text-[11px] text-slate-400">{coin.name}</span>
+                {coin.retained && <span className="ml-1 text-[10px] text-amber-300">dữ liệu cũ</span>}
               </div>
               <div className="text-right font-mono tabular-nums">
                 <div
@@ -85,9 +85,8 @@ export function CryptoSentimentSection({ markets, priceFlashes, streamConnected,
                   })}
                 </div>
                 <div className="text-[10px]">
-                  <span className={up ? 'text-emerald-400' : 'text-rose-400'}>
-                    {up ? '+' : ''}
-                    {coin.changePercent24h.toFixed(2)}%
+                  <span className={coin.changePercent24h === null ? 'text-slate-400' : up ? 'text-emerald-400' : 'text-rose-400'}>
+                    {coin.changePercent24h === null ? 'không rõ' : `${up ? '+' : ''}${coin.changePercent24h.toFixed(2)}%`}
                   </span>
                   <span className="ml-1.5 text-slate-500">
                     MCap {formatCompactUsd(coin.marketCapUsd)}

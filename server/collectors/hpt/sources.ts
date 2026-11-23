@@ -506,8 +506,9 @@ function safeDecodeUrlForMatch(rawUrl: string): string {
 
 function isValidSearxngResultUrl(rawUrl: string): boolean {
   if (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) return false;
-  // Reject malformed relative redirects such as "http:///go/v1/..." and generic unnamed PDF uploads
+  // Reject malformed relative redirects, Google Knowledge Panel goto cards, and generic unnamed PDF uploads
   if (/^https?:\/\/\/+/i.test(rawUrl)) return false;
+  if (/google\.[a-z.]+\/(?:goto|url)\?/i.test(rawUrl)) return false;
   if (/\/no-name-\d+\.pdf$/i.test(rawUrl)) return false;
   try {
     const parsed = new URL(rawUrl);
@@ -566,6 +567,88 @@ export function parseSearxngHptSearchJson(
   return out;
 }
 
+export interface SerperSearchPayload {
+  organic?: Array<{
+    title?: string;
+    link?: string;
+    snippet?: string;
+    date?: string;
+  }>;
+  news?: Array<{
+    title?: string;
+    link?: string;
+    snippet?: string;
+    date?: string;
+    source?: string;
+  }>;
+}
+
+function formatSerperSourceLabel(url: string, explicitSource?: string): string {
+  let host = 'Web';
+  try {
+    host = new URL(url).hostname.replace(/^(?:www|m|vn|web)\./i, '').toLowerCase();
+  } catch {
+    // Keep fallback host
+  }
+  if (host.includes('facebook.com') || host.includes('fb.com')) return 'Facebook (Serper Google)';
+  if (host.includes('linkedin.com')) return 'LinkedIn (Serper Google)';
+  if (host.includes('tiktok.com')) return 'TikTok (Serper Google)';
+  if (host.includes('threads.net') || host.includes('threads.com')) return 'Threads (Serper Google)';
+  return `${explicitSource?.trim() || host} (Serper Google)`;
+}
+
+export function parseSerperHptSearchJson(
+  payload: SerperSearchPayload,
+  fallbackNow = Date.now(),
+  customKeywords: readonly string[] = [],
+): HptCompanyItem[] {
+  const entries = [...(payload?.organic ?? []), ...(payload?.news ?? [])];
+  const seenUrls = new Set<string>();
+  const out: HptCompanyItem[] = [];
+
+  for (const entry of entries.slice(0, 20)) {
+    const link = String(entry?.link ?? '').trim();
+    const title = decodeHtmlEntities(String(entry?.title ?? '').trim());
+    const snippet = decodeHtmlEntities(String(entry?.snippet ?? '').trim());
+    if (!title || !isValidSearxngResultUrl(link)) continue;
+    if (seenUrls.has(link)) continue;
+    seenUrls.add(link);
+
+    if (
+      customKeywords.length === 0 &&
+      !SEARXNG_TITLE_OR_SLUG_HPT_RE.test(`${title} ${safeDecodeUrlForMatch(link)}`)
+    ) {
+      continue;
+    }
+
+    const explicitSrc = 'source' in entry && typeof entry.source === 'string' ? entry.source : undefined;
+    const source = formatSerperSourceLabel(link, explicitSrc);
+    if (!isAuthenticHptMention(title, snippet, link, customKeywords, source)) continue;
+
+    const rawDate = entry?.date?.trim() ?? '';
+    const { publishedAt, dateLabel } = parseSearxngResultTimestamp(
+      rawDate,
+      rawDate ? `${rawDate} — ${snippet}` : snippet,
+      fallbackNow,
+    );
+    const classified = classifyHptExternalItem(title, source, link, 'press_social', snippet);
+
+    out.push({
+      id: `hpt-sp:${link}`,
+      title,
+      category: classified.category,
+      badge: classified.badge,
+      source,
+      publishedAt,
+      dateLabel,
+      url: link,
+      sentiment: classified.sentiment,
+    });
+  }
+
+  return out;
+}
+
 export interface GoogleCseSearchPayload {
   items?: Array<{
     title?: string;
@@ -589,7 +672,8 @@ export function parseGoogleCseHptSearchJson(
     const link = String(entry?.link ?? '').trim();
     const title = decodeHtmlEntities(String(entry?.title ?? '').trim());
     const snippet = decodeHtmlEntities(String(entry?.snippet ?? '').trim());
-    if (!title || !link.startsWith('http')) continue;
+    if (!title || !isValidSearxngResultUrl(link)) continue;
+    if (!SEARXNG_TITLE_OR_SLUG_HPT_RE.test(`${title} ${safeDecodeUrlForMatch(link)}`)) continue;
 
     const host = (entry?.displayLink ?? '').toLowerCase();
     const source = host.includes('facebook.com') || host.includes('fb.com')

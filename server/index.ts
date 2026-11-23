@@ -66,8 +66,12 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
   const newsStream = new UnifiedNewsStreamService(hub, store);
   const polymarketStream = new PolymarketRealtimeStream(hub, store);
 
-  const scheduler = new CollectorScheduler(store, (id, data) => {
+  const scheduler = new CollectorScheduler(store, (id, data, succeeded) => {
     const now = Date.now();
+    if (!succeeded) {
+      hub.publish({ type: 'collector_sync', collectorId: id, health: store.getAllHealth(now), ts: now });
+      return;
+    }
     if (id === 'military-flights' && Array.isArray(data)) {
       const flights = data as GeoPointFeature[];
       hub.ingestForAlerts(id, flights);
@@ -278,7 +282,7 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
     intervalMs: 900_000,
     retainMs: 6 * 3_600_000,
     countItems: (snap) => snap.bullets.length,
-    fetcher: () => generateAiSitrep(store, true),
+    fetcher: () => generateAiSitrep(store, true, () => vesselManager.getCombinedVessels()),
   });
 
   const binanceStream = new BinanceRealtimeStream(hub, store);

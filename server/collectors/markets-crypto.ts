@@ -1,4 +1,5 @@
 import type {
+  CryptoQuote,
   FredMacroMetric,
   MacroFieldMeta,
   MarketQuote,
@@ -6,11 +7,12 @@ import type {
   VietnamLiveMacroPulse,
   VietnamMacroPulseFieldKey,
 } from '@shared/types';
+import { isFreshGoldComparison, isFreshMarketObservation } from '@shared/macro/core';
 import { DEFAULT_BROWSER_UA, NAMED_APP_UA, fetchJsonWithTimeout, fetchTextWithTimeout } from '../lib/http';
 import { FearGreedPayload, fetchCryptoQuotes, normalizeFearGreed } from './markets/crypto';
 import { FRED_SERIES_TARGETS, fetchFredMacroMetrics } from './markets/fred';
 import { ErApiPayload, YahooChartPayload, computeTechnicalIndicators, normalizeErApiFx, normalizeYahooChartQuote } from './markets/fx-yahoo';
-import { fetchVietnamDomesticGold, fetchVn30Leaders } from './markets/vn-gold-stocks';
+import { dchartObservationTime, fetchVietnamDomesticGold, fetchVn30Leaders, type VndDchartPayload } from './markets/vn-gold-stocks';
 import { fetchSimplizeVnIndexValuation, fetchVietnamAndGlobalMacroPulse } from './markets/vn-valuation-macro';
 
 export * from './markets/crypto';
@@ -21,6 +23,18 @@ export * from './markets/fred';
 
 const FEAR_GREED_URL = 'https://api.alternative.me/fng/?limit=1';
 const ER_API_USD_URL = 'https://open.er-api.com/v6/latest/USD';
+const FX_OBSERVATION_MAX_AGE_MS = 2 * 86_400_000;
+const MARKET_SESSION_MAX_AGE_MS = 7 * 86_400_000;
+
+function isFreshFxObservation(observedAt: number | undefined, now: number): boolean {
+  return observedAt !== undefined && Number.isFinite(observedAt) && observedAt > 0 &&
+    observedAt <= now && now - observedAt <= FX_OBSERVATION_MAX_AGE_MS;
+}
+
+function isFreshMarketSession(observedAt: number | undefined, now: number): boolean {
+  return observedAt !== undefined && Number.isFinite(observedAt) && observedAt > 0 &&
+    observedAt <= now && now - observedAt <= MARKET_SESSION_MAX_AGE_MS;
+}
 interface YahooTarget {
   yahooSymbol: string;
   displaySymbol: string;
@@ -50,7 +64,7 @@ async function fetchVietnamIndexQuote(now: number): Promise<MarketQuote | null> 
     const toSec = Math.floor(now / 1000);
     const fromSec = toSec - 350 * 86_400;
     const vndUrl = `https://dchart-api.vndirect.com.vn/dchart/history?resolution=D&symbol=VNINDEX&from=${fromSec}&to=${toSec}`;
-    const dchart = await fetchJsonWithTimeout<{ c?: number[]; s?: string }>(vndUrl, {
+    const dchart = await fetchJsonWithTimeout<VndDchartPayload>(vndUrl, {
       timeoutMs: 7_500,
       retries: 1,
       userAgent: DEFAULT_BROWSER_UA,
@@ -59,18 +73,19 @@ async function fetchVietnamIndexQuote(now: number): Promise<MarketQuote | null> 
     const closes = (dchart?.c ?? []).filter((v) => typeof v === 'number' && Number.isFinite(v) && v > 100);
     if (closes.length >= 1) {
       const close = closes[closes.length - 1];
-      const prevClose = closes.length >= 2 ? closes[closes.length - 2] : close;
-      const changePct = prevClose > 0 ? ((close - prevClose) / prevClose) * 100 : 0;
+      const prevClose = closes.length >= 2 ? closes[closes.length - 2] : undefined;
+      const changePct = prevClose !== undefined ? ((close - prevClose) / prevClose) * 100 : null;
       const tech = computeTechnicalIndicators(closes);
       return {
         symbol: 'VN-Index',
         name: 'VN-Index (HOSE Việt Nam)',
         group: 'index',
         price: Number(close.toFixed(2)),
-        changePercent24h: Number(changePct.toFixed(2)),
+        changePercent24h: changePct === null ? null : Number(changePct.toFixed(2)),
         unit: 'pts',
         sparkline: closes.slice(-10).map((c) => Number(c.toFixed(2))),
         ...tech,
+        observedAt: dchartObservationTime(dchart, 100, now),
         updatedAt: now,
         source: 'HOSE / VNDirect Feed',
       };
@@ -92,9 +107,10 @@ async function fetchVietnamIndexQuote(now: number): Promise<MarketQuote | null> 
       .filter((line) => /^\d{4}-\d{2}-\d{2},/.test(line));
     if (lines.length >= 1) {
       const latestCols = lines[lines.length - 1].split(',');
-      const prevCols = lines.length >= 2 ? lines[lines.length - 2].split(',') : latestCols;
+      const observedAt = Date.parse(`${latestCols[0]}T00:00:00Z`);
+      const prevCols = lines.length >= 2 ? lines[lines.length - 2].split(',') : undefined;
       const close = Number(latestCols[4]);
-      const prevClose = Number(prevCols[4]);
+      const prevClose = Number(prevCols?.[4]);
       const allCloses = lines
         .slice(-260)
         .map((l) => Number(l.split(',')[4]))
@@ -103,16 +119,18 @@ async function fetchVietnamIndexQuote(now: number): Promise<MarketQuote | null> 
       const tech = computeTechnicalIndicators(allCloses);
       if (Number.isFinite(close) && close > 100) {
         const changePct =
-          Number.isFinite(prevClose) && prevClose > 0 ? ((close - prevClose) / prevClose) * 100 : 0;
+          Number.isFinite(prevClose) && prevClose > 0 ? ((close - prevClose) / prevClose) * 100 : null;
         return {
           symbol: 'VN-Index',
           name: 'VN-Index (HOSE Việt Nam)',
           group: 'index',
           price: Number(close.toFixed(2)),
-          changePercent24h: Number(changePct.toFixed(2)),
+          changePercent24h: changePct === null ? null : Number(changePct.toFixed(2)),
           unit: 'pts',
           sparkline: sparkline.length >= 2 ? sparkline : undefined,
           ...tech,
+          observedAt: Number.isFinite(observedAt) && observedAt <= now &&
+            new Date(observedAt).toISOString().slice(0, 10) === latestCols[0] ? observedAt : undefined,
           updatedAt: now,
           source: 'HOSE / Stooq Feed',
         };
@@ -129,7 +147,7 @@ async function fetchVietnamIndexQuote(now: number): Promise<MarketQuote | null> 
       retries: 0,
       userAgent: 'Mozilla/5.0',
     });
-    return normalizeYahooChartQuote('VNM ETF', 'VanEck Vietnam ETF', 'index', payload, 'USD', now);
+    return normalizeYahooChartQuote('VNM ETF', 'VanEck Vietnam ETF', 'index', payload, 'USD', Date.now());
   } catch {
     return null;
   }
@@ -167,7 +185,7 @@ async function fetchIndicesAndCommodities(now: number): Promise<MarketQuote[]> {
           target.group,
           payload,
           target.unit,
-          now,
+          Date.now(),
         );
       }),
     );
@@ -336,10 +354,21 @@ export function markMarketSnapshotRetained(snapshot: MarketSnapshot, now = Date.
       retained: true,
       ...(quote.peRatio !== undefined ? { valuationRetained: true } : {}),
     })),
+    crypto: snapshot.crypto.map((coin) => ({ ...expireCryptoMarketData(coin, now), retained: true })),
+    fearGreed: snapshot.fearGreed ? { ...snapshot.fearGreed, retained: true } : null,
+    vnGold: snapshot.vnGold?.map((quote) => ({ ...quote, retained: true })),
     fred: mergeFredWithPrevious(undefined, snapshot.fred, now),
     vnMacroPulse: mergeVietnamMacroPulse(undefined, snapshot.vnMacroPulse, now),
     vn30: snapshot.vn30?.map((quote) => ({ ...quote, retained: true })),
   };
+}
+
+function expireCryptoMarketData(coin: CryptoQuote, now: number): CryptoQuote {
+  const fetchedAt = coin.marketDataFetchedAt ?? coin.updatedAt;
+  if (Number.isFinite(fetchedAt) && fetchedAt > 0 && fetchedAt <= now && now - fetchedAt <= 6 * 3_600_000) {
+    return coin;
+  }
+  return { ...coin, marketCapUsd: null, volume24hUsd: null };
 }
 
 export function getRetainedMarketSnapshot(
@@ -347,12 +376,43 @@ export function getRetainedMarketSnapshot(
   now = Date.now(),
 ): MarketSnapshot | null {
   const snapshot = store.get<MarketSnapshot>('markets-crypto', now);
-  if (!snapshot || store.getHealth('markets-crypto', now)?.status !== 'stale') return snapshot;
-  return markMarketSnapshotRetained(snapshot, now);
+  if (!snapshot) return null;
+  const resolved = store.getHealth('markets-crypto', now)?.status === 'stale'
+    ? markMarketSnapshotRetained(snapshot, now)
+    : snapshot;
+  const gold = resolved.quotes.find((quote) => quote.symbol === 'Gold');
+  const fx = resolved.quotes.find((quote) => quote.symbol === 'USD/VND');
+  return {
+    ...resolved,
+    quotes: resolved.quotes.map((quote) => {
+      if (quote.source === 'ExchangeRate-API (open.er-api)') {
+        return { ...quote, retained: Boolean(quote.retained) || !isFreshFxObservation(quote.observedAt, now) };
+      }
+      if (quote.source === 'Yahoo Finance Chart v8' || quote.symbol === 'VN-Index') {
+        return { ...quote, retained: Boolean(quote.retained) || !isFreshMarketSession(quote.observedAt, now) };
+      }
+      return quote;
+    }),
+    crypto: resolved.crypto.map((coin) => expireCryptoMarketData(coin, now)),
+    fearGreed: resolved.fearGreed && resolved.fearGreed.updatedAt > 0 &&
+      resolved.fearGreed.updatedAt <= now && now - resolved.fearGreed.updatedAt <= 7 * 86_400_000
+      ? resolved.fearGreed : null,
+    vnGold: resolved.vnGold?.map((quote) => ({
+      ...quote,
+      retained: Boolean(quote.retained) || !isFreshMarketObservation(quote.observedAt, now),
+      ...(quote.worldParityPerLuongMillionVnd !== undefined
+        ? { worldParityRetained: !isFreshGoldComparison(quote, gold, fx, now) } : {}),
+    })),
+  };
 }
 
 export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): Promise<MarketSnapshot> {
   const now = Date.now();
+  const recent = (updatedAt: number, maxAgeMs: number) => {
+    const checkedAt = Date.now();
+    return Number.isFinite(updatedAt) && updatedAt > 0 && updatedAt <= checkedAt && checkedAt - updatedAt <= maxAgeMs;
+  };
+  const quoteRetentionMs = 6 * 3_600_000;
 
   const [cryptoRes, fgRes, fxRes, marketQuotesRes, vnValRes, vnPulseRes, vn30Res, fredRes] = await Promise.allSettled([
     fetchCryptoQuotes(now),
@@ -360,12 +420,12 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
       timeoutMs: 8_000,
       retries: 1,
       userAgent: NAMED_APP_UA,
-    }).then((d) => normalizeFearGreed(d, now)),
+    }).then((d) => normalizeFearGreed(d, Date.now())),
     fetchJsonWithTimeout<ErApiPayload>(ER_API_USD_URL, {
       timeoutMs: 9_000,
       retries: 1,
       userAgent: NAMED_APP_UA,
-    }).then((d) => normalizeErApiFx(d, now)),
+    }).then((d) => normalizeErApiFx(d, Date.now())),
     fetchIndicesAndCommodities(now),
     fetchSimplizeVnIndexValuation(),
     fetchVietnamAndGlobalMacroPulse(now),
@@ -373,23 +433,37 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
     fetchFredMacroMetrics(now),
   ]);
 
-  const crypto =
-    cryptoRes.status === 'fulfilled' && cryptoRes.value.length > 0
-      ? cryptoRes.value
-      : (previous?.crypto ?? []);
+  const crypto = cryptoRes.status === 'fulfilled'
+    ? cryptoRes.value.map((coin) => ({ ...coin, retained: false }))
+    : [];
+  for (const coin of previous?.crypto ?? []) {
+    if (recent(coin.updatedAt, quoteRetentionMs) && !crypto.some((fresh) => fresh.symbol === coin.symbol)) {
+      crypto.push({ ...expireCryptoMarketData(coin, Date.now()), retained: true });
+    }
+  }
 
   const fearGreed =
-    fgRes.status === 'fulfilled' && fgRes.value
-      ? fgRes.value
-      : (previous?.fearGreed ?? null);
+    fgRes.status === 'fulfilled' && fgRes.value && recent(fgRes.value.updatedAt, 7 * 86_400_000)
+      ? { ...fgRes.value, retained: false }
+      : previous?.fearGreed && recent(previous.fearGreed.updatedAt, 7 * 86_400_000)
+        ? { ...previous.fearGreed, retained: true } : null;
 
-  const prevFx = (previous?.quotes ?? []).filter((q) => q.group === 'fx');
-  const prevNonFx = (previous?.quotes ?? []).filter((q) => q.group !== 'fx');
+  const prevFx = (previous?.quotes ?? []).filter((q) => q.group === 'fx' && recent(q.updatedAt, quoteRetentionMs));
+  const prevNonFx = (previous?.quotes ?? []).filter((q) => q.group !== 'fx' && recent(q.updatedAt, quoteRetentionMs));
 
-  const baseFxQuotes =
-    fxRes.status === 'fulfilled' && fxRes.value.length > 0
-      ? fxRes.value.map((q) => ({ ...q, retained: false }))
-      : prevFx.filter((q) => q.symbol !== 'AUD/JPY').map((q) => ({ ...q, retained: true }));
+  const baseFxMap = new Map(prevFx.filter((q) => q.symbol !== 'AUD/JPY')
+    .map((q) => [q.symbol, { ...q, retained: true }]));
+  if (fxRes.status === 'fulfilled') {
+    for (const quote of fxRes.value) {
+      const old = baseFxMap.get(quote.symbol);
+      if (old?.observedAt && (!quote.observedAt || quote.observedAt < old.observedAt)) continue;
+      baseFxMap.set(quote.symbol, {
+        ...quote,
+        retained: !isFreshFxObservation(quote.observedAt, Date.now()),
+      });
+    }
+  }
+  const baseFxQuotes = [...baseFxMap.values()];
 
   // Merge per-symbol so transient Yahoo throttling on one symbol never drops prior valid quotes,
   // while explicitly flagging retained quotes when an upstream call failed.
@@ -403,9 +477,14 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
   if (marketQuotesRes.status === 'fulfilled') {
     for (const freshQuote of marketQuotesRes.value) {
       if (freshQuote.group === 'fx') {
-        audJpyQuote = { ...freshQuote, retained: false };
+        if (audJpyQuote?.observedAt && (!freshQuote.observedAt || freshQuote.observedAt < audJpyQuote.observedAt)) continue;
+        audJpyQuote = { ...freshQuote, retained: !isFreshMarketSession(freshQuote.observedAt, Date.now()) };
       } else {
-        mergedNonFxMap.set(freshQuote.symbol, { ...freshQuote, retained: false });
+        const oldQuote = mergedNonFxMap.get(freshQuote.symbol);
+        if (oldQuote?.observedAt && (!freshQuote.observedAt || freshQuote.observedAt < oldQuote.observedAt)) continue;
+        mergedNonFxMap.set(freshQuote.symbol, {
+          ...freshQuote, retained: !isFreshMarketSession(freshQuote.observedAt, Date.now()),
+        });
       }
     }
   }
@@ -442,6 +521,7 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
   const nonFxOrder = [
     'VN-Index',
     'VNM ETF',
+    'PAXG',
     ...YAHOO_TARGETS.filter((t) => t.group !== 'fx').map((t) => t.displaySymbol),
   ];
   const indexCommodityQuotes = [
@@ -452,23 +532,52 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
 
   const quotes = [...indexCommodityQuotes, ...fxQuotes];
 
-  const goldUsd = quotes.find((q) => q.symbol === 'Gold')?.price;
-  const usdVnd = fxQuotes.find((q) => q.symbol === 'USD/VND')?.price;
+  const goldQuote = quotes.find((q) => q.symbol === 'Gold');
+  const fxQuote = fxQuotes.find((q) => q.symbol === 'USD/VND');
+  const goldUsd = goldQuote?.price;
+  const usdVnd = fxQuote?.price;
 
-  let vnGold = previous?.vnGold ?? [];
+  const vnGoldByCode = new Map((previous?.vnGold ?? [])
+    .filter((quote) => recent(quote.updatedAt, quoteRetentionMs))
+    .map((quote) => [quote.code, { ...quote, retained: true, worldParityRetained: true }]));
+  let hasFreshGold = false;
   try {
     const freshGold = await fetchVietnamDomesticGold(goldUsd, usdVnd, now);
     if (freshGold.length > 0) {
-      vnGold = freshGold;
+      const checkedAt = Date.now();
+      const worldParityRetained = !goldQuote || !fxQuote || Boolean(goldQuote.retained || fxQuote.retained) ||
+        !goldQuote.observedAt || goldQuote.observedAt > checkedAt || checkedAt - goldQuote.observedAt > quoteRetentionMs ||
+        !fxQuote.observedAt || fxQuote.observedAt > checkedAt || checkedAt - fxQuote.observedAt > quoteRetentionMs;
+      for (const quote of freshGold) {
+        const old = vnGoldByCode.get(quote.code);
+        if (old?.observedAt && (!quote.observedAt || quote.observedAt < old.observedAt)) continue;
+        const retained = !isFreshMarketObservation(quote.observedAt, checkedAt);
+        vnGoldByCode.set(quote.code, {
+          ...quote,
+          retained,
+          worldParityRetained: worldParityRetained || retained,
+        });
+        if (!retained) hasFreshGold = true;
+      }
     }
   } catch {
     // Retain previous vnGold snapshot
   }
 
-  const vn30 =
-    vn30Res.status === 'fulfilled' && vn30Res.value.length > 0
-      ? vn30Res.value.map((quote) => ({ ...quote, retained: false }))
-      : (previous?.vn30 ?? []).map((quote) => ({ ...quote, retained: true }));
+  const vn30 = vn30Res.status === 'fulfilled'
+    ? vn30Res.value.map((quote) => ({
+        ...quote,
+        retained: !quote.observedAt || !recent(quote.observedAt, 7 * 86_400_000),
+      }))
+    : [];
+  for (const quote of previous?.vn30 ?? []) {
+    if (!recent(quote.updatedAt, quoteRetentionMs)) continue;
+    const index = vn30.findIndex((fresh) => fresh.symbol === quote.symbol);
+    if (index < 0) vn30.push({ ...quote, retained: true });
+    else if (quote.observedAt && (!vn30[index].observedAt || vn30[index].observedAt! < quote.observedAt)) {
+      vn30[index] = { ...quote, retained: true };
+    }
+  }
 
   const fred = mergeFredWithPrevious(
     fredRes.status === 'fulfilled' ? fredRes.value : null,
@@ -482,8 +591,40 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
     now,
   );
 
-  if (quotes.length === 0 && crypto.length === 0) {
-    throw new Error('All market, FX, and crypto upstream endpoints failed');
+  const vnGold = [...vnGoldByCode.values()];
+  const hasFreshData = (cryptoRes.status === 'fulfilled' && cryptoRes.value.length > 0) ||
+    baseFxQuotes.some((quote) => !quote.retained) ||
+    indexCommodityQuotes.some((quote) => !quote.retained) ||
+    Boolean(audJpyQuote && !audJpyQuote.retained) ||
+    (fgRes.status === 'fulfilled' && fgRes.value !== null && recent(fgRes.value.updatedAt, 7 * 86_400_000)) ||
+    vn30.some((quote) => !quote.retained) ||
+    (fredRes.status === 'fulfilled' && fredRes.value.length > 0) ||
+    (vnPulseRes.status === 'fulfilled' && VN_PULSE_DATA_KEYS.some((key) => vnPulseRes.value?.[key] !== undefined)) ||
+    hasFreshGold;
+  if (!hasFreshData) {
+    throw new Error('All market and macro upstream endpoints failed or returned stale data');
+  }
+
+  for (const live of previous?.crypto ?? []) {
+    if (live.updatedAt <= now || !recent(live.updatedAt, quoteRetentionMs)) continue;
+    const index = crypto.findIndex((coin) => coin.symbol === live.symbol);
+    if (index >= 0) {
+      crypto[index] = {
+        ...crypto[index],
+        priceUsd: live.priceUsd,
+        changePercent24h: live.changePercent24h,
+        updatedAt: live.updatedAt,
+        retained: false,
+      };
+    } else {
+      crypto.push({ ...expireCryptoMarketData(live, Date.now()), retained: false });
+    }
+  }
+  const livePaxg = previous?.quotes.find((quote) => quote.symbol === 'PAXG');
+  if (livePaxg && livePaxg.updatedAt > now && recent(livePaxg.updatedAt, quoteRetentionMs)) {
+    const index = quotes.findIndex((quote) => quote.symbol === 'PAXG');
+    if (index >= 0) quotes[index] = { ...livePaxg };
+    else quotes.push({ ...livePaxg });
   }
 
   return {

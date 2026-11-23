@@ -5,7 +5,7 @@ export interface ManagedCollector<T = unknown> extends CollectorRegistration<T> 
   fetcher: (previous: T | null) => Promise<T>;
 }
 
-export type CollectorSyncHook = (id: CollectorId, data: unknown) => void;
+export type CollectorSyncHook = (id: CollectorId, data: unknown, succeeded: boolean) => void;
 
 export class CollectorScheduler {
   private readonly collectors = new Map<CollectorId, ManagedCollector<any>>();
@@ -37,11 +37,11 @@ export class CollectorScheduler {
     }
     const previous = this.store.get(id);
     const updated = await this.store.refresh(id, () => collector.fetcher(previous));
-    if (updated !== null && this.onSync) {
+    if (this.onSync) {
       // A failing hook must never reject: callers use `void refreshCollector(...)` and Node
       // would turn the unhandled rejection into a process crash.
       try {
-        this.onSync(id, updated);
+        this.onSync(id, updated, this.store.getHealth(id)?.consecutiveFailures === 0);
       } catch (err) {
         console.error(`[scheduler] onSync hook failed for ${id}:`, (err as Error)?.message);
       }

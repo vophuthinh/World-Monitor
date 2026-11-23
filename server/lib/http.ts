@@ -8,6 +8,8 @@ export const DEFAULT_BROWSER_UA =
 export const NAMED_APP_UA = 'WorldMonitor-VN/1.0 (+https://localhost:8787; open-source-tactical-monitor)';
 
 export interface HttpFetchOptions {
+  method?: 'GET' | 'POST';
+  body?: string;
   timeoutMs?: number;
   retries?: number;
   retryDelayMs?: number;
@@ -25,6 +27,8 @@ export async function fetchTextWithTimeout(url: string, options: HttpFetchOption
   status: number;
 }> {
   const {
+    method = 'GET',
+    body,
     timeoutMs = 12_000,
     retries = 1,
     retryDelayMs = 450,
@@ -39,6 +43,8 @@ export async function fetchTextWithTimeout(url: string, options: HttpFetchOption
     }
     try {
       const response = await fetch(url, {
+        method,
+        body,
         headers: {
           'User-Agent': userAgent,
           ...headers,

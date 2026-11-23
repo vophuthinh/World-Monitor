@@ -7,7 +7,7 @@ import type {
   MarketSnapshot,
   PredictionItem,
 } from '../types';
-import { NEUTRAL_SCORE, VN_CPI_TARGET_PCT, buildSectorRotation, clampScore, computeFedNetLiquidity, computeVietnamEquityRiskPremium, computeVn30MarketBreadth, extractPolymarketMacroInsight, resolveNyFedSpreadAndProb, shrunkPillarScore, smoothFactorScore } from './core';
+import { NEUTRAL_SCORE, VN_CPI_TARGET_PCT, buildSectorRotation, clampScore, computeFedNetLiquidity, computeVietnamEquityRiskPremium, computeVn30MarketBreadth, extractPolymarketMacroInsight, isFreshGoldComparison, resolveNyFedSpreadAndProb, shrunkPillarScore, smoothFactorScore } from './core';
 import { evaluateMacroHealth, usableMacroInputs } from './inputs';
 import { computeDynamicPortfolioAllocation } from './allocation';
 export { computeDynamicPortfolioAllocation } from './allocation';
@@ -263,7 +263,7 @@ export function evaluateInvestmentCompass(
   }
 
   // 5. Dr. Copper / Gold Ratio
-  if (copper && gold && gold.price > 0) {
+  if (copper && gold && gold.price > 0 && copper.changePercent24h != null && gold.changePercent24h != null) {
     const ratio = Number(((copper.price * 1000) / gold.price).toFixed(2));
     const copperExpanding =
       copper.changePercent24h >= 0 && copper.changePercent24h >= gold.changePercent24h;
@@ -291,11 +291,13 @@ export function evaluateInvestmentCompass(
   }
 
   // 6. PHLX Semiconductor Index (^SOX)
-  if (sox) {
-    const up = sox.changePercent24h >= 0;
+  if (sox && (sox.changePercent24h != null || (sox.ma200 !== undefined && sox.ma200 > 0))) {
+    const change = sox.changePercent24h;
+    const up = change != null && change >= 0;
     const hasMa200 = sox.ma200 !== undefined && sox.ma200 > 0;
     const aboveSoxMa200 = hasMa200 ? sox.price >= sox.ma200! : up;
-    const soxPctMa200 = hasMa200 ? ((sox.price - sox.ma200!) / sox.ma200!) * 100 : sox.changePercent24h * 2;
+    const soxPctMa200 = hasMa200 ? ((sox.price - sox.ma200!) / sox.ma200!) * 100 : change! * 2;
+    const changeText = change == null ? 'không rõ' : `${up ? '+' : ''}${change.toFixed(hasMa200 ? 1 : 2)}%`;
 
     f4TrendBreadth.push({
       score: smoothFactorScore(soxPctMa200, 0, 8.0, false),
@@ -308,8 +310,8 @@ export function evaluateInvestmentCompass(
       category: 'cycle_tech',
       valueDisplay: `${Math.round(sox.price).toLocaleString('en-US')}`,
       subtext: hasMa200
-        ? `MA200: ${Math.round(sox.ma200!).toLocaleString('en-US')} · 24h ${up ? '+' : ''}${sox.changePercent24h.toFixed(1)}%`
-        : `24h: ${up ? '+' : ''}${sox.changePercent24h.toFixed(2)}% · Dẫn dắt CNTT & ĐTử`,
+        ? `MA200: ${Math.round(sox.ma200!).toLocaleString('en-US')} · 24h ${changeText}`
+        : `24h: ${changeText} · Dẫn dắt CNTT & ĐTử`,
       signalBadge: aboveSoxMa200
         ? 'CHU KỲ AI MẠNH'
         : hasMa200
@@ -520,7 +522,7 @@ export function evaluateInvestmentCompass(
   }
 
   // 13. Global Carry Trade Unwind Canary (AUD/JPY) + VN–US Interest Rate Differential
-  if (audJpy && audJpy.price > 0) {
+  if (audJpy && audJpy.price > 0 && audJpy.changePercent24h != null) {
     const chg = audJpy.changePercent24h;
     f5FxVolatility.push({ score: smoothFactorScore(chg, -0.3, 1.2, false), weight: 0.25 });
 
@@ -788,7 +790,7 @@ export function evaluateInvestmentCompass(
     for (const lag of sectorRotation?.laggingSectors.slice(0, 1) ?? []) {
       avoidAssets.push(lag);
     }
-    if (sjcGold?.premiumVsWorldMillionVnd && sjcGold.premiumVsWorldMillionVnd >= 15) {
+    if (sjcGold && isFreshGoldComparison(sjcGold, gold, usdVnd, now) && sjcGold.premiumVsWorldMillionVnd && sjcGold.premiumVsWorldMillionVnd >= 15) {
       avoidAssets.push(
         `Vàng miếng SJC đang chênh lệch rộng so với giá thế giới quy đổi (+${sjcGold.premiumVsWorldMillionVnd.toFixed(1)} tr/lượng)`,
       );

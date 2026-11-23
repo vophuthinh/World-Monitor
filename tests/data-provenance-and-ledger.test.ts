@@ -20,9 +20,71 @@ import {
   evaluateMacroHealth,
 } from '../shared/macro-health';
 import { collectObservationWarnings } from '../shared/macro/observation-freshness';
+import { usableMacroInputs } from '../shared/macro/inputs';
 import type { FredMacroMetric, MarketSnapshot } from '../shared/types';
 
 describe('observation freshness', () => {
+  it('excludes old and undated VN market observations from macro inputs', () => {
+    const now = Date.UTC(2026, 10, 23);
+    const stock = { symbol: 'VCB', name: 'VCB', sector: 'bank', priceThousandVnd: 80, changePercent: 0, volume: 1, sparkline: [], updatedAt: now };
+    const vni = { symbol: 'VN-Index', name: 'VN-Index', group: 'index' as const, price: 1200, changePercent24h: 0, updatedAt: now, source: 'HOSE / VNDirect Feed' };
+    const market: MarketSnapshot = { quotes: [vni], vn30: [stock], crypto: [], fearGreed: null, macro: [], updatedAt: now };
+    expect(usableMacroInputs(market, now).quotes).toEqual([]);
+    expect(usableMacroInputs(market, now).vn30).toEqual([]);
+    market.quotes[0].observedAt = now - 8 * 86_400_000;
+    market.vn30![0].observedAt = now - 8 * 86_400_000;
+    expect(usableMacroInputs(market, now).quotes).toEqual([]);
+    expect(usableMacroInputs(market, now).vn30).toEqual([]);
+    market.quotes[0].observedAt = now - 86_400_000;
+    market.vn30![0].observedAt = now - 86_400_000;
+    expect(usableMacroInputs(market, now).quotes).toHaveLength(1);
+    expect(usableMacroInputs(market, now).vn30).toHaveLength(1);
+  });
+
+  it('excludes freshly fetched prices with old or unknown source observation times from macro scoring', () => {
+    const now = Date.UTC(2026, 10, 23);
+    const market: MarketSnapshot = {
+      quotes: [
+        { symbol: 'USD/VND', name: 'FX', group: 'fx', price: 25000, changePercent24h: 0, updatedAt: now, observedAt: now - 8 * 86_400_000, source: 'ExchangeRate-API (open.er-api)' },
+        { symbol: 'Gold', name: 'Gold', group: 'commodity', price: 2500, changePercent24h: 0, updatedAt: now, source: 'Yahoo Finance Chart v8' },
+        { symbol: 'S&P 500', name: 'S&P', group: 'index', price: 6000, changePercent24h: 0, updatedAt: now, observedAt: now - 86_400_000, source: 'Yahoo Finance Chart v8' },
+      ],
+      crypto: [], fearGreed: null, macro: [], updatedAt: now,
+    };
+    expect(usableMacroInputs(market, now).quotes.map((q) => q.symbol)).toEqual(['S&P 500']);
+    expect(collectExpiredMacroNotices(market, now).vn).toContainEqual(expect.objectContaining({ id: 'vn-fx' }));
+  });
+
+  it('reports an old World Bank observation once, independently of live pulse fields', () => {
+    const now = Date.UTC(2026, 10, 23);
+    const market: MarketSnapshot = {
+      quotes: [], crypto: [], fearGreed: null, updatedAt: now,
+      macro: [{ countryCode: 'VNM', countryName: 'Việt Nam', regionLabel: 'ASEAN',
+        gdpGrowthPct: 6, gdpGrowthYear: 2017, gdpCurrentUsd: null, gdpCurrentYear: null,
+        cpiInflationPct: null, cpiYear: null }],
+    };
+    expect(collectObservationWarnings(market, now).vn).toEqual(['GDP World Bank: 2017']);
+    market.vnMacroPulse = {
+      updatedAt: now, manufacturingPmi: 50, interbankRatePct: 5,
+      fieldMeta: {
+        manufacturingPmi: { source: 'TE', period: 'T10/2026', fetchedAt: now },
+        interbankRatePct: { source: 'TE', period: '01/11/2026', fetchedAt: now },
+      },
+    };
+    expect(collectObservationWarnings(market, now).vn).toEqual(['GDP World Bank: 2017']);
+  });
+
+  it('produces a partial Vietnam report when quarterly GDP exists without World Bank data', () => {
+    const now = Date.UTC(2026, 10, 23);
+    const market: MarketSnapshot = { quotes: [], crypto: [], fearGreed: null, macro: [], updatedAt: now,
+      vnMacroPulse: { quarterlyGdpPct: 6, updatedAt: now, fieldMeta: {
+        quarterlyGdpPct: { source: 'NSO', period: 'Q3/2026', fetchedAt: now },
+      } } };
+    const report = evaluateMacroHealth(market, [], now).vn;
+    expect(report?.pillars.flatMap((pillar) => pillar.metrics).some((metric) => metric.id === 'vn-gdp' && metric.actual === 6)).toBe(true);
+    expect(report?.warningFlags.some((flag) => flag.text.includes('Thiếu dữ liệu World Bank'))).toBe(true);
+  });
+
   it('warns about old observations and unknown periods without excluding fresh fetches', () => {
     const now = Date.UTC(2026, 10, 23);
     const market: MarketSnapshot = {
@@ -334,7 +396,7 @@ describe('Macro indicator source, period, and retained-on-failure tracking', () 
       crypto: [], fearGreed: null, macro: [], updatedAt: now,
       vn30: ['AAA', 'BBB', 'CCC', 'DDD'].map((symbol) => ({ symbol, name: symbol, sector: 'test', priceThousandVnd: 20,
         changePercent: 0, volume: 1, sparkline: [], ma50: 15, ma200: 15,
-        updatedAt: now - 7 * 86_400_000 })),
+        observedAt: now - 7 * 86_400_000, updatedAt: now - 7 * 86_400_000 })),
     };
     expect(evaluateInvestmentCompass(snapshot, [], now)?.signals.some((s) => s.id === 'vn30-breadth')).toBe(true);
     const expired = { ...snapshot, vn30: snapshot.vn30!.map((quote) => ({

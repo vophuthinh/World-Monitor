@@ -17,6 +17,7 @@ import { safeHref } from '../../lib/safe-href';
 
 export interface HptCorporateTabProps {
   hptIntel?: HptCompanyIntelSnapshot;
+  sourceStale?: boolean;
   sentimentStats: { pos: number; neg: number; neu: number; total: number };
   refreshingIds?: ReadonlySet<string>;
   onForceRefresh?: (collectorId: CollectorId | 'polymarket-news') => void;
@@ -25,6 +26,7 @@ export interface HptCorporateTabProps {
 
 const HptCorporateTab = memo(function HptCorporateTab({
   hptIntel,
+  sourceStale,
   sentimentStats,
   refreshingIds,
   onForceRefresh,
@@ -112,6 +114,14 @@ const HptCorporateTab = memo(function HptCorporateTab({
         </div>
 
         <div className="space-y-1.5 rounded border border-slate-800/90 bg-[#0d1729] px-2.5 py-2 font-mono">
+          {(sourceStale || hptIntel?.stockRetained || hptIntel?.itemsRetained) && (
+            <div className="text-[10px] text-amber-300" role="status">
+              {sourceStale ? '⟳ Nguồn HPT lỗi; dữ liệu có thể đã cũ' : `⟳ Giữ lại dữ liệu cũ: ${[
+                hptIntel?.stockRetained && 'giá HPT',
+                hptIntel?.itemsRetained && 'tin HPT',
+              ].filter(Boolean).join(', ')}`}
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-2">
             {hptIntel?.stock ? (
               <div className="flex items-center gap-2.5">
@@ -120,17 +130,17 @@ const HptCorporateTab = memo(function HptCorporateTab({
                     <span className="text-sm font-bold text-slate-100">
                       {(hptIntel.stock.priceThousandVnd * 1000).toLocaleString('en-US')}₫
                     </span>
+                    {hptIntel.stock.priceKind === 'reference' && <span className="text-amber-300">Giá tham chiếu</span>}
                     <span
                       className={`text-[10.5px] font-semibold ${
-                        hptIntel.stock.changePercent >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                        (hptIntel.stock.changePercent ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
                       }`}
                     >
-                      {hptIntel.stock.changePercent >= 0 ? '+' : ''}
-                      {hptIntel.stock.changePercent.toFixed(2)}%
+                      {hptIntel.stock.changePercent === undefined ? '—' : `${hptIntel.stock.changePercent >= 0 ? '+' : ''}${hptIntel.stock.changePercent.toFixed(2)}%`}
                     </span>
                   </div>
                   <div className="text-[9px] text-slate-400 tabular-nums">
-                    KL: {(hptIntel.stock.volume * 100).toLocaleString('en-US')} cp
+                    KL: {hptIntel.stock.volume === undefined ? '—' : `${(hptIntel.stock.volume * 100).toLocaleString('en-US')} cp`}
                     {hptIntel.stock.fundamentals?.ceilingThousandVnd
                       ? ` · Trần ${hptIntel.stock.fundamentals.ceilingThousandVnd} / Sàn ${hptIntel.stock.fundamentals.floorThousandVnd}`
                       : ' · Sàn HNX/UPCoM'}
@@ -138,7 +148,7 @@ const HptCorporateTab = memo(function HptCorporateTab({
                 </div>
                 <MiniSparkline
                   values={hptIntel.stock.sparkline}
-                  positive={hptIntel.stock.changePercent >= 0}
+                  positive={(hptIntel.stock.changePercent ?? 0) >= 0}
                 />
               </div>
             ) : (
@@ -181,13 +191,16 @@ const HptCorporateTab = memo(function HptCorporateTab({
                 <span className="text-slate-500">YTD </span>
                 <strong
                   className={
-                    (hptIntel.stock.fundamentals.ytdChangePct ?? 0) >= 0
+                    hptIntel.stock.fundamentals.ytdChangePct === undefined
+                      ? 'text-slate-400'
+                      : hptIntel.stock.fundamentals.ytdChangePct >= 0
                       ? 'text-emerald-300'
                       : 'text-rose-300'
                   }
                 >
-                  {(hptIntel.stock.fundamentals.ytdChangePct ?? 0) >= 0 ? '+' : ''}
-                  {hptIntel.stock.fundamentals.ytdChangePct ?? 0}%
+                  {hptIntel.stock.fundamentals.ytdChangePct === undefined
+                    ? '—'
+                    : `${hptIntel.stock.fundamentals.ytdChangePct >= 0 ? '+' : ''}${hptIntel.stock.fundamentals.ytdChangePct}%`}
                 </strong>
               </div>
             </div>

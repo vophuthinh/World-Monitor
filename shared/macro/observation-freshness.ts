@@ -55,24 +55,24 @@ export function collectObservationWarnings(markets: MarketSnapshot, now = Date.n
       if (!bounds || bounds.start > now + DAY || now - bounds.end > info.days * DAY) {
         vn.push(`${info.label}: ${period ?? 'không rõ kỳ'}`);
       }
-      const vnRow = markets.macro.find((row) => row.countryCode === 'VNM' || row.isVietnam);
-      if (vnRow) {
-        const annual: Array<[string, number | null | undefined, number | null | undefined]> = [
-          ['GDP World Bank', vnRow.gdpGrowthPct, vnRow.gdpGrowthYear],
-          ['CPI World Bank', vnRow.cpiInflationPct, vnRow.cpiYear],
-          ['Tín dụng/GDP World Bank', vnRow.creditPctGdp, vnRow.creditYear],
-          ['Xuất khẩu/GDP World Bank', vnRow.exportsPctGdp, vnRow.exportsYear],
-          ['FDI/GDP World Bank', vnRow.fdiPctGdp, vnRow.fdiYear],
-          ['Thất nghiệp World Bank', vnRow.unemploymentPct, vnRow.unemploymentYear],
-          ['Cán cân vãng lai World Bank', vnRow.currentAccountPctGdp, vnRow.currentAccountYear],
-          ['Sản xuất World Bank', vnRow.manufacturingGrowthPct, vnRow.manufacturingYear],
-        ];
-        const year = new Date(now + 7 * 3_600_000).getUTCFullYear();
-        for (const [label, value, period] of annual) {
-          if (value != null && (period == null || period > year || year - period > 3)) {
-            vn.push(`${label}: ${period ?? 'không rõ kỳ'}`);
-          }
-        }
+    }
+  }
+  const vnRow = markets.macro.find((row) => row.countryCode === 'VNM' || row.isVietnam);
+  if (vnRow) {
+    const annual: Array<[string, number | null | undefined, number | null | undefined]> = [
+      ['GDP World Bank', vnRow.gdpGrowthPct, vnRow.gdpGrowthYear],
+      ['CPI World Bank', vnRow.cpiInflationPct, vnRow.cpiYear],
+      ['Tín dụng/GDP World Bank', vnRow.creditPctGdp, vnRow.creditYear],
+      ['Xuất khẩu/GDP World Bank', vnRow.exportsPctGdp, vnRow.exportsYear],
+      ['FDI/GDP World Bank', vnRow.fdiPctGdp, vnRow.fdiYear],
+      ['Thất nghiệp World Bank', vnRow.unemploymentPct, vnRow.unemploymentYear],
+      ['Cán cân vãng lai World Bank', vnRow.currentAccountPctGdp, vnRow.currentAccountYear],
+      ['Sản xuất World Bank', vnRow.manufacturingGrowthPct, vnRow.manufacturingYear],
+    ];
+    const year = new Date(now + 7 * 3_600_000).getUTCFullYear();
+    for (const [label, value, period] of annual) {
+      if (value != null && (period == null || period > year || year - period > 3)) {
+        vn.push(`${label}: ${period ?? 'không rõ kỳ'}`);
       }
     }
   }

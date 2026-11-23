@@ -21,6 +21,7 @@ export function StablecoinSection({ stablecoins }: {
               <div>
                 <div className="text-xs font-bold text-slate-100">{sc.symbol}</div>
                 <div className="text-[10px] text-slate-400">${sc.priceUsd.toFixed(4)}</div>
+                {sc.retained && <div className="text-[10px] text-amber-300">dữ liệu cũ</div>}
               </div>
               <span
                 className={`rounded border px-1.5 py-0.5 text-[9px] font-bold ${

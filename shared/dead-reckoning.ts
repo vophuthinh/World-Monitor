@@ -12,12 +12,13 @@ export function advanceDeadReckoning(
   features: readonly GeoPointFeature[],
   nowMs: number,
   maxDriftSec = 25,
-  anchorOverrideMs?: number,
 ): GeoPointFeature[] {
   return features.map((f) => {
     const onGround = Boolean(f.meta.onGround);
-    const speedKt = Number(f.meta.speedKt ?? 0);
-    const headingDeg = Number(f.heading ?? 0);
+    const speedKt = typeof f.meta.speedKt === 'number' ? f.meta.speedKt : NaN;
+    const headingDeg = f.layer === 'vessels'
+      ? (typeof f.meta.courseDeg === 'number' ? f.meta.courseDeg : NaN)
+      : Number(f.heading ?? 0);
 
     // Collectors default a missing heading to 0; do not extrapolate those towards north.
     if (f.meta.headingKnown === false) return f;
@@ -26,7 +27,7 @@ export function advanceDeadReckoning(
       return f;
     }
 
-    const baseTs = anchorOverrideMs ?? f.timestamp;
+    const baseTs = f.timestamp;
     if (!Number.isFinite(baseTs) || baseTs <= 0) {
       return f;
     }

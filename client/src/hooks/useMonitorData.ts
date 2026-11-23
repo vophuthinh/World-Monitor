@@ -65,6 +65,63 @@ function filterTimeWindow<T>(items: readonly T[], timeWindow: TimeWindow, getTim
 const pointTime = (item: GeoPointFeature) => item.timestamp;
 const newsTime = (item: NewsItem) => item.publishedAt;
 
+function updatePaxgQuote(quotes: BootstrapResponse['markets']['quotes'], tick: LivePriceTick | undefined, ts: number): BootstrapResponse['markets']['quotes'] {
+  if (!tick) return quotes;
+  const index = quotes.findIndex((quote) => quote.symbol === 'PAXG');
+  const old = quotes[index];
+  if (old && !old.retained && old.price === tick.price && old.changePercent24h === tick.changePercent24h) return quotes;
+  const quote = {
+    ...(old ?? { symbol: 'PAXG', name: 'PAX Gold / USDT', group: 'commodity' as const, unit: 'USD/oz', source: 'Binance PAXG/USDT Realtime' }),
+    price: tick.price, changePercent24h: tick.changePercent24h, updatedAt: ts, retained: false,
+  };
+  if (index < 0) return [...quotes, quote];
+  return quotes.map((item, i) => i === index ? quote : item);
+}
+
+function replayRealtimeEvents(data: BootstrapResponse, events: readonly RealtimeServerEvent[], newsSince = data.serverTime): BootstrapResponse {
+  let current = data;
+  for (const event of events) {
+    if ('ts' in event && event.ts < (event.type === 'news_prepend' ? newsSince : data.serverTime)) continue;
+    switch (event.type) {
+      case 'connected':
+        current = { ...current, aisStreamConfigured: event.aisStreamConfigured };
+        break;
+      case 'military_update':
+        current = { ...current, layers: { ...current.layers, military: event.military } };
+        break;
+      case 'vessels_update':
+        current = { ...current, layers: { ...current.layers, vessels: event.vessels } };
+        break;
+      case 'polymarket_update':
+        current = { ...current, predictions: event.predictions };
+        break;
+      case 'google_trends_update':
+        current = { ...current, googleTrends: event.googleTrends };
+        break;
+      case 'collector_sync':
+        current = { ...current, health: event.health };
+        break;
+      case 'news_prepend': {
+        const news = new Map(event.items.map((item) => [item.id, item]));
+        for (const item of current.news) if (!news.has(item.id)) news.set(item.id, item);
+        current = { ...current, news: [...news.values()].sort((a, b) => b.publishedAt - a.publishedAt).slice(0, 160), newsStreamStats: event.stats };
+        break;
+      }
+      case 'price_tick': {
+        const ticks = new Map(event.ticks.map((tick) => [tick.symbol, tick]));
+        const crypto = current.markets.crypto.map((coin) => {
+          const tick = ticks.get(coin.symbol);
+          return tick ? { ...coin, marketDataFetchedAt: coin.marketDataFetchedAt ?? coin.updatedAt, priceUsd: tick.price, changePercent24h: tick.changePercent24h, updatedAt: event.ts } : coin;
+        });
+        const quotes = updatePaxgQuote(current.markets.quotes, ticks.get('PAXG'), event.ts);
+        current = { ...current, markets: { ...current.markets, crypto, quotes } };
+        break;
+      }
+    }
+  }
+  return current;
+}
+
 // Clean default mode: 6 core situational awareness layers ON; secondary/dense layers 1-click toggleable
 const DEFAULT_ACTIVE_LAYERS: Record<MapLayerId, boolean> = {
   military: true,
@@ -119,6 +176,17 @@ export function useMonitorData() {
   const predFlashResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bootstrapDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bootstrapInFlightRef = useRef(false);
+  const bootstrapPendingRef = useRef(false);
+  const realtimeBuffersRef = useRef(new Set<RealtimeServerEvent[]>());
+  const tickPricesRef = useRef(new Map<string, number>());
+
+  useEffect(() => {
+    if (!data) return;
+    const prices = new Map(data.markets.crypto.map((coin) => [coin.symbol, coin.priceUsd]));
+    const paxg = data.markets.quotes.find((quote) => quote.symbol === 'PAXG');
+    if (paxg) prices.set('PAXG', paxg.price);
+    tickPricesRef.current = prices;
+  }, [data?.markets.crypto, data?.markets.quotes]);
 
   useEffect(() => {
     if (timeWindow === 'all') return;
@@ -127,16 +195,35 @@ export function useMonitorData() {
   }, [timeWindow]);
 
   const loadBootstrap = useCallback(async (silent = false) => {
-    if (silent && bootstrapInFlightRef.current) return null;
+    if (bootstrapInFlightRef.current) {
+      if (silent) bootstrapPendingRef.current = true;
+      return null;
+    }
     bootstrapInFlightRef.current = true;
+    const events: RealtimeServerEvent[] = [];
+    realtimeBuffersRef.current.add(events);
     if (!silent) setLoading(true);
     try {
-      const resp = await fetch('/api/bootstrap');
+      const resp = await fetch('/api/bootstrap', { signal: AbortSignal.timeout(20_000) });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const json = (await resp.json()) as BootstrapResponse;
       if (!mountedRef.current) return json;
       const now = Date.now();
-      setData(json);
+      setData((prev) => {
+        if (prev && prev.serverTime > json.serverTime) {
+          return replayRealtimeEvents({
+            ...json,
+            serverTime: prev.serverTime,
+            layers: { ...json.layers, military: prev.layers.military, vessels: prev.layers.vessels, earthquakes: prev.layers.earthquakes },
+            weatherRadar: prev.weatherRadar,
+            markets: { ...json.markets, ...prev.markets, macro: json.markets.macro },
+            predictions: prev.predictions,
+            googleTrends: prev.googleTrends,
+            health: prev.health,
+          }, events, json.serverTime);
+        }
+        return replayRealtimeEvents(json, events);
+      });
       setMilitaryAnchorMs(now);
       setVesselsAnchorMs(now);
       setError(null);
@@ -147,7 +234,14 @@ export function useMonitorData() {
       }
       return null;
     } finally {
+      realtimeBuffersRef.current.delete(events);
       bootstrapInFlightRef.current = false;
+      if (bootstrapPendingRef.current && mountedRef.current) {
+        bootstrapPendingRef.current = false;
+        queueMicrotask(() => {
+          if (mountedRef.current) void loadBootstrap(true);
+        });
+      }
       if (mountedRef.current && !silent) {
         setLoading(false);
       }
@@ -164,8 +258,10 @@ export function useMonitorData() {
   }, [loadBootstrap]);
 
   const loadLiveFast = useCallback(async () => {
+    const events: RealtimeServerEvent[] = [];
+    realtimeBuffersRef.current.add(events);
     try {
-      const resp = await fetch('/api/live-fast');
+      const resp = await fetch('/api/live-fast', { signal: AbortSignal.timeout(20_000) });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const fast = (await resp.json()) as LiveFastResponse;
       if (!mountedRef.current) return;
@@ -175,9 +271,8 @@ export function useMonitorData() {
       setVesselsAnchorMs(now);
       setData((prev) => {
         if (!prev) return prev;
-        const marketsUnavailable = fast.health.some((h) => h.id === 'markets-crypto' && h.status === 'error');
-        const marketsRetained = fast.health.some((h) => h.id === 'markets-crypto' && (h.status === 'stale' || h.status === 'error'));
-        return {
+        if (prev.serverTime > fast.serverTime) return prev;
+        return replayRealtimeEvents({
           ...prev,
           serverTime: fast.serverTime,
           layers: {
@@ -186,34 +281,43 @@ export function useMonitorData() {
             vessels: fast.vessels,
             earthquakes: fast.earthquakes,
           },
-          weatherRadar: fast.weatherRadar ?? prev.weatherRadar,
+          weatherRadar: fast.weatherRadar,
           markets: {
             ...prev.markets,
-            quotes: fast.quotes.length > 0 || marketsUnavailable ? fast.quotes : prev.markets.quotes,
-            crypto: fast.crypto.length > 0 ? fast.crypto : prev.markets.crypto,
-            fearGreed: fast.fearGreed ?? prev.markets.fearGreed,
+            quotes: fast.quotes,
+            crypto: fast.crypto,
+            fearGreed: fast.fearGreed,
             fred: fast.fred,
             vnMacroPulse: fast.vnMacroPulse,
             expiredMacroNotices: fast.expiredMacroNotices,
-            vn30: marketsRetained ? prev.markets.vn30?.map((quote) => ({ ...quote, retained: true })) : prev.markets.vn30,
+            vn30: fast.vn30,
+            vnGold: fast.vnGold,
             updatedAt: fast.serverTime,
           },
-          predictions:
-            fast.predictions && fast.predictions.length > 0 ? fast.predictions : prev.predictions,
-          googleTrends: fast.googleTrends ?? prev.googleTrends,
+          predictions: fast.predictions ?? prev.predictions,
+          googleTrends: fast.googleTrends === null ? undefined : fast.googleTrends ?? prev.googleTrends,
           health: fast.health,
-        };
+        }, events);
       });
     } catch (err) {
       if (mountedRef.current) {
         setFastError(err instanceof Error ? err.message : 'Không thể cập nhật dữ liệu nhanh');
       }
+    } finally {
+      realtimeBuffersRef.current.delete(events);
     }
   }, []);
 
   const applyPriceTicks = useCallback((ticks: LivePriceTick[], ts: number) => {
     if (typeof document !== 'undefined' && document.hidden) return;
     const newDirections: Record<string, FlashDirection> = {};
+    for (const tick of ticks) {
+      const previous = tickPricesRef.current.get(tick.symbol);
+      if (previous !== undefined && tick.price !== previous) {
+        newDirections[tick.symbol] = tick.price > previous ? 'up' : 'down';
+      }
+      if (previous !== undefined || tick.symbol === 'PAXG') tickPricesRef.current.set(tick.symbol, tick.price);
+    }
 
     setData((prev) => {
       if (!prev) return prev;
@@ -222,35 +326,21 @@ export function useMonitorData() {
 
       const updatedCrypto = prev.markets.crypto.map((coin) => {
         const live = tickMap.get(coin.symbol);
-        if (!live || live.price === coin.priceUsd) return coin;
+        if (!live || (live.price === coin.priceUsd && live.changePercent24h === coin.changePercent24h)) return coin;
         anyChanged = true;
-        newDirections[coin.symbol] = live.price > coin.priceUsd ? 'up' : 'down';
         return {
           ...coin,
+          marketDataFetchedAt: coin.marketDataFetchedAt ?? coin.updatedAt,
           priceUsd: live.price,
           changePercent24h: live.changePercent24h,
           updatedAt: ts,
         };
       });
 
-      const goldTick = tickMap.get('Gold');
-      let updatedQuotes = prev.markets.quotes;
-      if (goldTick) {
-        const idx = prev.markets.quotes.findIndex((q) => q.symbol === 'Gold');
-        if (idx >= 0) {
-          const prevGold = prev.markets.quotes[idx];
-          if (goldTick.price !== prevGold.price) {
-            anyChanged = true;
-            newDirections.Gold = goldTick.price > prevGold.price ? 'up' : 'down';
-            updatedQuotes = [...prev.markets.quotes];
-            updatedQuotes[idx] = {
-              ...prevGold,
-              price: goldTick.price,
-              changePercent24h: goldTick.changePercent24h,
-              updatedAt: ts,
-            };
-          }
-        }
+      const paxgTick = tickMap.get('PAXG');
+      const updatedQuotes = updatePaxgQuote(prev.markets.quotes, paxgTick, ts);
+      if (paxgTick && updatedQuotes !== prev.markets.quotes) {
+        anyChanged = true;
       }
 
       if (!anyChanged) return prev;
@@ -261,7 +351,6 @@ export function useMonitorData() {
           ...prev.markets,
           crypto: updatedCrypto,
           quotes: updatedQuotes,
-          updatedAt: ts,
         },
       };
     });
@@ -300,6 +389,7 @@ export function useMonitorData() {
         if (!mountedRef.current) return;
         try {
           const ev = JSON.parse(msg.data) as RealtimeServerEvent;
+          for (const buffer of realtimeBuffersRef.current) buffer.push(ev);
           if (ev.type === 'connected') {
             setStreamConnected(true);
             setData((prev) =>
@@ -411,6 +501,7 @@ export function useMonitorData() {
 
     return () => {
       mountedRef.current = false;
+      bootstrapPendingRef.current = false;
       es?.close();
       clearInterval(safetyTimer);
       if (flashResetTimerRef.current) clearTimeout(flashResetTimerRef.current);
