@@ -4,7 +4,10 @@ import { DEFAULT_BROWSER_UA, NAMED_APP_UA, fetchTextWithTimeout } from '../lib/h
 
 const GDELT_GEO_URL =
   'https://api.gdeltproject.org/api/v2/geo/geo?query=(conflict%20OR%20missile%20OR%20military%20OR%20sanctions%20OR%20protest)&mode=pointdata&format=geojson&timespan=1d';
-const GDELT_LASTUPDATE_URL = 'http://data.gdeltproject.org/gdeltv2/lastupdate.txt';
+const GDELT_LASTUPDATE_URL = 'https://data.gdeltproject.org/gdeltv2/lastupdate.txt';
+const GDELT_SLOT_MS = 15 * 60_000;
+/** How many earlier 15-minute files to try when the newest ones are not available. */
+const GDELT_LOOKBACK_SLOTS = 8;
 
 interface GdeltGeoFeature {
   type?: string;
@@ -237,6 +240,32 @@ function unzipFirstFileFromZipBuffer(buf: Buffer): string {
   throw new Error(`Unsupported ZIP compression method: ${compressionMethod}`);
 }
 
+/**
+ * Candidate export files: the newest listed one first, then earlier 15-minute slots (https).
+ * Some networks see the newest files as 404 for a while after `lastupdate.txt` lists them,
+ * while older slots are already served, so a single listed URL is not reliable.
+ */
+export function gdeltBulkCandidateUrls(listedUrl: string, lookbackSlots = GDELT_LOOKBACK_SLOTS): string[] {
+  const httpsUrl = listedUrl.replace(/^http:/, 'https:');
+  const m = httpsUrl.match(/^(.*\/)(\d{14})(\.export\.CSV\.zip)$/);
+  if (!m) return [httpsUrl];
+  const [, dir, stamp, suffix] = m;
+  const t = Date.UTC(
+    Number(stamp.slice(0, 4)),
+    Number(stamp.slice(4, 6)) - 1,
+    Number(stamp.slice(6, 8)),
+    Number(stamp.slice(8, 10)),
+    Number(stamp.slice(10, 12)),
+    Number(stamp.slice(12, 14)),
+  );
+  const urls = [httpsUrl];
+  for (let k = 1; k <= lookbackSlots; k += 1) {
+    const slot = new Date(t - k * GDELT_SLOT_MS).toISOString().replace(/[-:T]/g, '').slice(0, 14);
+    urls.push(`${dir}${slot}${suffix}`);
+  }
+  return urls;
+}
+
 async function fetchGdeltBulkLastUpdate(now: number): Promise<GeoPointFeature[]> {
   const { text } = await fetchTextWithTimeout(GDELT_LASTUPDATE_URL, {
     timeoutMs: 8_000,
@@ -252,20 +281,26 @@ async function fetchGdeltBulkLastUpdate(now: number): Promise<GeoPointFeature[]>
     throw new Error('Could not locate .export.CSV.zip URL in GDELT lastupdate.txt');
   }
 
-  const resp = await fetch(zipUrl, {
-    headers: { 'User-Agent': NAMED_APP_UA },
-    signal: AbortSignal.timeout(12_000),
-  });
-  if (!resp.ok) {
-    throw new Error(`GDELT export CSV HTTP ${resp.status}`);
+  const candidates = gdeltBulkCandidateUrls(zipUrl);
+  for (const url of candidates) {
+    const resp = await fetch(url, {
+      headers: { 'User-Agent': NAMED_APP_UA },
+      signal: AbortSignal.timeout(12_000),
+    });
+    // Only 404 means "not available here yet": try the previous slot. Anything else is a real failure.
+    if (resp.status === 404) continue;
+    if (!resp.ok) {
+      throw new Error(`GDELT export CSV HTTP ${resp.status}`);
+    }
+    const arrayBuf = await resp.arrayBuffer();
+    const tsv = unzipFirstFileFromZipBuffer(Buffer.from(arrayBuf));
+    const events = parseGdeltExportTsv(tsv, now);
+    if (events.length === 0) {
+      throw new Error('GDELT bulk export contained zero conflict/unrest events');
+    }
+    return events;
   }
-  const arrayBuf = await resp.arrayBuffer();
-  const tsv = unzipFirstFileFromZipBuffer(Buffer.from(arrayBuf));
-  const events = parseGdeltExportTsv(tsv, now);
-  if (events.length === 0) {
-    throw new Error('GDELT bulk export contained zero conflict/unrest events');
-  }
-  return events;
+  throw new Error(`GDELT export CSV HTTP 404 for the newest ${candidates.length} 15-minute files`);
 }
 
 export async function fetchGeopoliticsGdelt(): Promise<GeoPointFeature[]> {
