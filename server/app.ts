@@ -20,7 +20,6 @@ import type {
   NewsStreamStats,
   PolicyLegalSnapshot,
   PredictionItem,
-  RegionalWarningsSnapshot,
   RealtimeServerEvent,
   TechCyberSnapshot,
   TropicalCycloneSnapshot,
@@ -393,7 +392,6 @@ export function createApp(
       weatherRadar: store.get<WeatherRadarSnapshot>('weather-radar', now),
       tropicalCyclones: store.get<TropicalCycloneSnapshot>('tropical-cyclones', now) ?? undefined,
       weatherSatellite: store.get<WeatherSatelliteSnapshot>('weather-satellite', now) ?? undefined,
-      regionalWarnings: store.get<RegionalWarningsSnapshot>('regional-warnings', now) ?? undefined,
       markets: {
         quotes: rawMarkets?.quotes ?? [],
         crypto: rawMarkets?.crypto ?? [],
@@ -447,7 +445,6 @@ export function createApp(
       weatherRadar: store.get<WeatherRadarSnapshot>('weather-radar', now),
       tropicalCyclones: store.get<TropicalCycloneSnapshot>('tropical-cyclones', now) ?? undefined,
       weatherSatellite: store.get<WeatherSatelliteSnapshot>('weather-satellite', now) ?? undefined,
-      regionalWarnings: store.get<RegionalWarningsSnapshot>('regional-warnings', now) ?? undefined,
       quotes: rawMarkets?.quotes ?? [],
       crypto: rawMarkets?.crypto ?? [],
       fearGreed: rawMarkets?.fearGreed ?? null,

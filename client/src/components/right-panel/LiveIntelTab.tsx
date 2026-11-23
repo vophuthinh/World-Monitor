@@ -20,7 +20,6 @@ import type {
   PolicyLegalSnapshot,
   PredictionItem,
   TechCyberSnapshot,
-  RegionalWarningsSnapshot,
   VietnamEnvSnapshot,
 } from '@shared/types';
 import { ThreatSummaryBar } from './ThreatSummaryBar';
@@ -32,7 +31,6 @@ import { InstabilityIndexSection } from './InstabilityIndexSection';
 import { GoogleTrendsSection } from './GoogleTrendsSection';
 import { IntelFeedsSection } from './IntelFeedsSection';
 import { PolymarketSection } from './PolymarketSection';
-import { RegionalWarningsSection } from './RegionalWarningsSection';
 import { VietnamEnvSection } from './VietnamEnvSection';
 import { CountryLookupSection } from './CountryLookupSection';
 import type { FlashDirection } from '../../hooks/useMonitorData';
@@ -44,7 +42,6 @@ export interface LiveIntelTabProps {
   techCyber?: TechCyberSnapshot;
   policyLegal?: PolicyLegalSnapshot;
   vietnamEnv?: VietnamEnvSnapshot;
-  regionalWarnings?: RegionalWarningsSnapshot;
   aiSitrep?: AiSitrepSnapshot;
   military: GeoPointFeature[];
   vessels: GeoPointFeature[];
@@ -70,7 +67,6 @@ export const LiveIntelTab = memo(function LiveIntelTab({
   techCyber,
   policyLegal,
   vietnamEnv,
-  regionalWarnings,
   aiSitrep,
   military,
   vessels,
@@ -274,9 +270,6 @@ export const LiveIntelTab = memo(function LiveIntelTab({
           refreshingIds={refreshingIds}
         />
       )}
-
-      {/* 1c. Official warnings from neighbouring agencies (BMKG Indonesia, HKO Hong Kong) */}
-      <RegionalWarningsSection regionalWarnings={regionalWarnings} />
 
       {/* 2. Polymarket Top 5 Hottest Realtime */}
       <PolymarketSection

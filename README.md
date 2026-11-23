@@ -51,7 +51,7 @@ Chỉ tab đầu được tải khi mở trang; 5 tab còn lại nạp khi bạn
 
 | Tab | Nội dung chính |
 | :--- | :--- |
-| **Live Intel** | Mức cảnh báo chung, bản tin tóm tắt bằng AI và khung hỏi đáp trên dữ liệu đang mở, trạng thái các khu vực nóng, thời tiết biển và chất lượng không khí Việt Nam kèm **dự báo 24 giờ từ 6 mô hình** (trung bình, khoảng dao động và mức đồng thuận giữa các mô hình), **cảnh báo khu vực** của BMKG (Indonesia) và HKO (Hồng Kông), 5 hợp đồng Polymarket biến động mạnh nhất, Google Trends, từ khóa theo dõi, chỉ số bất ổn quốc gia |
+| **Live Intel** | Mức cảnh báo chung, bản tin tóm tắt bằng AI và khung hỏi đáp trên dữ liệu đang mở, trạng thái các khu vực nóng, thời tiết biển và chất lượng không khí Việt Nam kèm **dự báo 24 giờ từ 6 mô hình** (trung bình, khoảng dao động và mức đồng thuận giữa các mô hình), 5 hợp đồng Polymarket biến động mạnh nhất, Google Trends, từ khóa theo dõi, chỉ số bất ổn quốc gia |
 | **AI & ML** | Trạng thái các nền tảng AI và Cloud lớn, GitHub Trending, tra cứu IP hoặc CVE (Shodan InternetDB, NVD, CISA KEV), lọc theo kỹ thuật MITRE ATT&CK |
 | **Tin nóng** | Luồng tin gộp từ Wikimedia, GDELT, Hacker News, Reddit và báo chí trong nước lẫn quốc tế; dịch tự động tiêu đề sang tiếng Việt; bấm tin để bản đồ bay tới tọa độ sự kiện |
 | **Chính sách** | Văn bản mới từ Cổng Thông tin Chính phủ, Công báo, Bộ Khoa học và Công nghệ, nhóm Nghị quyết 57, 59, 66, 68. Tóm tắt 3 ý bằng AI khi bạn yêu cầu |
@@ -60,7 +60,7 @@ Chỉ tab đầu được tải khi mở trang; 5 tab còn lại nạp khi bạn
 
 ## Dữ liệu và độ tin cậy
 
-- **21 bộ thu thập** chạy theo chu kỳ từ 30 giây đến 6 giờ (xem `server/index.ts`). Nếu một lượt quét chưa xong thì lượt sau không chạy chồng.
+- **20 bộ thu thập** chạy theo chu kỳ từ 30 giây đến 6 giờ (xem `server/index.ts`). Nếu một lượt quét chưa xong thì lượt sau không chạy chồng.
 - **Cache hai tầng:** đọc ghi trên RAM, ghi nguyên tử xuống `.cache/*.json`. Khi nguồn lỗi, hệ thống giữ lại bản trước đó và đánh dấu là cũ.
 - **Thiếu hoặc quá cũ thì không bịa:** chỉ tiêu vĩ mô thiếu dữ liệu bị bỏ khỏi điểm số. Dữ liệu giữ lại quá 7 ngày không được dùng để chấm điểm. Kỳ quan sát cũ (FRED theo ngày, tuần, tháng, quý lần lượt 14, 30, 120, 240 ngày; World Bank hơn 3 năm) được cảnh báo rõ trên giao diện.
 - **Giá và thời điểm nguồn:** tỷ giá ER-API giữ riêng thời điểm quan sát và thời điểm tải; thiếu thời điểm hoặc quá 48 giờ được đánh dấu cũ. Giá phiên Yahoo và VN-Index không rõ thời điểm hoặc quá 7 ngày được đánh dấu cũ. Thiếu giá đóng cửa phiên trước thì biến động VN-Index và VN30 hiển thị không rõ. Giá vàng Mi Hồng không rõ hoặc quá 6 giờ được đánh dấu tham khảo cũ và không tạo cảnh báo chênh lệch; Fear & Greed thiếu thời điểm hoặc quá 7 ngày không được coi là mới.
@@ -76,7 +76,7 @@ Chỉ tab đầu được tải khi mở trang; 5 tab còn lại nạp khi bạn
 ```text
 server/
   app.ts          Định tuyến Hono, kiểm tra bảo mật, giới hạn tần suất, SSE
-  index.ts        Đăng ký 21 collector, luồng thời gian thực, khởi động HTTP
+  index.ts        Đăng ký 20 collector, luồng thời gian thực, khởi động HTTP
   cache/          Bộ lập lịch và kho lưu trữ RAM + .cache/*.json
   collectors/     Thu thập theo nguồn (markets/ và hpt/ là các module con)
   realtime/       SSE hub, WebSocket Binance và Polymarket, luồng tin hợp nhất
@@ -168,7 +168,6 @@ Quy ước làm việc và nợ kỹ thuật hiện tại nằm trong [AGENTS.md
 - **Tham số hiệu chỉnh cố định.** Một số mốc đối chiếu của Việt Nam (vùng cân bằng USD/VND, CPI, lãi suất liên ngân hàng) là hằng số trong mã và trôi dần theo thời gian. Cần rà soát định kỳ, có nguồn và có kiểm thử.
 - **Nguồn không chính thức.** Yahoo Finance v8, RSSHub, Reddit JSON, trang cảnh báo NCHMF có thể đổi cấu trúc hoặc chặn truy cập bất cứ lúc nào. Xem trạng thái từng nguồn trên thanh công cụ hoặc tại `/api/health`.
 - **Dữ liệu bão lấy từ GDACS, chưa trực tiếp từ JMA/JTWC.** GDACS đăng lại cảnh báo JTWC (đường đi, vùng dự báo) và cấu trúc đã được kiểm chứng bằng cả bão đang hoạt động lẫn bão đã qua. Bản tin trực tiếp của JMA (`targetTc.json`) và JTWC chưa được dùng vì chưa có bão để xác minh cấu trúc dữ liệu.
-- **Cảnh báo HKO chưa được quan sát khi có cảnh báo thật.** Bộ phân tích theo tài liệu công bố của HKO và được kiểm thử bằng mẫu tổng hợp; nếu cấu trúc khác, nó không hiện cảnh báo nào (không báo nhầm). BMKG đã được kiểm chứng bằng dữ liệu thật.
 - **Dự báo đa mô hình không phải bảo đảm chính xác.** Khi kiểm tra với quan trắc của Singapore, thứ hạng các mô hình thay đổi theo thời điểm; vì vậy ứng dụng hiển thị khoảng dao động giữa mô hình thay vì chọn một mô hình.
 - **Kiểm thử giao diện còn hạn chế.** Có test tương tác React trong jsdom, nhưng chưa thay được kiểm thử trên trình duyệt thật, công nghệ trợ năng và độ tương phản.
 

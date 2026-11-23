@@ -220,7 +220,6 @@ export function useMonitorData() {
             weatherRadar: prev.weatherRadar,
             tropicalCyclones: prev.tropicalCyclones ?? json.tropicalCyclones,
             weatherSatellite: prev.weatherSatellite ?? json.weatherSatellite,
-            regionalWarnings: prev.regionalWarnings ?? json.regionalWarnings,
             markets: { ...json.markets, ...prev.markets, macro: json.markets.macro },
             predictions: prev.predictions,
             googleTrends: prev.googleTrends,
@@ -289,7 +288,6 @@ export function useMonitorData() {
           weatherRadar: fast.weatherRadar,
           tropicalCyclones: fast.tropicalCyclones ?? prev.tropicalCyclones,
           weatherSatellite: fast.weatherSatellite ?? prev.weatherSatellite,
-          regionalWarnings: fast.regionalWarnings ?? prev.regionalWarnings,
           markets: {
             ...prev.markets,
             quotes: fast.quotes,

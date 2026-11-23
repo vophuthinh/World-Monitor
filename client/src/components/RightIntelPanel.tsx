@@ -21,7 +21,6 @@ import type {
   PredictionItem,
   RegimeHistoryPoint,
   TechCyberSnapshot,
-  RegionalWarningsSnapshot,
   VietnamEnvSnapshot,
 } from '@shared/types';
 import type { FlashDirection } from '../hooks/useMonitorData';
@@ -44,7 +43,6 @@ export interface RightIntelPanelProps {
   techCyber?: TechCyberSnapshot;
   policyLegal?: PolicyLegalSnapshot;
   vietnamEnv?: VietnamEnvSnapshot;
-  regionalWarnings?: RegionalWarningsSnapshot;
   hptIntel?: HptCompanyIntelSnapshot;
   hptSourceStale?: boolean;
   aiSitrep?: AiSitrepSnapshot;
@@ -82,7 +80,6 @@ export const RightIntelPanel = memo(function RightIntelPanel({
   techCyber,
   policyLegal,
   vietnamEnv,
-  regionalWarnings,
   hptIntel,
   hptSourceStale,
   aiSitrep,
@@ -262,7 +259,6 @@ export const RightIntelPanel = memo(function RightIntelPanel({
           techCyber={techCyber}
           policyLegal={policyLegal}
           vietnamEnv={vietnamEnv}
-          regionalWarnings={regionalWarnings}
           aiSitrep={aiSitrep}
           military={military}
           vessels={vessels}

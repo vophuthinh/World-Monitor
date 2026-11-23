@@ -13,7 +13,6 @@ import type {
   NewsItem,
   PolicyLegalSnapshot,
   PredictionItem,
-  RegionalWarningsSnapshot,
   TechCyberSnapshot,
   TropicalCycloneSnapshot,
   VietnamEnvSnapshot,
@@ -36,7 +35,6 @@ import { fetchCuratedRssNews, fetchPolymarketPredictions } from './collectors/po
 import { fetchTechCyberIntelligence } from './collectors/tech-cyber-intel';
 import { fetchGpsAndBgpOutages, fetchVietnamEnvironment } from './collectors/vietnam-env-outages';
 import { fetchVietnamPolicyLegal } from './collectors/vietnam-policy-legal';
-import { fetchRegionalWarnings } from './collectors/regional-warnings';
 import { fetchTropicalCyclones } from './collectors/tropical-cyclones';
 import { fetchWeatherRadar } from './collectors/weather-radar';
 import { fetchWeatherSatellite } from './collectors/weather-satellite';
@@ -214,15 +212,6 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
     retainMs: 2 * 3_600_000,
     countItems: (snap) => snap.frames.length,
     fetcher: () => fetchWeatherSatellite(),
-  });
-
-  scheduler.registerCollector<RegionalWarningsSnapshot>({
-    id: 'regional-warnings',
-    label: 'Cảnh báo khu vực (BMKG Indonesia · HKO · 5p)',
-    intervalMs: 300_000,
-    retainMs: 3 * 3_600_000,
-    countItems: (snap) => snap.warnings.length,
-    fetcher: () => fetchRegionalWarnings(),
   });
 
   scheduler.registerCollector<VietnamEnvSnapshot>({

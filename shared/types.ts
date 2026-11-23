@@ -38,7 +38,6 @@ export type CollectorId =
   | 'weather-radar'
   | 'tropical-cyclones'
   | 'weather-satellite'
-  | 'regional-warnings'
   | 'vietnam-env'
   | 'markets-crypto'
   | 'macro-worldbank'
@@ -191,26 +190,6 @@ export interface WeatherSatelliteSnapshot {
   tileUrlTemplate: string;
   generatedAt: number;
   frames: WeatherSatelliteFrame[];
-}
-
-export interface RegionalWarning {
-  id: string;
-  source: 'BMKG' | 'HKO';
-  title: string;
-  area?: string;
-  severity: 'high' | 'medium' | 'info';
-  /** Unix ms */
-  issuedAt: number;
-  description?: string;
-  url: string;
-}
-
-/** Official weather warnings from neighbouring agencies: BMKG (Indonesia nowcast) and HKO (Hong Kong). */
-export interface RegionalWarningsSnapshot {
-  warnings: RegionalWarning[];
-  bmkgOk: boolean;
-  hkoOk: boolean;
-  updatedAt: number;
 }
 
 export interface MarketQuote {
@@ -1005,7 +984,6 @@ export interface BootstrapResponse {
   weatherRadar: WeatherRadarSnapshot | null;
   tropicalCyclones?: TropicalCycloneSnapshot;
   weatherSatellite?: WeatherSatelliteSnapshot;
-  regionalWarnings?: RegionalWarningsSnapshot;
   markets: MarketSnapshot;
   predictions: PredictionItem[];
   news: NewsItem[];
@@ -1030,7 +1008,6 @@ export interface LiveFastResponse {
   weatherRadar: WeatherRadarSnapshot | null;
   tropicalCyclones?: TropicalCycloneSnapshot;
   weatherSatellite?: WeatherSatelliteSnapshot;
-  regionalWarnings?: RegionalWarningsSnapshot;
   quotes: MarketQuote[];
   crypto: CryptoQuote[];
   fearGreed: FearGreedSnapshot | null;
