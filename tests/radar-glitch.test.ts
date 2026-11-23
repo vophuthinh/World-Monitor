@@ -8,6 +8,7 @@ import {
   dropGlitchedRadarFrames,
   fetchWeatherRadar,
   hasSolidExtremeBlock,
+  isAllowedRadarTileUrl,
   normalizeRainViewerRadar,
 } from '../server/collectors/weather-radar';
 
@@ -168,6 +169,19 @@ describe('dropGlitchedRadarFrames', () => {
     expect(out.path).toBe('/v2/radar/c');
   });
 
+  it('checks frames one at a time so a slow link is not flooded with every tile at once', async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    await dropGlitchedRadarFrames(snapshot(), async () => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight -= 1;
+      return false;
+    });
+    expect(maxInFlight).toBe(1);
+  });
+
   it('throws when no clean past frame is left', async () => {
     await expect(dropGlitchedRadarFrames(snapshot(), async () => true)).rejects.toThrow(/glitch/i);
   });
@@ -204,5 +218,85 @@ describe('fetchWeatherRadar with a glitched newest frame', () => {
 
     await fetchWeatherRadar();
     expect(tileCalls.length).toBe(callsAfterFirst); // verdicts are cached per frame
+  });
+});
+
+describe('radar probe hardening', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('refuses a decompression bomb: IDAT that inflates far beyond the declared image size', () => {
+    const w = 4, h = 4;
+    const ihdr = Buffer.alloc(13);
+    ihdr.writeUInt32BE(w, 0);
+    ihdr.writeUInt32BE(h, 4);
+    ihdr[8] = 8;
+    ihdr[9] = 6;
+    const bomb = deflateSync(Buffer.alloc(50_000_000)); // 50 MB of zeros compresses to ~50 KB
+    const png = Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      chunk('IHDR', ihdr),
+      chunk('IDAT', bomb),
+      chunk('IEND', Buffer.alloc(0)),
+    ]);
+    expect(png.length).toBeLessThan(100_000);
+    expect(decodePngRgba(png)).toBeNull();
+  });
+
+  it('only probes https tiles on rainviewer.com hosts', () => {
+    expect(isAllowedRadarTileUrl('https://tilecache.rainviewer.com/v2/radar/a/256/4/12/7/6/1_1.png')).toBe(true);
+    for (const bad of [
+      'http://tilecache.rainviewer.com/v2/radar/a/256/4/12/7/6/1_1.png',
+      'https://evil.example.com/v2/radar/a.png',
+      'https://rainviewer.com.evil.example.com/a.png',
+      'https://tilecache.rainviewer.com@evil.example.com/a.png',
+      'https://user:pw@tilecache.rainviewer.com/a.png',
+      'https://tilecache.rainviewer.com:8443/a.png',
+      'https://127.0.0.1/a.png',
+      'https://169.254.169.254/latest/meta-data',
+      'not a url',
+    ]) {
+      expect(isAllowedRadarTileUrl(bad), bad).toBe(false);
+    }
+  });
+
+  it('does not fetch a tile from a non-allowlisted host and keeps the frame (inconclusive)', async () => {
+    const calls: string[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.includes('weather-maps.json')) {
+        return new Response(
+          JSON.stringify({
+            host: 'https://169.254.169.254',
+            generated: 1_700_000_000,
+            radar: { past: [{ time: 5_000, path: '/v2/radar/ssrf1' }], nowcast: [] },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response('secret', { status: 200 });
+    });
+    const out = await fetchWeatherRadar();
+    expect(out.path).toBe('/v2/radar/ssrf1'); // inconclusive never drops a frame
+    expect(calls.filter((u) => u.includes('169.254.169.254'))).toHaveLength(0);
+  });
+
+  it('treats an oversized tile body as inconclusive', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes('weather-maps.json')) {
+        return new Response(
+          JSON.stringify({
+            host: 'https://tilecache.rainviewer.com',
+            generated: 1_700_000_000,
+            radar: { past: [{ time: 6_000, path: '/v2/radar/big1' }], nowcast: [] },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(new Uint8Array(2_000_000), { status: 200, headers: { 'content-length': '2000000' } });
+    });
+    const out = await fetchWeatherRadar();
+    expect(out.path).toBe('/v2/radar/big1');
   });
 });

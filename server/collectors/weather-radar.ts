@@ -97,14 +97,16 @@ export function decodePngRgba(png: Uint8Array): RgbaImage | null {
     i += 12 + len;
   }
   if (!supported || idat.length === 0 || width <= 0 || height <= 0 || width * height > 4_000_000) return null;
+  const stride = width * 4;
+  const expectedRawBytes = (stride + 1) * height;
   let raw: Buffer;
   try {
-    raw = inflateSync(Buffer.concat(idat));
+    // Cap the output at the declared geometry so a tiny IDAT cannot inflate into hundreds of MB.
+    raw = inflateSync(Buffer.concat(idat), { maxOutputLength: expectedRawBytes });
   } catch {
     return null;
   }
-  const stride = width * 4;
-  if (raw.length < (stride + 1) * height) return null;
+  if (raw.length < expectedRawBytes) return null;
   const out = new Uint8Array(stride * height);
   for (let y = 0; y < height; y += 1) {
     const filter = raw[y * (stride + 1)];
@@ -174,6 +176,23 @@ export function hasSolidExtremeBlock(img: RgbaImage, minRun = 20, minRows = 3): 
   return false;
 }
 
+const RADAR_TILE_HOST = /^([a-z0-9-]+\.)*rainviewer\.com$/i;
+/** A real radar tile is ~1-20 KB; anything near this is not one. */
+const MAX_RADAR_TILE_BYTES = 1_000_000;
+
+/**
+ * The tile host comes from RainViewer's JSON, so it is untrusted input for a server-side request:
+ * only https on *.rainviewer.com (default port, no credentials) may be probed.
+ */
+export function isAllowedRadarTileUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    return u.protocol === 'https:' && !u.username && !u.password && u.port === '' && RADAR_TILE_HOST.test(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
 /** Zoom-4 tiles covering the monitored theatre (lon 90-146E, lat -14..48N): x 12..14, y 5..8. */
 const RADAR_SAMPLE_TILES: ReadonlyArray<readonly [number, number, number]> = [12, 13, 14].flatMap((x) =>
   [5, 6, 7, 8].map((y) => [4, x, y] as const),
@@ -188,12 +207,18 @@ async function radarFrameHasGlitch(frame: WeatherRadarFrame): Promise<boolean | 
     RADAR_SAMPLE_TILES.map(async ([z, x, y]): Promise<boolean | null> => {
       try {
         const url = frame.tileUrlTemplate.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y));
+        if (!isAllowedRadarTileUrl(url)) return null;
         const resp = await fetch(url, {
           headers: { 'User-Agent': DEFAULT_BROWSER_UA },
-          signal: AbortSignal.timeout(6_000),
+          redirect: 'error',
+          signal: AbortSignal.timeout(10_000),
         });
         if (!resp.ok) return null;
-        const img = decodePngRgba(new Uint8Array(await resp.arrayBuffer()));
+        const declared = Number(resp.headers.get('content-length') ?? 0);
+        if (declared > MAX_RADAR_TILE_BYTES) return null;
+        const body = new Uint8Array(await resp.arrayBuffer());
+        if (body.length > MAX_RADAR_TILE_BYTES) return null;
+        const img = decodePngRgba(body);
         return img ? hasSolidExtremeBlock(img) : null;
       } catch {
         return null;
@@ -219,7 +244,10 @@ export async function dropGlitchedRadarFrames(
   snapshot: WeatherRadarSnapshot,
   isGlitched: (frame: WeatherRadarFrame) => Promise<boolean | null>,
 ): Promise<WeatherRadarSnapshot> {
-  const verdicts = await Promise.all(snapshot.pastFrames.map((f) => isGlitched(f)));
+  // One frame at a time (its 12 tiles still load in parallel): firing every tile of every frame at
+  // once starves slow links, tiles time out, and the check becomes inconclusive.
+  const verdicts: Array<boolean | null> = [];
+  for (const frame of snapshot.pastFrames) verdicts.push(await isGlitched(frame));
   const clean = snapshot.pastFrames.filter((_, i) => verdicts[i] !== true);
   const latest = [...clean].reverse().find((f) => !f.isForecast);
   if (!latest) {
