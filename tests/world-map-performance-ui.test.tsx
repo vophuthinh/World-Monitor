@@ -66,8 +66,8 @@ it('does not restart stale position interpolation when a poll resets the anchor'
   const aircraft = { id: 'old', layer: 'military' as const, title: 'old', category: 'jet', severity: 'low' as const, lat: 10, lon: 100, timestamp: now - 60_000, source: 'test', heading: 90, meta: { speedKt: 400 } };
   const props: WorldMapProps = {
     isGlobe: false, basemap: 'dark-matter',
-    activeLayers: { military: true, vessels: true, cyberThreats: false, cyberArcs: false, gpsOutages: false, earthquakes: true, natural: false, geopolitics: true, militaryBases: false, aiDatacenters: false, chokepoints: true, nuclear: false, financeCenters: false, cables: false, weatherRadar: false },
-    radarOpacity: 0.5, weatherRadar: null, military: [aircraft], vessels: [], cyberThreats: [], cyberArcs: [], gpsOutages: [],
+    activeLayers: { military: true, vessels: true, cyberThreats: false, cyberArcs: false, gpsOutages: false, earthquakes: true, natural: false, geopolitics: true, militaryBases: false, aiDatacenters: false, chokepoints: true, nuclear: false, financeCenters: false, cables: false, weatherRadar: false, cyclones: false, satellite: false },
+    radarOpacity: 0.5, weatherRadar: null, tropicalCyclones: null, weatherSatellite: null, military: [aircraft], vessels: [], cyberThreats: [], cyberArcs: [], gpsOutages: [],
     militaryAnchorMs: now - 60_000, vesselsAnchorMs: now, deadReckoning: true, earthquakes: [], natural: [], geopolitics: [],
     militaryBases: [], aiDatacenters: [], chokepoints: [], nuclear: [], financeCenters: [], cables: [],
     vietnamSovereignty: [], vietnamZones: [], vietnamSeaLabels: [], cameraTarget: null, onSelectFeature: vi.fn(),
@@ -92,10 +92,10 @@ it('avoids redundant source updates and applies the latest data after movement',
   const activeLayers = {
     military: true, vessels: true, cyberThreats: false, cyberArcs: false, gpsOutages: false,
     earthquakes: true, natural: false, geopolitics: true, militaryBases: false, aiDatacenters: false,
-    chokepoints: true, nuclear: false, financeCenters: false, cables: false, weatherRadar: false,
+    chokepoints: true, nuclear: false, financeCenters: false, cables: false, weatherRadar: false, cyclones: false, satellite: false,
   };
   const props: WorldMapProps = {
-    isGlobe: false, basemap: 'dark-matter', activeLayers, radarOpacity: 0.5, weatherRadar: null,
+    isGlobe: false, basemap: 'dark-matter', activeLayers, radarOpacity: 0.5, weatherRadar: null, tropicalCyclones: null, weatherSatellite: null,
     military: [], vessels: [], cyberThreats: [], cyberArcs: [], gpsOutages: [], militaryAnchorMs: 1,
     vesselsAnchorMs: 1, deadReckoning: true, earthquakes: [], natural: [], geopolitics: [],
     militaryBases: [], aiDatacenters: [], chokepoints: [], nuclear: [], financeCenters: [], cables: [],

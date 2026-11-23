@@ -13,9 +13,13 @@ export type MapLayerId =
   | 'nuclear'
   | 'financeCenters'
   | 'cables'
-  | 'weatherRadar';
+  | 'weatherRadar'
+  | 'cyclones'
+  | 'satellite';
 
-export type PointLayerId = Exclude<MapLayerId, 'cables' | 'cyberArcs' | 'weatherRadar'> | 'sovereignty';
+export type PointLayerId =
+  | Exclude<MapLayerId, 'cables' | 'cyberArcs' | 'weatherRadar' | 'cyclones' | 'satellite'>
+  | 'sovereignty';
 
 export type SeverityLevel = 'low' | 'medium' | 'high' | 'critical' | 'info';
 
@@ -32,6 +36,9 @@ export type CollectorId =
   | 'natural-events'
   | 'geopolitics-gdelt'
   | 'weather-radar'
+  | 'tropical-cyclones'
+  | 'weather-satellite'
+  | 'regional-warnings'
   | 'vietnam-env'
   | 'markets-crypto'
   | 'macro-worldbank'
@@ -131,6 +138,59 @@ export interface WeatherRadarSnapshot {
   frameTime: number; // Unix seconds
   generatedAt: number; // Unix ms
   pastFrames: WeatherRadarFrame[];
+}
+
+export type TropicalCycloneCategory = 'TD' | 'TS' | 'HU' | 'other';
+
+export interface TropicalCycloneTrackSegment {
+  category: TropicalCycloneCategory;
+  /** [lon, lat] pairs */
+  coordinates: Array<[number, number]>;
+}
+
+/** One active tropical cyclone (JTWC data as published by GDACS: current position, track and forecast cone). */
+export interface TropicalCyclone {
+  id: string;
+  eventId: number;
+  episodeId: number;
+  name: string;
+  alertLevel: 'Green' | 'Orange' | 'Red';
+  windKmh: number | null;
+  intensityText: string | null;
+  lat: number;
+  lon: number;
+  fromDate: string;
+  toDate: string;
+  /** Unix ms of the last update published upstream */
+  updatedAt: number;
+  countries: string;
+  source: string;
+  reportUrl: string;
+  track: TropicalCycloneTrackSegment[];
+  /** Forecast cone polygon rings, [lon, lat] */
+  cone: Array<Array<[number, number]>> | null;
+}
+
+export interface TropicalCycloneSnapshot {
+  cyclones: TropicalCyclone[];
+  updatedAt: number;
+}
+
+export interface WeatherSatelliteFrame {
+  /** Unix seconds (UTC) of the observation */
+  time: number;
+  tileUrlTemplate: string;
+}
+
+/** Himawari-9 infrared (band 13) as published by JMA: 10-minute cadence, tiles up to zoom 5. */
+export interface WeatherSatelliteSnapshot {
+  product: string;
+  maxZoom: number;
+  attribution: string;
+  frameTime: number;
+  tileUrlTemplate: string;
+  generatedAt: number;
+  frames: WeatherSatelliteFrame[];
 }
 
 export interface MarketQuote {
@@ -887,6 +947,8 @@ export interface BootstrapResponse {
   layers: LiveDynamicLayers;
   staticGeo: StaticGeoBundle;
   weatherRadar: WeatherRadarSnapshot | null;
+  tropicalCyclones?: TropicalCycloneSnapshot;
+  weatherSatellite?: WeatherSatelliteSnapshot;
   markets: MarketSnapshot;
   predictions: PredictionItem[];
   news: NewsItem[];
@@ -909,6 +971,8 @@ export interface LiveFastResponse {
   vessels: GeoPointFeature[];
   earthquakes: GeoPointFeature[];
   weatherRadar: WeatherRadarSnapshot | null;
+  tropicalCyclones?: TropicalCycloneSnapshot;
+  weatherSatellite?: WeatherSatelliteSnapshot;
   quotes: MarketQuote[];
   crypto: CryptoQuote[];
   fearGreed: FearGreedSnapshot | null;

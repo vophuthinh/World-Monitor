@@ -14,7 +14,9 @@ import type {
   PolicyLegalSnapshot,
   PredictionItem,
   TechCyberSnapshot,
+  TropicalCycloneSnapshot,
   VietnamEnvSnapshot,
+  WeatherSatelliteSnapshot,
 } from '@shared/types';
 import { createApp } from './app';
 import { CollectorScheduler } from './cache/scheduler';
@@ -33,7 +35,9 @@ import { fetchCuratedRssNews, fetchPolymarketPredictions } from './collectors/po
 import { fetchTechCyberIntelligence } from './collectors/tech-cyber-intel';
 import { fetchGpsAndBgpOutages, fetchVietnamEnvironment } from './collectors/vietnam-env-outages';
 import { fetchVietnamPolicyLegal } from './collectors/vietnam-policy-legal';
+import { fetchTropicalCyclones } from './collectors/tropical-cyclones';
 import { fetchWeatherRadar } from './collectors/weather-radar';
+import { fetchWeatherSatellite } from './collectors/weather-satellite';
 import { generateAiSitrep } from './lib/groq-intel';
 import { RegimeHistoryLedger } from './lib/regime-ledger';
 import { TelegramAlertEngine } from './lib/telegram-alerter';
@@ -190,6 +194,24 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
     retainMs: 2 * 3_600_000,
     countItems: (radar) => (radar ? radar.pastFrames.length : 0),
     fetcher: () => fetchWeatherRadar(),
+  });
+
+  scheduler.registerCollector<TropicalCycloneSnapshot>({
+    id: 'tropical-cyclones',
+    label: 'Bão & Áp thấp nhiệt đới (JTWC qua GDACS · 15p)',
+    intervalMs: 900_000,
+    retainMs: 6 * 3_600_000,
+    countItems: (snap) => snap.cyclones.length,
+    fetcher: () => fetchTropicalCyclones(),
+  });
+
+  scheduler.registerCollector<WeatherSatelliteSnapshot>({
+    id: 'weather-satellite',
+    label: 'Ảnh vệ tinh Himawari-9 hồng ngoại (JMA · 5p)',
+    intervalMs: 300_000,
+    retainMs: 2 * 3_600_000,
+    countItems: (snap) => snap.frames.length,
+    fetcher: () => fetchWeatherSatellite(),
   });
 
   scheduler.registerCollector<VietnamEnvSnapshot>({

@@ -139,6 +139,8 @@ const DEFAULT_ACTIVE_LAYERS: Record<MapLayerId, boolean> = {
   financeCenters: false,
   cables: false,
   weatherRadar: true,
+  cyclones: true,
+  satellite: false,
 };
 
 export function useMonitorData() {
@@ -216,6 +218,8 @@ export function useMonitorData() {
             serverTime: prev.serverTime,
             layers: { ...json.layers, military: prev.layers.military, vessels: prev.layers.vessels, earthquakes: prev.layers.earthquakes },
             weatherRadar: prev.weatherRadar,
+            tropicalCyclones: prev.tropicalCyclones ?? json.tropicalCyclones,
+            weatherSatellite: prev.weatherSatellite ?? json.weatherSatellite,
             markets: { ...json.markets, ...prev.markets, macro: json.markets.macro },
             predictions: prev.predictions,
             googleTrends: prev.googleTrends,
@@ -282,6 +286,8 @@ export function useMonitorData() {
             earthquakes: fast.earthquakes,
           },
           weatherRadar: fast.weatherRadar,
+          tropicalCyclones: fast.tropicalCyclones ?? prev.tropicalCyclones,
+          weatherSatellite: fast.weatherSatellite ?? prev.weatherSatellite,
           markets: {
             ...prev.markets,
             quotes: fast.quotes,
@@ -574,6 +580,8 @@ export function useMonitorData() {
         financeCenters: false,
         cables: true,
         weatherRadar: false,
+        cyclones: false,
+        satellite: false,
       });
       return;
     }
@@ -594,6 +602,8 @@ export function useMonitorData() {
         financeCenters: false,
         cables: false,
         weatherRadar: true,
+        cyclones: true,
+        satellite: false,
       });
       return;
     }
@@ -614,6 +624,8 @@ export function useMonitorData() {
       financeCenters: enabled,
       cables: enabled,
       weatherRadar: enabled,
+      cyclones: enabled,
+      satellite: enabled,
     });
   }, []);
 
@@ -697,8 +709,10 @@ export function useMonitorData() {
       financeCenters: filteredData.financeCenters.length,
       cables: filteredData.cables.length,
       weatherRadar: data?.weatherRadar ? data.weatherRadar.pastFrames.length : 0,
+      cyclones: data?.tropicalCyclones?.cyclones.length ?? 0,
+      satellite: data?.weatherSatellite ? data.weatherSatellite.frames.length : 0,
     }),
-    [filteredData, activeLayers.cyberArcs, cyberArcs.length, data?.weatherRadar],
+    [filteredData, activeLayers.cyberArcs, cyberArcs.length, data?.weatherRadar, data?.tropicalCyclones, data?.weatherSatellite],
   );
 
   const deferredSearchQuery = useDeferredValue(searchQuery);

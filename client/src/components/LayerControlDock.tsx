@@ -10,6 +10,8 @@ import {
   CaretRight,
   CloudRain,
   Cpu,
+  Hurricane,
+  Planet,
   Fire,
   Pause,
   Play,
@@ -64,6 +66,8 @@ const LAYER_META: ReadonlyArray<{
   { id: 'financeCenters', label: 'Sàn & Ngân hàng TW', dotColor: 'bg-emerald-400', Icon: Bank },
   { id: 'cables', label: 'Cáp quang Biển', dotColor: 'bg-teal-400', Icon: ShareNetwork },
   { id: 'weatherRadar', label: 'Radar Mưa/Bão', dotColor: 'bg-blue-400', Icon: CloudRain },
+  { id: 'cyclones', label: 'Bão & Áp thấp (JTWC)', dotColor: 'bg-red-400', Icon: Hurricane },
+  { id: 'satellite', label: 'Vệ tinh Himawari IR', dotColor: 'bg-slate-300', Icon: Planet },
 ];
 
 const MILITARY_ROLE_LEGEND = [

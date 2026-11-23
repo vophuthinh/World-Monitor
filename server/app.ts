@@ -22,8 +22,10 @@ import type {
   PredictionItem,
   RealtimeServerEvent,
   TechCyberSnapshot,
+  TropicalCycloneSnapshot,
   VietnamEnvSnapshot,
   WeatherRadarSnapshot,
+  WeatherSatelliteSnapshot,
 } from '@shared/types';
 import type { CollectorScheduler } from './cache/scheduler';
 import { getRetainedMarketSnapshot, markMarketSnapshotRetained } from './collectors/markets-crypto';
@@ -374,6 +376,8 @@ export function createApp(
       },
       staticGeo: STATIC_GEO_BUNDLE,
       weatherRadar: store.get<WeatherRadarSnapshot>('weather-radar', now),
+      tropicalCyclones: store.get<TropicalCycloneSnapshot>('tropical-cyclones', now) ?? undefined,
+      weatherSatellite: store.get<WeatherSatelliteSnapshot>('weather-satellite', now) ?? undefined,
       markets: {
         quotes: rawMarkets?.quotes ?? [],
         crypto: rawMarkets?.crypto ?? [],
@@ -425,6 +429,8 @@ export function createApp(
       vessels: resolvedVessels,
       earthquakes: store.get<GeoPointFeature[]>('earthquakes', now) ?? [],
       weatherRadar: store.get<WeatherRadarSnapshot>('weather-radar', now),
+      tropicalCyclones: store.get<TropicalCycloneSnapshot>('tropical-cyclones', now) ?? undefined,
+      weatherSatellite: store.get<WeatherSatelliteSnapshot>('weather-satellite', now) ?? undefined,
       quotes: rawMarkets?.quotes ?? [],
       crypto: rawMarkets?.crypto ?? [],
       fearGreed: rawMarkets?.fearGreed ?? null,

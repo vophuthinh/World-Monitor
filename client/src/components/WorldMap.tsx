@@ -14,12 +14,14 @@ import type {
   MapLayerId,
   VietnamArchipelagoZone,
   VietnamSeaLabel,
+  TropicalCycloneSnapshot,
   WeatherRadarSnapshot,
+  WeatherSatelliteSnapshot,
 } from '@shared/types';
 
 import type { CameraTarget } from '../hooks/useMonitorData';
 
-import { CARTO_STYLE_URLS, JET_PALETTE, VESSEL_PALETTE, cablesToFeatureCollection, createJetSprite, createVesselSprite, createVietnamStarSprite, cyberArcsToFeatureCollection, cyberPacketsToFeatureCollection, pointsToFeatureCollection, seaLabelsToFeatureCollection, zonesToFeatureCollection } from './map/map-utils';
+import { CARTO_STYLE_URLS, JET_PALETTE, VESSEL_PALETTE, cablesToFeatureCollection, createJetSprite, createVesselSprite, createVietnamStarSprite, cyberArcsToFeatureCollection, cyclonesToFeatureCollections, cyberPacketsToFeatureCollection, pointsToFeatureCollection, seaLabelsToFeatureCollection, zonesToFeatureCollection } from './map/map-utils';
 
 export interface WorldMapProps {
   isGlobe: boolean;
@@ -27,6 +29,8 @@ export interface WorldMapProps {
   activeLayers: Record<MapLayerId, boolean>;
   radarOpacity: number;
   weatherRadar: WeatherRadarSnapshot | null;
+  tropicalCyclones: TropicalCycloneSnapshot | null;
+  weatherSatellite: WeatherSatelliteSnapshot | null;
   military: GeoPointFeature[];
   vessels: GeoPointFeature[];
   cyberThreats: GeoPointFeature[];
@@ -76,6 +80,8 @@ export const WorldMap = memo(function WorldMap({
   activeLayers,
   radarOpacity,
   weatherRadar,
+  tropicalCyclones,
+  weatherSatellite,
   military,
   vessels,
   cyberThreats,
@@ -103,6 +109,7 @@ export const WorldMap = memo(function WorldMap({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const appliedRadarPathRef = useRef<string | null>(null);
+  const appliedSatelliteRef = useRef<string | null>(null);
   const appliedDataRef = useRef<Record<string, unknown>>({});
   const movingDataRef = useRef<Partial<Record<'military' | 'vessels', {
     input: GeoPointFeature[];
@@ -122,6 +129,8 @@ export const WorldMap = memo(function WorldMap({
     activeLayers,
     radarOpacity,
     weatherRadar,
+    tropicalCyclones,
+    weatherSatellite,
     military,
     vessels,
     cyberThreats,
@@ -152,6 +161,8 @@ export const WorldMap = memo(function WorldMap({
     activeLayers,
     radarOpacity,
     weatherRadar,
+    tropicalCyclones,
+    weatherSatellite,
     military,
     vessels,
     cyberThreats,
@@ -279,6 +290,110 @@ export const WorldMap = memo(function WorldMap({
         state.activeLayers.weatherRadar && desiredTile ? 'visible' : 'none',
       );
       map.setPaintProperty('radar-layer', 'raster-opacity', state.radarOpacity);
+    }
+
+    // 1b. Himawari-9 infrared raster (JMA). Sits below the radar; tiles exist up to zoom 5, MapLibre overscales beyond.
+    const desiredSatellite = state.weatherSatellite?.tileUrlTemplate ?? null;
+    if (desiredSatellite && appliedSatelliteRef.current !== desiredSatellite) {
+      if (map.getLayer('satellite-layer')) map.removeLayer('satellite-layer');
+      if (map.getSource('satellite-src')) map.removeSource('satellite-src');
+      map.addSource('satellite-src', {
+        type: 'raster',
+        tiles: [desiredSatellite],
+        tileSize: 256,
+        maxzoom: state.weatherSatellite?.maxZoom ?? 5,
+        attribution: state.weatherSatellite?.attribution ?? 'JMA',
+      });
+      map.addLayer(
+        {
+          id: 'satellite-layer',
+          type: 'raster',
+          source: 'satellite-src',
+          layout: { visibility: state.activeLayers.satellite ? 'visible' : 'none' },
+          paint: { 'raster-opacity': 0.5, 'raster-fade-duration': 180, 'raster-resampling': 'linear' },
+        },
+        map.getLayer('radar-layer') ? 'radar-layer' : map.getLayer('vn-zones-fill') ? 'vn-zones-fill' : undefined,
+      );
+      appliedSatelliteRef.current = desiredSatellite;
+    } else if (map.getLayer('satellite-layer')) {
+      map.setLayoutProperty(
+        'satellite-layer',
+        'visibility',
+        state.activeLayers.satellite && desiredSatellite ? 'visible' : 'none',
+      );
+    }
+
+    // 1c. Active tropical cyclones (JTWC via GDACS): forecast cone, past/forecast track, current position.
+    const cycloneList = state.tropicalCyclones?.cyclones ?? [];
+    const cycloneVisibility = state.activeLayers.cyclones ? 'visible' : 'none';
+    if (!map.getSource('cyclone-pos-src')) {
+      const fc = cyclonesToFeatureCollections(cycloneList);
+      map.addSource('cyclone-cones-src', { type: 'geojson', data: fc.cones });
+      map.addSource('cyclone-tracks-src', { type: 'geojson', data: fc.tracks });
+      map.addSource('cyclone-pos-src', { type: 'geojson', data: fc.positions });
+      appliedDataRef.current['cyclones'] = state.tropicalCyclones;
+      map.addLayer({
+        id: 'cyclone-cone-fill',
+        type: 'fill',
+        source: 'cyclone-cones-src',
+        layout: { visibility: cycloneVisibility },
+        paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.14 },
+      });
+      map.addLayer({
+        id: 'cyclone-cone-line',
+        type: 'line',
+        source: 'cyclone-cones-src',
+        layout: { visibility: cycloneVisibility },
+        paint: { 'line-color': ['get', 'color'], 'line-width': 1.2, 'line-opacity': 0.7, 'line-dasharray': [2, 2] },
+      });
+      map.addLayer({
+        id: 'cyclone-track',
+        type: 'line',
+        source: 'cyclone-tracks-src',
+        layout: { visibility: cycloneVisibility, 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': ['get', 'color'], 'line-width': 2.6, 'line-opacity': 0.95 },
+      });
+      map.addLayer({
+        id: 'cyclone-position',
+        type: 'circle',
+        source: 'cyclone-pos-src',
+        layout: { visibility: cycloneVisibility },
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 5, 6, 9],
+          'circle-color': ['get', 'color'],
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2,
+        },
+      });
+      map.addLayer({
+        id: 'cyclone-label',
+        type: 'symbol',
+        source: 'cyclone-pos-src',
+        layout: {
+          visibility: cycloneVisibility,
+          'text-field': ['get', 'label'],
+          'text-size': 12,
+          'text-offset': [0, 1.4],
+          'text-anchor': 'top',
+          'text-allow-overlap': true,
+        },
+        paint: {
+          'text-color': isLight ? '#7f1d1d' : '#fecaca',
+          'text-halo-color': isLight ? '#f8fafc' : '#05080f',
+          'text-halo-width': 1.8,
+        },
+      });
+    } else {
+      if (appliedDataRef.current['cyclones'] !== state.tropicalCyclones) {
+        const fc = cyclonesToFeatureCollections(cycloneList);
+        (map.getSource('cyclone-cones-src') as GeoJSONSource).setData(fc.cones);
+        (map.getSource('cyclone-tracks-src') as GeoJSONSource).setData(fc.tracks);
+        (map.getSource('cyclone-pos-src') as GeoJSONSource).setData(fc.positions);
+        appliedDataRef.current['cyclones'] = state.tropicalCyclones;
+      }
+      for (const id of ['cyclone-cone-fill', 'cyclone-cone-line', 'cyclone-track', 'cyclone-position', 'cyclone-label']) {
+        if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', cycloneVisibility);
+      }
     }
 
     // 2. Permanent Vietnam Maritime Sovereignty Zones & Cartography (Hoàng Sa, Trường Sa, Biển Đông)
@@ -972,6 +1087,7 @@ export const WorldMap = memo(function WorldMap({
 
     map.on('style.load', () => {
       appliedRadarPathRef.current = null;
+      appliedSatelliteRef.current = null;
       appliedDataRef.current = {};
       ensureLayersAndData(map);
     });
@@ -1109,6 +1225,7 @@ export const WorldMap = memo(function WorldMap({
     if (!map || currentBasemapRef.current === basemap) return;
     currentBasemapRef.current = basemap;
     appliedRadarPathRef.current = null;
+    appliedSatelliteRef.current = null;
     appliedDataRef.current = {};
     map.setStyle(CARTO_STYLE_URLS[basemap]);
   }, [basemap]);
@@ -1138,6 +1255,8 @@ export const WorldMap = memo(function WorldMap({
     activeLayers,
     radarOpacity,
     weatherRadar,
+    tropicalCyclones,
+    weatherSatellite,
     military,
     vessels,
     cyberThreats,

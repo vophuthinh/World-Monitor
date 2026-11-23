@@ -208,6 +208,8 @@ export function App() {
             activeLayers={activeLayers}
             radarOpacity={radarOpacity}
             weatherRadar={activeRadarSnapshot}
+            tropicalCyclones={data?.tropicalCyclones ?? null}
+            weatherSatellite={data?.weatherSatellite ?? null}
             military={filteredData.military}
             vessels={filteredData.vessels}
             cyberThreats={filteredData.cyberThreats}

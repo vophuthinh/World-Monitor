@@ -1,4 +1,6 @@
 import type {
+  TropicalCyclone,
+  TropicalCycloneCategory,
   BasemapTheme,
   GeoLineFeature,
   GeoPointFeature,
@@ -267,5 +269,62 @@ export function cyberPacketsToFeatureCollection(packets: CyberArcPacketPoint[]):
         isApt: pkt.isApt ? 1 : 0,
       },
     })),
+  };
+}
+
+export const CYCLONE_TRACK_COLORS: Record<TropicalCycloneCategory, string> = {
+  TD: '#38bdf8',
+  TS: '#facc15',
+  HU: '#ef4444',
+  other: '#94a3b8',
+};
+
+export const CYCLONE_ALERT_COLORS: Record<TropicalCyclone['alertLevel'], string> = {
+  Green: '#22c55e',
+  Orange: '#f59e0b',
+  Red: '#ef4444',
+};
+
+/** Tracks (coloured by intensity), forecast cones and the current position of each active cyclone. */
+export function cyclonesToFeatureCollections(cyclones: readonly TropicalCyclone[]): {
+  tracks: GeoJSON.FeatureCollection<GeoJSON.LineString>;
+  cones: GeoJSON.FeatureCollection<GeoJSON.Polygon>;
+  positions: GeoJSON.FeatureCollection<GeoJSON.Point>;
+} {
+  const tracks: GeoJSON.Feature<GeoJSON.LineString>[] = [];
+  const cones: GeoJSON.Feature<GeoJSON.Polygon>[] = [];
+  const positions: GeoJSON.Feature<GeoJSON.Point>[] = [];
+  for (const tc of cyclones) {
+    for (const seg of tc.track) {
+      tracks.push({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: seg.coordinates },
+        properties: { cycloneId: tc.id, category: seg.category, color: CYCLONE_TRACK_COLORS[seg.category] },
+      });
+    }
+    if (tc.cone) {
+      cones.push({
+        type: 'Feature',
+        geometry: { type: 'Polygon', coordinates: tc.cone },
+        properties: { cycloneId: tc.id, color: CYCLONE_ALERT_COLORS[tc.alertLevel] },
+      });
+    }
+    positions.push({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [tc.lon, tc.lat] },
+      properties: {
+        id: tc.id,
+        name: tc.name,
+        alert: tc.alertLevel,
+        color: CYCLONE_ALERT_COLORS[tc.alertLevel],
+        windKmh: tc.windKmh,
+        label: tc.windKmh !== null ? `${tc.name} · ${Math.round(tc.windKmh)} km/h` : tc.name,
+      },
+    });
+  }
+  return {
+    tracks: { type: 'FeatureCollection', features: tracks },
+    cones: { type: 'FeatureCollection', features: cones },
+    positions: { type: 'FeatureCollection', features: positions },
   };
 }
