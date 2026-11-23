@@ -392,17 +392,17 @@ export function mergeDuplicateHptItems(existing: HptCompanyItem, incoming: HptCo
   };
 }
 
-const HPT_ITEM_RETENTION_MS = 7 * 86_400_000;
+const HPT_ITEM_RETENTION_MS = 30 * 86_400_000;
 const HPT_MAX_ITEMS = 60;
 
-/** Search results rotate between runs, so keep previously seen items (up to 7 days old) instead of replacing the list. */
+/** Search results rotate between runs, so keep previously seen items instead of replacing the list; anything older than 30 days is dropped, fresh or not. */
 export function mergeRetainedHptItems(
   fresh: readonly HptCompanyItem[],
   previous: readonly HptCompanyItem[],
   now: number,
 ): HptCompanyItem[] {
-  const kept = previous.filter((it) => now - it.publishedAt <= HPT_ITEM_RETENTION_MS);
-  return deduplicateHptItems([...fresh, ...kept]).slice(0, HPT_MAX_ITEMS);
+  const recent = [...fresh, ...previous].filter((it) => now - it.publishedAt <= HPT_ITEM_RETENTION_MS);
+  return deduplicateHptItems(recent).slice(0, HPT_MAX_ITEMS);
 }
 
 export function deduplicateHptItems(items: readonly HptCompanyItem[]): HptCompanyItem[] {

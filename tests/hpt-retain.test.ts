@@ -15,8 +15,8 @@ const item = (id: string, ageH: number): HptCompanyItem => ({
 } as HptCompanyItem);
 
 describe('mergeRetainedHptItems', () => {
-  it('keeps recent items that dropped out of the fresh results, drops >7d', () => {
-    const out = mergeRetainedHptItems([item('a', 1)], [item('b', 5), item('old', 24 * 8)], NOW);
+  it('keeps recent items that dropped out of the fresh results, drops >30d, fresh or previous', () => {
+    const out = mergeRetainedHptItems([item('a', 1), item('oldfresh', 24 * 40)], [item('b', 5), item('old', 24 * 31)], NOW);
     expect(out.map((i) => i.id).sort()).toEqual(['a', 'b']);
   });
   it('caps at 60', () => {
