@@ -72,6 +72,11 @@ const MID_COUNTRY_MAP: Record<string, string> = {
   '576': 'Vanuatu',
 };
 
+/** AIS uses 511 (heading) and 360 (course) for "not available"; absent fields are unknown too. */
+function isCompassValue(v: unknown): boolean {
+  return v !== undefined && v !== null && Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) < 360;
+}
+
 export function classifyMmsiCountry(mmsi: number | string): string {
   const str = String(mmsi).trim();
   if (str.length < 3) return 'International';
@@ -167,9 +172,7 @@ export function normalizeDigitrafficVessels(
           ? Math.round(cog) % 360
           : 0;
 
-    // `cog` defaults to 0 above, so judge from the raw properties: absent or 511/360 means unknown.
-    const isCompassValue = (v: unknown): boolean =>
-      v !== undefined && v !== null && Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) < 360;
+    // `cog` defaults to 0 above, so judge from the raw properties.
     const headingKnown = isCompassValue(item.properties?.heading) || isCompassValue(item.properties?.cog);
 
     const ts = Number(item.properties?.timestampExternal) || now;
@@ -309,10 +312,7 @@ export function parseAisStreamMessage(
           ? Math.round(cog) % 360
           : prevHeading;
 
-    // AIS uses TrueHeading 511 and Cog 360 for "not available"; keep a previously known heading
-    // only when this report carries neither field.
-    const isCompassValue = (v: unknown): boolean =>
-      v !== undefined && v !== null && Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) < 360;
+    // Keep a previously known heading only when this report carries neither field.
     const headingKnown =
       isCompassValue(pos?.TrueHeading) ||
       isCompassValue(pos?.Cog) ||
