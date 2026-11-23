@@ -1,15 +1,28 @@
 import type {
   EconomyHealthReport,
   FredMacroMetric,
+  MacroFieldMeta,
   MacroPillarGroup,
   MacroPillarMetric,
   PredictionItem,
 } from '../types';
 import { clampScore, classifyMacroQuadrant, classifyRegime, computeVietnamEquityRiskPremium, extractPolymarketMacroInsight, resolveNyFedSpreadAndProb, smoothFactorScore, weightedMean } from './core';
+const DAILY_FRED_IDS = new Set([
+  'DGS10',
+  'DGS2',
+  'T10Y2Y',
+  'T10Y3M',
+  'T10YIE',
+  'T5YIFR',
+  'VIXCLS',
+  'DTWEXBGS',
+]);
+
 export function buildUsGlobalMacroHealth(
   fred: readonly FredMacroMetric[] | undefined,
   sp500PeRatio?: number,
   predictions?: readonly PredictionItem[],
+  sp500PeMeta?: MacroFieldMeta,
 ): EconomyHealthReport | null {
   if (!fred || fred.length === 0) return null;
 
@@ -45,7 +58,7 @@ export function buildUsGlobalMacroHealth(
       m.zScore !== undefined ? ` · Z ${m.zScore >= 0 ? '+' : ''}${m.zScore.toFixed(1)}σ` : '';
     const slopeStr =
       m.trendSlope !== undefined
-        ? `3T/12T ${slope >= 0 ? '+' : ''}${slope.toFixed(2)}%${zPart}`
+        ? `3/12 quan sát ${slope >= 0 ? '+' : ''}${slope.toFixed(2)}%${zPart}`
         : m.zScore !== undefined
           ? `Z ${m.zScore >= 0 ? '+' : ''}${m.zScore.toFixed(1)}σ`
           : undefined;
@@ -72,7 +85,10 @@ export function buildUsGlobalMacroHealth(
       zScore: m.zScore,
       trendSlope: m.trendSlope,
       trendLabel: slopeStr,
-      periodLabel: m.date.slice(0, 7),
+      periodLabel: DAILY_FRED_IDS.has(m.id) ? m.date : m.date.slice(0, 7),
+      sourceLabel: m.source ?? 'FRED',
+      retained: Boolean(m.retained),
+      fetchedAt: m.fetchedAt,
       status,
     };
   };
@@ -113,7 +129,10 @@ export function buildUsGlobalMacroHealth(
       benchmarkValue: 1.0,
       deltaVsBenchmark: Number((usErp.erpPct - 1.0).toFixed(2)),
       trendLabel: `E/P ${usErp.earningsYieldPct}% − TP 10Y ${us10y.value.toFixed(2)}%`,
-      periodLabel: 'S&P Live',
+      periodLabel: us10y.date,
+      sourceLabel: `${sp500PeMeta?.source ?? 'Multpl'} · FRED`,
+      retained: Boolean(us10y.retained || sp500PeMeta?.retained),
+      fetchedAt: sp500PeMeta?.fetchedAt ?? us10y.fetchedAt,
       status: usErp.erpPct >= 1.0 ? 'good' : usErp.erpPct >= 0 ? 'watch' : 'warn',
     });
   }
@@ -122,8 +141,6 @@ export function buildUsGlobalMacroHealth(
   const retailVal = retail?.value ?? 3.5;
   const indVal = indpro?.value ?? 1.5;
   const orderVal = neworder?.value ?? 2.0;
-  const pceVal = corePce?.value ?? cpi?.value ?? 2.5;
-  const cpiVal = cpi?.value ?? pceVal;
   const ppiVal = ppi?.value ?? 2.5;
   const fwdVal = forwardInflMetric?.value ?? 2.3;
   const fedVal = fedfunds?.value ?? 3.25;
@@ -154,15 +171,13 @@ export function buildUsGlobalMacroHealth(
       -3,
       Math.min(
         3,
-        (corePce || cpi ? blendZ((pceVal - 2.2) / 0.6, corePce?.zScore) * 0.42 : 0) +
-        (cpi ? blendZ((cpiVal - 2.3) / 0.7, cpi.zScore) * 0.25 : 0) +
+        (corePce ? blendZ((corePce.value - 2.2) / 0.6, corePce.zScore) * 0.42 : 0) +
+        (cpi ? blendZ((cpi.value - 2.3) / 0.7, cpi.zScore) * 0.25 : 0) +
         (ppi ? blendZ((ppiVal - 2.5) / 1.2, ppi.zScore) * 0.18 : 0) +
         (forwardInflMetric ? blendZ((fwdVal - 2.25) / 0.35, forwardInflMetric.zScore) * 0.15 : 0),
       ),
     ).toFixed(2),
   );
-  const quad = classifyMacroQuadrant(growthZ, inflationZ);
-
   // Only score series that actually exist: a missing series must not be replaced by an invented value.
   const growthScore = weightedMean([
     ...(gdp ? [{ score: smoothFactorScore(gdpVal, 1.4, 1.5, false), weight: 0.38 }] : []),
@@ -172,8 +187,8 @@ export function buildUsGlobalMacroHealth(
   ]);
 
   const inflationScore = weightedMean([
-    ...(corePce || cpi ? [{ score: smoothFactorScore(pceVal, 2.8, 0.9, true), weight: 0.42 }] : []),
-    ...(cpi ? [{ score: smoothFactorScore(cpiVal, 3.0, 1.0, true), weight: 0.26 }] : []),
+    ...(corePce ? [{ score: smoothFactorScore(corePce.value, 2.8, 0.9, true), weight: 0.42 }] : []),
+    ...(cpi ? [{ score: smoothFactorScore(cpi.value, 3.0, 1.0, true), weight: 0.26 }] : []),
     ...(ppi ? [{ score: smoothFactorScore(ppiVal, 3.4, 2.0, true), weight: 0.18 }] : []),
     ...(forwardInflMetric
       ? [{ score: smoothFactorScore(fwdVal, 2.45, 0.4, true), weight: 0.14 }]
@@ -191,8 +206,10 @@ export function buildUsGlobalMacroHealth(
   );
 
   // No data for a pillar means "unknown", never "good": require at least one real series.
-  const hasGrowthData = Boolean(gdp || retail || indpro || neworder);
+  const hasGrowthData = Boolean(gdp || retail || indpro);
   const hasInflationData = Boolean(corePce || cpi || ppi);
+  const quad =
+    hasGrowthData && hasInflationData ? classifyMacroQuadrant(growthZ, inflationZ) : undefined;
   const growthBeat =
     hasGrowthData &&
     (!gdp || gdpVal >= 2.0) &&
@@ -200,18 +217,17 @@ export function buildUsGlobalMacroHealth(
     (!retail || retailVal >= 1.5);
   const inflationContained =
     hasInflationData &&
-    (!(corePce || cpi) || pceVal <= 2.8) &&
-    (!cpi || cpiVal <= 2.9) &&
+    (!corePce || corePce.value <= 2.8) &&
+    (!cpi || cpi.value <= 2.9) &&
     (!ppi || ppiVal <= 3.8);
   const leadingWeakening =
     (neworder?.trendSlope !== undefined && neworder.trendSlope < -2.0 && orderVal < 0) ||
     (spread10y2y !== undefined && curveVal < 0);
 
-  const classified = classifyRegime({
-    growthBeat,
-    inflationContained,
-    leadingWeakening,
-  });
+  const classified =
+    hasGrowthData && hasInflationData
+      ? classifyRegime({ growthBeat, inflationContained, leadingWeakening })
+      : undefined;
 
   const warningFlags: EconomyHealthReport['warningFlags'] = [];
 
@@ -238,7 +254,7 @@ export function buildUsGlobalMacroHealth(
   if (polyMacro) {
     warningFlags.push({
       severity: polyMacro.bias === 'hawkish_hike' ? 'warn' : polyMacro.bias === 'dovish_cut' ? 'good' : 'good',
-      text: `Thị trường dự đoán tiền thật Polymarket ($${(polyMacro.fedVolumeUsd / 1_000_000).toFixed(1)}M): ${polyMacro.fedActionLabel} (${polyMacro.fedContractTitle}).`,
+      text: `Kỳ vọng hàm ý thị trường Polymarket ($${(polyMacro.fedVolumeUsd / 1_000_000).toFixed(1)}M): ${polyMacro.fedActionLabel} (${polyMacro.fedContractTitle}).`,
     });
   }
 
@@ -296,11 +312,11 @@ export function buildUsGlobalMacroHealth(
     title: 'Hoa Kỳ / Toàn cầu (US)',
     subtitle: 'St. Louis Fed (FRED) · Core PCE · Polymarket FOMC · Định giá ERP',
     compositeScore,
-    regime: classified.regime,
-    regimeLabel: classified.label,
-    regimeSummary: classified.summary,
-    quadrant: quad.quadrant,
-    quadrantLabel: quad.quadrantLabel,
+    ...(classified ? { regime: classified.regime } : {}),
+    regimeLabel: classified?.label ?? 'CHƯA ĐỦ DỮ LIỆU',
+    regimeSummary:
+      classified?.summary ?? 'Cần có dữ liệu tăng trưởng và lạm phát để xác định chế độ kinh tế.',
+    ...(quad ? { quadrant: quad.quadrant, quadrantLabel: quad.quadrantLabel } : {}),
     growthZ,
     inflationZ,
     ...(recessionProb12m !== undefined ? { recessionProb12m } : {}),

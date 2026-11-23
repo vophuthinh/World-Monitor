@@ -20,6 +20,7 @@ export interface CollectorRegistration<T = unknown> {
   label: string;
   intervalMs: number;
   retainMs: number;
+  retainExpiredForDiagnostics?: boolean;
   countItems: (data: T) => number;
   validate?: (data: T) => boolean;
 }
@@ -36,6 +37,7 @@ const FORCE_REFRESH_COOLDOWN_MS = 10_000;
 export class SnapshotStore {
   private readonly registrations = new Map<CollectorId, CollectorRegistration<any>>();
   private readonly snapshots = new Map<CollectorId, SnapshotEnvelope<any>>();
+  private readonly diagnosticSnapshots = new Map<CollectorId, SnapshotEnvelope<unknown>>();
   private readonly bareFailures = new Map<CollectorId, FailureRecord>();
   private readonly inFlight = new Map<CollectorId, Promise<any>>();
   private readonly lastForceRefreshAt = new Map<CollectorId, number>();
@@ -69,10 +71,10 @@ export class SnapshotStore {
             Number.isSafeInteger(parsed.fetchedAt) &&
             parsed.fetchedAt > 0 &&
             Number.isSafeInteger(parsed.retainedUntil) &&
-            now < parsed.retainedUntil &&
             (reg.validate ? reg.validate(parsed.data) : parsed.data !== null && parsed.data !== undefined)
           ) {
-            this.snapshots.set(reg.id, parsed);
+            if (reg.retainExpiredForDiagnostics) this.diagnosticSnapshots.set(reg.id, parsed);
+            if (now < parsed.retainedUntil) this.snapshots.set(reg.id, parsed);
           }
         } catch {
           // Missing or corrupted cache file is safely ignored on cold boot
@@ -109,6 +111,10 @@ export class SnapshotStore {
     return snap.data;
   }
 
+  getDiagnosticSnapshot<T>(id: CollectorId): T | null {
+    return (this.diagnosticSnapshots.get(id)?.data as T | undefined) ?? null;
+  }
+
   set<T>(
     id: CollectorId,
     data: T,
@@ -129,6 +135,9 @@ export class SnapshotStore {
       lastError: null,
     };
     this.snapshots.set(id, envelope);
+    if (this.registrations.get(id)?.retainExpiredForDiagnostics) {
+      this.diagnosticSnapshots.set(id, envelope);
+    }
     this.bareFailures.delete(id);
   }
 
@@ -257,6 +266,7 @@ export class SnapshotStore {
       };
 
       this.snapshots.set(reg.id, envelope);
+      if (reg.retainExpiredForDiagnostics) this.diagnosticSnapshots.set(reg.id, envelope);
       this.bareFailures.delete(reg.id);
       await this.persistAtomically(reg.id, envelope);
       return value;

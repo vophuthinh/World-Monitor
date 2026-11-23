@@ -132,13 +132,19 @@ export function normalizeWorldBankIndicators(
       cpiPrevPct: cpi?.prevValue !== undefined ? Number(cpi.prevValue.toFixed(2)) : null,
       cpiYear: cpi ? cpi.year : null,
       manufacturingGrowthPct: manf ? Number(manf.value.toFixed(2)) : null,
+      manufacturingYear: manf ? manf.year : null,
       exportsPctGdp: exp ? Number(exp.value.toFixed(1)) : null,
+      exportsYear: exp ? exp.year : null,
       fdiPctGdp: fdi ? Number(fdi.value.toFixed(2)) : null,
+      fdiYear: fdi ? fdi.year : null,
       unemploymentPct: uem ? Number(uem.value.toFixed(2)) : null,
+      unemploymentYear: uem ? uem.year : null,
       currentAccountPctGdp: cab ? Number(cab.value.toFixed(2)) : null,
       currentAccountYear: cab ? cab.year : null,
       creditPctGdp: credit ? Number(credit.value.toFixed(1)) : null,
+      creditYear: credit ? credit.year : null,
       realInterestRatePct: rir ? Number(rir.value.toFixed(2)) : null,
+      realInterestYear: rir ? rir.year : null,
     };
   });
 }

@@ -5,6 +5,7 @@ import { compress } from 'hono/compress';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { THEATER_PRESETS, buildStaticGeoBundle } from '@shared/registries/index';
+import { collectExpiredMacroNotices } from '@shared/macro-health';
 import type {
   AiSitrepSnapshot,
   BootstrapResponse,
@@ -24,6 +25,7 @@ import type {
   WeatherRadarSnapshot,
 } from '@shared/types';
 import type { CollectorScheduler } from './cache/scheduler';
+import { getRetainedMarketSnapshot, markMarketSnapshotRetained } from './collectors/markets-crypto';
 import { summarizeSinglePolicyItemWithAi } from './collectors/vietnam-policy-legal';
 import { answerMonitorQuestion, generateAiSitrep } from './lib/groq-intel';
 import { lookupLiveIocOrCve } from './lib/ioc-scanner';
@@ -324,8 +326,15 @@ export function createApp(
 
   app.get('/api/bootstrap', (c) => {
     const now = Date.now();
-    const rawMarkets = store.get<MarketSnapshot>('markets-crypto', now);
-    const macro = store.get<MacroCountryIndicator[]>('macro-worldbank', now) ?? rawMarkets?.macro ?? [];
+    const rawMarkets = getRetainedMarketSnapshot(store, now);
+    const diagnosticMarkets = rawMarkets ? null : store.getDiagnosticSnapshot<MarketSnapshot>('markets-crypto');
+    const expiredMacroNotices = diagnosticMarkets
+      ? collectExpiredMacroNotices(markMarketSnapshotRetained(diagnosticMarkets, now), now)
+      : undefined;
+    const wbHealth = store.getHealth('macro-worldbank', now);
+    const wbRaw = store.get<MacroCountryIndicator[]>('macro-worldbank', now) ?? rawMarkets?.macro ?? [];
+    const wbRetained = wbHealth?.status === 'stale' || wbHealth?.status === 'error';
+    const macro = wbRetained ? wbRaw.map((row) => ({ ...row, retained: true })) : wbRaw;
     const predictionsPayload = store.get<PredictionItem[]>('polymarket', now) ?? [];
 
     const liveWsVessels = options.getLiveVessels?.();
@@ -364,6 +373,7 @@ export function createApp(
         vn30: rawMarkets?.vn30 ?? [],
         fred: rawMarkets?.fred ?? [],
         ...(rawMarkets?.vnMacroPulse ? { vnMacroPulse: rawMarkets.vnMacroPulse } : {}),
+        ...(expiredMacroNotices ? { expiredMacroNotices } : {}),
         updatedAt: rawMarkets?.updatedAt ?? now,
       },
       predictions: predictionsPayload,
@@ -379,7 +389,7 @@ export function createApp(
       hptIntel: store.get<HptCompanyIntelSnapshot>('hpt-intel', now) ?? undefined,
       aiSitrep: store.get<AiSitrepSnapshot>('ai-sitrep', now) ?? undefined,
       regimeHistory: options.regimeLedger
-        ? options.regimeLedger.recordSnapshot(rawMarkets, macro, predictionsPayload, now)
+        ? options.regimeLedger.getHistory()
         : undefined,
     };
 
@@ -388,7 +398,11 @@ export function createApp(
 
   app.get('/api/live-fast', (c) => {
     const now = Date.now();
-    const rawMarkets = store.get<MarketSnapshot>('markets-crypto', now);
+    const rawMarkets = getRetainedMarketSnapshot(store, now);
+    const diagnosticMarkets = rawMarkets ? null : store.getDiagnosticSnapshot<MarketSnapshot>('markets-crypto');
+    const expiredMacroNotices = diagnosticMarkets
+      ? collectExpiredMacroNotices(markMarketSnapshotRetained(diagnosticMarkets, now), now)
+      : undefined;
 
     const liveWsVessels = options.getLiveVessels?.();
     const resolvedVessels =
@@ -405,6 +419,9 @@ export function createApp(
       quotes: rawMarkets?.quotes ?? [],
       crypto: rawMarkets?.crypto ?? [],
       fearGreed: rawMarkets?.fearGreed ?? null,
+      fred: rawMarkets?.fred ?? [],
+      ...(rawMarkets?.vnMacroPulse ? { vnMacroPulse: rawMarkets.vnMacroPulse } : {}),
+      ...(expiredMacroNotices ? { expiredMacroNotices } : {}),
       predictions: store.get<PredictionItem[]>('polymarket', now) ?? [],
       googleTrends: store.get<GoogleTrendsSnapshot>('google-trends', now),
       health: store.getAllHealth(now),

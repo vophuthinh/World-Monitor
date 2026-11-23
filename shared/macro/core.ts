@@ -9,6 +9,23 @@ import type {
 /** Quốc hội CPI target, applies to full-year / YTD average CPI. */
 export const VN_CPI_TARGET_PCT = 4.5;
 
+export function isFreshVietnamMonthlyPeriod(period: string | undefined, now: number): boolean {
+  const monthPeriod = period?.match(/^T(1[0-2]|[1-9])\/(20\d{2})$/);
+  const dayPeriod = period?.match(/^(\d{2})\/(\d{2})\/(20\d{2})$/);
+  if (!monthPeriod && !dayPeriod) return false;
+  const month = Number(monthPeriod ? monthPeriod[1] : dayPeriod![2]);
+  const year = Number(monthPeriod ? monthPeriod[2] : dayPeriod![3]);
+  const vnNow = new Date(now + 7 * 3_600_000);
+  if (dayPeriod) {
+    const day = Number(dayPeriod[1]);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return false;
+    if (date.getTime() > Date.UTC(vnNow.getUTCFullYear(), vnNow.getUTCMonth(), vnNow.getUTCDate())) return false;
+  }
+  const difference = vnNow.getUTCFullYear() * 12 + vnNow.getUTCMonth() + 1 - (year * 12 + month);
+  return difference >= 0 && difference <= 3;
+}
+
 export function clampScore(value: number): number {
   return Math.max(10, Math.min(98, Math.round(value)));
 }
@@ -17,6 +34,9 @@ export function clampScore(value: number): number {
  * Continuous smooth factor scoring via hyperbolic tangent (MSCI Barra / AQR style).
  * Eliminates discontinuous step-function cliffs around arbitrary thresholds.
  */
+/** Score of a value exactly at its centre; also the prior for pillars that have no data. */
+export const NEUTRAL_SCORE = 52;
+
 export function smoothFactorScore(
   value: number,
   center: number,
@@ -25,10 +45,13 @@ export function smoothFactorScore(
 ): number {
   const raw = (value - center) / Math.max(1e-6, scale);
   const signed = invert ? -raw : raw;
-  return Math.round(52 + 44 * Math.tanh(signed * 0.85));
+  return Math.round(NEUTRAL_SCORE + 44 * Math.tanh(signed * 0.85));
 }
 
-export function weightedMean(items: ReadonlyArray<{ score: number; weight: number }>, fallback = 56): number {
+export function weightedMean(
+  items: ReadonlyArray<{ score: number; weight: number }>,
+  fallback = NEUTRAL_SCORE,
+): number {
   let num = 0;
   let den = 0;
   for (const it of items) {
@@ -104,36 +127,34 @@ export function computeNyFedRecessionProb12m(spread10y3mPct: number): number {
 export function resolveNyFedSpreadAndProb(byId: ReadonlyMap<string, FredMacroMetric>): {
   spreadPct?: number;
   prob12m?: number;
-  isMonthlyOfficial: boolean;
+  isMonthlyAverage: boolean;
 } {
   const gs10 = byId.get('GS10');
   const tb3ms = byId.get('TB3MS');
-  if (gs10 !== undefined && tb3ms !== undefined) {
+  if (
+    gs10 !== undefined &&
+    tb3ms !== undefined &&
+    /^\d{4}-(0[1-9]|1[0-2])-\d{2}$/.test(gs10.date) &&
+    /^\d{4}-(0[1-9]|1[0-2])-\d{2}$/.test(tb3ms.date) &&
+    gs10.date.slice(0, 7) === tb3ms.date.slice(0, 7)
+  ) {
     const spreadPct = computeNyFedBondEquivalentSpread(gs10.value, tb3ms.value);
     return {
       spreadPct,
       prob12m: computeNyFedRecessionProb12m(spreadPct),
-      isMonthlyOfficial: true,
+      isMonthlyAverage: true,
     };
   }
   const t10y3m = byId.get('T10Y3M');
-  if (t10y3m !== undefined) {
-    const spreadPct = t10y3m.avg3m ?? t10y3m.value;
+  if (t10y3m?.frequency === 'monthly') {
+    const spreadPct = t10y3m.value;
     return {
       spreadPct,
       prob12m: computeNyFedRecessionProb12m(spreadPct),
-      isMonthlyOfficial: false,
+      isMonthlyAverage: true,
     };
   }
-  const t10y2y = byId.get('T10Y2Y');
-  if (t10y2y !== undefined) {
-    return {
-      spreadPct: t10y2y.value,
-      prob12m: computeNyFedRecessionProb12m(t10y2y.value),
-      isMonthlyOfficial: false,
-    };
-  }
-  return { isMonthlyOfficial: false };
+  return { isMonthlyAverage: false };
 }
 
 /**
@@ -144,10 +165,10 @@ export function computeFedNetLiquidity(params: {
   walclMillions?: number;
   wtregenMillions?: number;
   rrpBillions?: number;
-  walclDelta4pMillions?: number;
-  wtregenDelta4pMillions?: number;
-  rrpDelta4pBillions?: number;
-}): { netLiquidityBillions: number; delta4wBillions: number } | null {
+  walclDelta4wMillions?: number;
+  wtregenDelta4wMillions?: number;
+  rrpDelta4wBillions?: number;
+}): { netLiquidityBillions: number; delta4wBillions?: number } | null {
   const { walclMillions, wtregenMillions, rrpBillions } = params;
   if (walclMillions === undefined || !Number.isFinite(walclMillions) || walclMillions < 500_000) {
     return null;
@@ -164,13 +185,25 @@ export function computeFedNetLiquidity(params: {
   const tgaM = wtregenMillions;
   const rrpB = rrpBillions;
   const netLiquidityBillions = Number(((walclMillions - tgaM) / 1000 - rrpB).toFixed(1));
-  const delta4wBillions = Number(
-    (
-      ((params.walclDelta4pMillions ?? 0) - (params.wtregenDelta4pMillions ?? 0)) / 1000 -
-      (params.rrpDelta4pBillions ?? 0)
-    ).toFixed(1),
-  );
-  return { netLiquidityBillions, delta4wBillions };
+  const { walclDelta4wMillions, wtregenDelta4wMillions, rrpDelta4wBillions } = params;
+  const delta4wBillions =
+    typeof walclDelta4wMillions === 'number' &&
+    Number.isFinite(walclDelta4wMillions) &&
+    typeof wtregenDelta4wMillions === 'number' &&
+    Number.isFinite(wtregenDelta4wMillions) &&
+    typeof rrpDelta4wBillions === 'number' &&
+    Number.isFinite(rrpDelta4wBillions)
+      ? Number(
+          (
+            (walclDelta4wMillions - wtregenDelta4wMillions) / 1000 -
+            rrpDelta4wBillions
+          ).toFixed(1),
+        )
+      : undefined;
+  return {
+    netLiquidityBillions,
+    ...(delta4wBillions !== undefined ? { delta4wBillions } : {}),
+  };
 }
 
 /**

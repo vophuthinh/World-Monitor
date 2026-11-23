@@ -1,35 +1,17 @@
 import type {
   CompassFactorPillar,
-  EconomyHealthReport,
   InvestmentCompassReport,
   InvestmentStance,
   LeadingCompassSignal,
-  MacroQuadrant,
   MarketQuote,
   MarketSnapshot,
-  PortfolioAllocationSlice,
   PredictionItem,
 } from '../types';
-import { VN_CPI_TARGET_PCT, buildSectorRotation, clampScore, computeFedNetLiquidity, computeVietnamEquityRiskPremium, computeVn30MarketBreadth, extractPolymarketMacroInsight, resolveNyFedSpreadAndProb, shrunkPillarScore, smoothFactorScore } from './core';
-import { buildVietnamMacroHealth } from './vietnam';
-import { buildUsGlobalMacroHealth } from './us';
-export function evaluateMacroHealth(
-  markets: MarketSnapshot,
-  predictions?: readonly PredictionItem[],
-): {
-  vn: EconomyHealthReport | null;
-  us: EconomyHealthReport | null;
-} {
-  const vnRow = markets.macro.find((r) => r.countryCode === 'VNM' || r.isVietnam);
-  const usdVnd = markets.quotes.find((q) => q.symbol === 'USD/VND')?.price;
-  const vniQuote = markets.quotes.find((q) => q.symbol === 'VN-Index');
-  const us10y = (markets.fred ?? []).find((m) => m.id === 'DGS10')?.value;
-
-  return {
-    vn: buildVietnamMacroHealth(vnRow, usdVnd, vniQuote, markets.vnMacroPulse, us10y),
-    us: buildUsGlobalMacroHealth(markets.fred, markets.vnMacroPulse?.sp500PeRatio, predictions),
-  };
-}
+import { NEUTRAL_SCORE, VN_CPI_TARGET_PCT, buildSectorRotation, clampScore, computeFedNetLiquidity, computeVietnamEquityRiskPremium, computeVn30MarketBreadth, extractPolymarketMacroInsight, resolveNyFedSpreadAndProb, shrunkPillarScore, smoothFactorScore } from './core';
+import { evaluateMacroHealth, usableMacroInputs } from './inputs';
+import { computeDynamicPortfolioAllocation } from './allocation';
+export { computeDynamicPortfolioAllocation } from './allocation';
+export { collectExpiredMacroNotices, evaluateMacroHealth } from './inputs';
 
 function buildTrendSignal(
   quote: MarketQuote | undefined,
@@ -72,139 +54,12 @@ function buildTrendSignal(
   };
 }
 
-/**
- * Dynamic Quantitative Tactical Asset Allocation Router (All-Weather × ERP × MA200 × Net Liquidity)
- * Guarantees exact integer weights summing strictly to 100%.
- */
-export function computeDynamicPortfolioAllocation(params: {
-  stance: InvestmentStance;
-  riskAppetiteScore: number;
-  vnErpPct?: number;
-  dualConfirmation?: InvestmentCompassReport['dualConfirmation'];
-  capitulationSignal?: boolean;
-  highInflationPressure: boolean;
-  liquidityExpanding: boolean;
-}): PortfolioAllocationSlice[] {
-  const {
-    stance,
-    riskAppetiteScore,
-    vnErpPct,
-    dualConfirmation,
-    capitulationSignal,
-    highInflationPressure,
-    liquidityExpanding,
-  } = params;
-
-  let equities = 50;
-  let cashBonds = 30;
-  let gold = 15;
-  let crypto = 5;
-
-  if (stance === 'defensive_recession') {
-    equities = 20;
-    cashBonds = 55;
-    gold = 23;
-    crypto = 2;
-  } else if (stance === 'cautious') {
-    equities = 35;
-    cashBonds = 43;
-    gold = 18;
-    crypto = 4;
-  } else if (stance === 'risk_on') {
-    equities = 66;
-    cashBonds = 16;
-    gold = 10;
-    crypto = 8;
-  } else {
-    equities = 52;
-    cashBonds = 28;
-    gold = 14;
-    crypto = 6;
-  }
-
-  if (dualConfirmation === 'macro_bull_trend_weak') {
-    const shift = capitulationSignal ? 6 : 10;
-    equities -= shift;
-    cashBonds += shift;
-  } else if (dualConfirmation === 'confirmed_bull' && riskAppetiteScore >= 72) {
-    equities += 6;
-    cashBonds -= 6;
-  }
-
-  if (vnErpPct !== undefined) {
-    if (vnErpPct >= 3.5) {
-      equities += 7;
-      cashBonds -= 7;
-    } else if (vnErpPct <= 0.8) {
-      equities -= 8;
-      cashBonds += 8;
-    }
-  }
-
-  if (highInflationPressure) {
-    gold += 3;
-    cashBonds -= 3;
-  }
-  if (!liquidityExpanding && crypto > 3) {
-    const cut = crypto - 3;
-    crypto = 3;
-    cashBonds += cut;
-  }
-
-  equities = Math.max(15, Math.min(78, Math.round(equities)));
-  gold = Math.max(8, Math.min(28, Math.round(gold)));
-  crypto = Math.max(0, Math.min(12, Math.round(crypto)));
-  cashBonds = 100 - equities - gold - crypto;
-  if (cashBonds < 10) {
-    // Keep the 10% cash/bond floor by trimming equities, so the weights still sum to exactly 100.
-    equities -= 10 - cashBonds;
-    cashBonds = 10;
-  }
-
-  return [
-    {
-      id: 'equities',
-      label: 'Cổ phiếu chất lượng',
-      weightPct: equities,
-      note:
-        dualConfirmation === 'macro_bull_trend_weak'
-          ? vnErpPct && vnErpPct >= 3.2
-            ? 'P/E rẻ — gom dần tiền mặt'
-            : 'Chờ lấy lại MA200'
-          : 'Tập trung ngành dẫn dắt pha vĩ mô',
-      colorHex: '#10b981',
-    },
-    {
-      id: 'cash_bonds',
-      label: 'Tiền gửi · Trái phiếu',
-      weightPct: cashBonds,
-      note:
-        dualConfirmation === 'macro_bull_trend_weak'
-          ? 'Sức mua chờ vượt MA200'
-          : 'Đệm thanh khoản & lãi thực',
-      colorHex: '#38bdf8',
-    },
-    {
-      id: 'gold',
-      label: 'Vàng nhẫn 9999',
-      weightPct: gold,
-      note: highInflationPressure ? 'Phòng hộ lạm phát & tỷ giá' : 'Bảo hiểm rủi ro địa chính trị',
-      colorHex: '#f59e0b',
-    },
-    {
-      id: 'crypto',
-      label: 'Tài sản số (BTC/ETH)',
-      weightPct: crypto,
-      note: liquidityExpanding ? 'Theo nhịp bơm tiền M2/Fed' : 'Tỷ trọng nhỏ không đòn bẩy',
-      colorHex: '#a855f7',
-    },
-  ];
-}
-
 export function evaluateInvestmentCompass(
   markets: MarketSnapshot,
   predictions?: readonly PredictionItem[],
+  now = Date.now(),
 ): InvestmentCompassReport | null {
+  markets = usableMacroInputs(markets, now);
   const fredById = new Map((markets.fred ?? []).map((m) => [m.id, m]));
   const quoteBySym = new Map(markets.quotes.map((q) => [q.symbol, q]));
   const pulse = markets.vnMacroPulse;
@@ -218,7 +73,6 @@ export function evaluateInvestmentCompass(
   const hySpread = fredById.get('BAMLH0A0HYM2');
   const realYield = fredById.get('DFII10');
   const us10y = fredById.get('DGS10');
-  const t10y3m = fredById.get('T10Y3M');
   const sahm = fredById.get('SAHMREALTIME');
   const icsa = fredById.get('ICSA');
   const permit = fredById.get('PERMIT');
@@ -256,35 +110,45 @@ export function evaluateInvestmentCompass(
     walclMillions: walcl?.value,
     wtregenMillions: wtregen?.value,
     rrpBillions: rrp?.value,
-    walclDelta4pMillions: walcl?.delta4p,
-    wtregenDelta4pMillions: wtregen?.delta4p,
-    rrpDelta4pBillions: rrp?.delta4p,
+    walclDelta4wMillions: walcl?.delta4w,
+    wtregenDelta4wMillions: wtregen?.delta4w,
+    rrpDelta4wBillions: rrp?.delta4w,
   });
 
   if (netLiq) {
-    f1Liquidity.push({
-      score: smoothFactorScore(netLiq.delta4wBillions, 0, 75, false),
-      weight: 0.28,
-    });
+    const delta4w = netLiq.delta4wBillions;
+    if (delta4w !== undefined) {
+      f1Liquidity.push({
+        score: smoothFactorScore(delta4w, 0, 75, false),
+        weight: 0.28,
+      });
+    }
     const trillions = (netLiq.netLiquidityBillions / 1000).toFixed(2);
     signals.push({
       id: 'fed-net-liq',
       label: 'Thanh khoản Ròng Fed',
       category: 'liquidity',
       valueDisplay: `$${trillions}T`,
-      subtext: `4T: ${netLiq.delta4wBillions >= 0 ? '+' : ''}${netLiq.delta4wBillions.toFixed(0)}B$ (WALCL−TGA−RRP)`,
+      subtext:
+        delta4w !== undefined
+          ? `4T: ${delta4w >= 0 ? '+' : ''}${delta4w.toFixed(0)}B$ (WALCL−TGA−RRP)`
+          : 'Chưa đủ dữ liệu đồng bộ để tính biến động 4 tuần',
       signalBadge:
-        netLiq.delta4wBillions >= 30
-          ? 'BƠM RÒNG MẠNH'
-          : netLiq.delta4wBillions <= -60
-            ? 'HÚT THANH KHOẢN'
-            : 'THANH KHOẢN ỔN ĐỊNH',
+        delta4w === undefined
+          ? 'CHƯA ĐỦ DỮ LIỆU'
+          : delta4w >= 30
+            ? 'BƠM RÒNG MẠNH'
+            : delta4w <= -60
+              ? 'HÚT THANH KHOẢN'
+              : 'THANH KHOẢN ỔN ĐỊNH',
       tone:
-        netLiq.delta4wBillions >= 20
-          ? 'bullish'
-          : netLiq.delta4wBillions <= -60
-            ? 'bearish'
-            : 'neutral',
+        delta4w === undefined
+          ? 'neutral'
+          : delta4w >= 20
+            ? 'bullish'
+            : delta4w <= -60
+              ? 'bearish'
+              : 'neutral',
     });
   }
 
@@ -341,10 +205,10 @@ export function evaluateInvestmentCompass(
 
     signals.push({
       id: 'polymarket-fed',
-      label: 'Kỳ vọng Fed (Polymarket)',
+      label: 'Kỳ vọng hàm ý Fed (Polymarket)',
       category: 'liquidity',
       valueDisplay: polyMacro.fedActionLabel,
-      subtext: `Vol $${(polyMacro.fedVolumeUsd / 1_000_000).toFixed(1)}M · Tiền thật cược FOMC`,
+      subtext: `Vol $${(polyMacro.fedVolumeUsd / 1_000_000).toFixed(1)}M · Giá hợp đồng FOMC (thị trường)`,
       signalBadge:
         polyMacro.bias === 'dovish_cut'
           ? 'CƯỢC HẠ LÃI · BỒ CÂU'
@@ -457,8 +321,7 @@ export function evaluateInvestmentCompass(
 
   // 7. NY Fed 12-Month Recession Probability (Official Monthly GS10 - Bond-Equivalent TB3MS Probit, fallback T10Y3M)
   const nyFedCompass = resolveNyFedSpreadAndProb(fredById);
-  const recessionProb12m =
-    nyFedCompass.isMonthlyOfficial || t10y3m !== undefined ? nyFedCompass.prob12m : undefined;
+  const recessionProb12m = nyFedCompass.prob12m;
   const nyFedSpreadUsed = nyFedCompass.spreadPct;
   if (recessionProb12m !== undefined && nyFedSpreadUsed !== undefined) {
     f2CreditRecession.push({
@@ -471,7 +334,7 @@ export function evaluateInvestmentCompass(
       label: 'Xác suất Suy thoái NY Fed',
       category: 'recession_watch',
       valueDisplay: `${recessionProb12m.toFixed(1)}%`,
-      subtext: `Spread 10Y–3M${nyFedCompass.isMonthlyOfficial ? ' (BQ tháng)' : ''}: ${nyFedSpreadUsed >= 0 ? '+' : ''}${nyFedSpreadUsed.toFixed(2)}%`,
+      subtext: `Spread 10Y–3M${nyFedCompass.isMonthlyAverage ? ' (BQ tháng)' : ''}: ${nyFedSpreadUsed >= 0 ? '+' : ''}${nyFedSpreadUsed.toFixed(2)}%`,
       signalBadge:
         recessionProb12m >= 45
           ? 'RỦI RO SUY THOÁI CAO'
@@ -524,7 +387,9 @@ export function evaluateInvestmentCompass(
   }
 
   // 10. VN-Index Valuation P/E & Live Equity Risk Premium (using live VN 10Y Bond Yield!)
-  const vnErp = computeVietnamEquityRiskPremium(vni?.peRatio, pulse?.vn10yYieldPct ?? 5.2);
+  const vnErp = pulse?.vn10yYieldPct !== undefined && pulse.vn10yYieldPct > 0
+    ? computeVietnamEquityRiskPremium(vni?.peRatio, pulse.vn10yYieldPct)
+    : null;
   if (vni?.peRatio && vnErp) {
     const pe = vni.peRatio;
     f3ValuationErp.push({ score: smoothFactorScore(vnErp.erpPct, 2.2, 2.0, false), weight: 0.4 });
@@ -537,10 +402,10 @@ export function evaluateInvestmentCompass(
       subtext: `ERP ${vnErp.erpPct >= 0 ? '+' : ''}${vnErp.erpPct.toFixed(2)}% vs TP10Y (${vnErp.bondYieldUsed}%)`,
       signalBadge:
         pe <= 12.0
-          ? 'ĐỊNH GIÁ RẺ · TÍCH SẢN'
+          ? 'P/E THẤP SO LỊCH SỬ'
           : pe <= 15.2
-            ? 'ĐỊNH GIÁ HỢP LÝ'
-            : 'ĐỊNH GIÁ ĐẮT',
+            ? 'VÙNG ĐỊNH GIÁ TRUNG BÌNH'
+            : 'ĐỊNH GIÁ CAO',
       tone: pe <= 12.5 ? 'bullish' : pe <= 15.8 ? 'neutral' : 'bearish',
     });
   }
@@ -610,7 +475,11 @@ export function evaluateInvestmentCompass(
 
   if (vixSpot && vix3m && vix3m.price > 0) {
     vixTermRatio = Number((vixSpot.value / vix3m.price).toFixed(2));
-    const macroNotRecession = (recessionProb12m ?? 22) < 35 && (!sahm || sahm.value < 0.45);
+    const hasRecessionData = recessionProb12m !== undefined || sahm !== undefined;
+    const macroNotRecession =
+      hasRecessionData &&
+      (recessionProb12m === undefined || recessionProb12m < 35) &&
+      (sahm === undefined || sahm.value < 0.45);
     const equityOversold =
       (spx?.rsi14 !== undefined && spx.rsi14 <= 32) ||
       (vni?.rsi14 !== undefined && vni.rsi14 <= 34);
@@ -728,22 +597,56 @@ export function evaluateInvestmentCompass(
   }
 
   // Compute the 5 Orthogonal Continuous Factor Pillars with Bayesian shrinkage (0..100 each)
-  // Neutral prior (52 = smoothFactorScore centre): a pillar with no data must never read as bullish.
-  const NEUTRAL_PRIOR = 52;
-  const liquidityScore = shrunkPillarScore(f1Liquidity, NEUTRAL_PRIOR);
-  const creditScore = shrunkPillarScore(f2CreditRecession, NEUTRAL_PRIOR);
-  const valuationScore = shrunkPillarScore(f3ValuationErp, NEUTRAL_PRIOR);
-  const trendScore = shrunkPillarScore(f4TrendBreadth, NEUTRAL_PRIOR);
-  const fxVolScore = shrunkPillarScore(f5FxVolatility, NEUTRAL_PRIOR);
+  // A pillar with no data uses the neutral score as prior and must never read as bullish.
+  const liquidityScore = shrunkPillarScore(f1Liquidity, NEUTRAL_SCORE);
+  const creditScore = shrunkPillarScore(f2CreditRecession, NEUTRAL_SCORE);
+  const valuationScore = shrunkPillarScore(f3ValuationErp, NEUTRAL_SCORE);
+  const trendScore = shrunkPillarScore(f4TrendBreadth, NEUTRAL_SCORE);
+  const fxVolScore = shrunkPillarScore(f5FxVolatility, NEUTRAL_SCORE);
   const hasMacroCoreData =
-    f1Liquidity.length + f2CreditRecession.length + f3ValuationErp.length > 0;
+    f1Liquidity.length > 0 && f2CreditRecession.length > 0 && f3ValuationErp.length > 0;
 
   const factorPillars: CompassFactorPillar[] = [
-    { id: 'liquidity', label: 'Thanh khoản Fed & M2', weightPct: 25, score: liquidityScore },
-    { id: 'credit_recession', label: 'Tín dụng & Suy thoái', weightPct: 20, score: creditScore },
-    { id: 'valuation_erp', label: 'Định giá Đắt/Rẻ (ERP)', weightPct: 20, score: valuationScore },
-    { id: 'trend_breadth', label: 'Xu hướng MA & Độ rộng', weightPct: 20, score: trendScore },
-    { id: 'fx_volatility', label: 'Biến động VIX & Tỷ giá', weightPct: 15, score: fxVolScore },
+    {
+      id: 'liquidity',
+      label: 'Thanh khoản Fed & M2',
+      weightPct: 25,
+      score: liquidityScore,
+      hasData: f1Liquidity.length > 0,
+      inputCount: f1Liquidity.length,
+    },
+    {
+      id: 'credit_recession',
+      label: 'Tín dụng & Suy thoái',
+      weightPct: 20,
+      score: creditScore,
+      hasData: f2CreditRecession.length > 0,
+      inputCount: f2CreditRecession.length,
+    },
+    {
+      id: 'valuation_erp',
+      label: 'Định giá Đắt/Rẻ (ERP)',
+      weightPct: 20,
+      score: valuationScore,
+      hasData: f3ValuationErp.length > 0,
+      inputCount: f3ValuationErp.length,
+    },
+    {
+      id: 'trend_breadth',
+      label: 'Xu hướng MA & Độ rộng',
+      weightPct: 20,
+      score: trendScore,
+      hasData: f4TrendBreadth.length > 0,
+      inputCount: f4TrendBreadth.length,
+    },
+    {
+      id: 'fx_volatility',
+      label: 'Biến động VIX & Tỷ giá',
+      weightPct: 15,
+      score: fxVolScore,
+      hasData: f5FxVolatility.length > 0,
+      inputCount: f5FxVolatility.length,
+    },
   ];
 
   const macroCoreScore = clampScore(
@@ -772,14 +675,14 @@ export function evaluateInvestmentCompass(
       dualConfirmation = 'macro_bull_trend_weak';
       dualConfirmationLabel =
         vni?.peRatio && vni.peRatio <= 12.0
-          ? `PHÂN KỲ TÍCH SẢN: VĨ MÔ ỔN & P/E RẺ (${vni.peRatio.toFixed(1)}x) NHƯNG DƯỚI MA200 · GOM TIỀN MẶT`
-          : 'PHÂN KỲ: VĨ MÔ ỔN NHƯNG CHỈ SỐ DƯỚI MA200 · CHỜ XÁC NHẬN ĐÁY';
+          ? `PHÂN KỲ: VĨ MÔ ỔN & P/E THẤP (${vni.peRatio.toFixed(1)}x) NHƯNG CHỈ SỐ DƯỚI MA200`
+          : 'PHÂN KỲ: VĨ MÔ ỔN NHƯNG CHỈ SỐ CÒN DƯỚI MA200';
     } else if (!macroBullish && trendBullish) {
       dualConfirmation = 'macro_weak_trend_bull';
-      dualConfirmationLabel = 'PHÂN KỲ: GIÁ TRÊN MA200 NHƯNG VĨ MÔ YẾU · SIẾT CHẶT QUẢN TRỊ RỦI RO';
+      dualConfirmationLabel = 'PHÂN KỲ: GIÁ TRÊN MA200 NHƯNG CHỈ BÁO VĨ MÔ SUY YẾU';
     } else {
       dualConfirmation = 'confirmed_bear';
-      dualConfirmationLabel = 'CẢNH BÁO KÉP: VĨ MÔ SUY YẾU + GÃY XU HƯỚNG MA200';
+      dualConfirmationLabel = 'CẢNH BÁO KÉP: VĨ MÔ SUY YẾU + CHỈ SỐ DƯỚI MA200';
     }
   }
 
@@ -792,17 +695,14 @@ export function evaluateInvestmentCompass(
       : rawComposite;
 
   // Determine active Macro Quadrant for Sector Rotation
-  const vnHealthRef = evaluateMacroHealth(markets, predictions);
-  const activeQuad: MacroQuadrant =
-    vnHealthRef.vn?.quadrant ??
-    vnHealthRef.us?.quadrant ??
-    (corePce && corePce.value > 2.6 ? 'Q2_REFLATION' : 'Q1_GOLDILOCKS');
-  const sectorRotation = buildSectorRotation(activeQuad);
+  const vnHealthRef = evaluateMacroHealth(markets, predictions, now);
+  const activeQuad = vnHealthRef.vn?.quadrant ?? vnHealthRef.us?.quadrant;
+  const sectorRotation = activeQuad ? buildSectorRotation(activeQuad) : undefined;
 
   let stance: InvestmentStance = 'selective_growth';
-  let stanceLabel = 'RISK-ON CHỌN LỌC · ƯU TIÊN CHẤT LƯỢNG';
+  let stanceLabel = 'KHẨU VỊ TRUNG TÍNH - TÍCH CỰC · CHỌN LỌC';
   let summary =
-    'Thanh khoản & tín dụng đang nâng đỡ định giá, nhưng lãi suất thực còn neo cao — ưu tiên doanh nghiệp ít nợ vay, dòng tiền thật.';
+    'Thanh khoản và tín dụng đang hỗ trợ định giá, nhưng mặt bằng lãi suất thực còn cao; các nhóm ít nợ vay thường ít chịu áp lực chi phí vốn hơn.';
 
   if (
     (sahm && sahm.value >= 0.5) ||
@@ -810,33 +710,33 @@ export function evaluateInvestmentCompass(
     riskAppetiteScore < 42
   ) {
     stance = 'defensive_recession';
-    stanceLabel = 'PHÒNG THỦ TỐI ĐA · RỦI RO SUY THOÁI';
+    stanceLabel = 'NGHIÊNG PHÒNG THỦ · TÍN HIỆU SUY THOÁI SỚM';
     summary =
-      'Chỉ báo lao động / tín dụng phát tín hiệu suy thoái sớm — ưu tiên bảo toàn vốn, tiền gửi, trái phiếu và tài sản trú ẩn.';
+      'Chỉ báo lao động hoặc chênh lệch tín dụng phát tín hiệu suy yếu; nhóm tài sản thanh khoản cao và phòng thủ thường ít biến động hơn.';
   } else if (riskAppetiteScore < 55 || dualConfirmation === 'confirmed_bear') {
     stance = 'cautious';
-    stanceLabel = 'THẬN TRỌNG · GIỮ SỨC MUA & GIẢM ĐÒN BẨY';
+    stanceLabel = 'THẬN TRỌNG · ÁP LỰC THANH KHOẢN & XU HƯỚNG';
     summary =
-      'Đa nhân tố thanh khoản, biến động VIX hoặc xu hướng MA200 đang chịu áp lực — nên hạ margin, giữ tiền mặt dự phòng và giải ngân chậm theo định giá.';
+      'Thanh khoản, biến động VIX hoặc xu hướng MA200 đang kém thuận lợi; độ rủi ro đối với các tài sản biến động mạnh đang ở mức cao.';
   } else if (
     riskAppetiteScore >= 74 &&
     (!realYield || realYield.value < 2.2) &&
     dualConfirmation !== 'macro_bull_trend_weak'
   ) {
     stance = 'risk_on';
-    stanceLabel = 'RISK-ON MẠNH · DÒNG TIỀN & XU HƯỚNG ĐỒNG THUẬN';
+    stanceLabel = 'KHẨU VỊ RỦI RO CAO · THANH KHOẢN & XU HƯỚNG THUẬN';
     summary =
-      'Cả 5 nhân tố thanh khoản, tín dụng, định giá và xu hướng MA200 đồng thuận tích cực — thuận lợi gia tăng tỷ trọng cổ phiếu dẫn dắt.';
+      'Các trụ cột thanh khoản, tín dụng, định giá và xu hướng trên MA200 đang đồng thuận tích cực.';
   } else if (dualConfirmation === 'macro_bull_trend_weak') {
     stance = 'selective_growth';
-    stanceLabel = 'TÍCH SẢN CHỌN LỌC · CHỜ GIÁ VƯỢT LẠI MA200';
+    stanceLabel = 'PHÂN KỲ VĨ MÔ - GIÁ · CHỈ SỐ DƯỚI MA200';
     summary =
       vni?.peRatio && vnErp && vni.peRatio <= 12.2
-        ? `Định giá VN-Index đang chiết khấu rất rẻ (P/E ${vni.peRatio.toFixed(1)}x, ERP +${vnErp.erpPct.toFixed(1)}% vs TPCP 10Y), nhưng chỉ số còn dưới MA200${pulse?.interbankRatePct && pulse.interbankRatePct >= 6.5
-          ? ` do lãi liên ngân hàng căng (${pulse.interbankRatePct.toFixed(1)}%)`
+        ? `Định giá VN-Index ở vùng thấp (P/E ${vni.peRatio.toFixed(1)}x, ERP +${vnErp.erpPct.toFixed(1)}% vs TPCP 10Y), nhưng xu hướng giá còn nằm dưới đường MA200${pulse?.interbankRatePct && pulse.interbankRatePct >= 6.5
+          ? ` trong bối cảnh lãi liên ngân hàng cao (${pulse.interbankRatePct.toFixed(1)}%)`
           : ''
-        } — chia nhỏ tiền mặt gom tích sản, tuyệt đối không dùng margin.`
-        : 'Nền tảng kinh tế thực vẫn khỏe nhưng chỉ số chứng khoán đang giao dịch dưới MA200 — giải ngân từng phần bằng tiền mặt, không dùng margin bắt đáy.';
+        }.`
+        : 'Các chỉ số vĩ mô thực vẫn ổn định nhưng chỉ số chứng khoán đang giao dịch dưới đường trung bình dài hạn MA200.';
   }
 
   const highInflationPressure =
@@ -847,7 +747,8 @@ export function evaluateInvestmentCompass(
     (fwdInfl !== undefined && fwdInfl.value >= 2.5);
   const liquidityExpanding =
     (m2 !== undefined && m2.value >= 2.0) &&
-    (!netLiq || netLiq.delta4wBillions > -50);
+    netLiq?.delta4wBillions !== undefined &&
+    netLiq.delta4wBillions > -50;
 
   const allocations = computeDynamicPortfolioAllocation({
     stance,
@@ -860,40 +761,40 @@ export function evaluateInvestmentCompass(
   });
 
   // Sector-rotation-aware actionable guidance
-  const favoredAssets: string[] = [...sectorRotation.leadingSectors.slice(0, 2)];
+  const favoredAssets: string[] = [...(sectorRotation?.leadingSectors.slice(0, 2) ?? [])];
   const watchAssets: string[] = [];
   const avoidAssets: string[] = [];
 
   if (stance === 'defensive_recession' || stance === 'cautious') {
-    favoredAssets.unshift('Tiền gửi kỳ hạn / Trái phiếu lãi suất thực cao để giữ sức mua');
-    watchAssets.push('Cổ phiếu đầu ngành VN30 định giá P/E rẻ xác nhận lấy lại MA200');
-    avoidAssets.push('Sử dụng đòn bẩy margin hoặc bắt đáy sớm cổ phiếu gãy xu hướng MA200');
+    favoredAssets.unshift('Tiền gửi kỳ hạn / Trái phiếu lãi suất thực dương (nhóm ít biến động)');
+    watchAssets.push('Nhóm cổ phiếu vốn hóa lớn VN30 định giá P/E thấp khi lấy lại đường MA200');
+    avoidAssets.push('Vị thế đòn bẩy cao ở nhóm cổ phiếu đã gãy xu hướng MA200');
   } else {
     favoredAssets.push(
-      `Doanh nghiệp P/E thấp, ít nợ vay, chia cổ tức tiền mặt đều${vni?.peRatio && vni.peRatio <= 12.2 ? ` (tận dụng vùng P/E TT rẻ ${vni.peRatio.toFixed(1)}x)` : ''
+      `Nhóm doanh nghiệp P/E thấp, nợ vay thấp, dòng tiền cổ tức ổn định${vni?.peRatio && vni.peRatio <= 12.2 ? ` (P/E thị trường hiện ${vni.peRatio.toFixed(1)}x)` : ''
       }`,
     );
     watchAssets.push(
-      `Bitcoin / Crypto vốn hóa lớn (theo sát Thanh khoản ròng Fed ${netLiq ? `$${(netLiq.netLiquidityBillions / 1000).toFixed(2)}T` : ''
-      } & M2 ${m2 ? `+${m2.value.toFixed(1)}%` : 'tăng'}, không đòn bẩy)`,
+      `Tài sản số vốn hóa lớn (nhạy với Thanh khoản ròng Fed ${netLiq ? `$${(netLiq.netLiquidityBillions / 1000).toFixed(2)}T` : ''
+      } & M2 ${m2 ? `+${m2.value.toFixed(1)}%` : 'mở rộng'})`,
     );
     watchAssets.push(
-      'Vàng nhẫn 9999 (tích lũy phòng hộ lạm phát & tỷ giá ở các nhịp điều chỉnh)',
+      'Vàng nhẫn 9999 (kênh nhạy với lạm phát & biến động tỷ giá)',
     );
 
     if (vniTrend && !vniTrend.aboveMa200) {
-      avoidAssets.push('Bắt đáy bằng margin khi VN-Index chưa lấy lại đường trung bình dài hạn MA200');
+      avoidAssets.push('Rủi ro biến động cao khi VN-Index chưa vượt lại đường trung bình dài hạn MA200');
     }
-    for (const lag of sectorRotation.laggingSectors.slice(0, 1)) {
+    for (const lag of sectorRotation?.laggingSectors.slice(0, 1) ?? []) {
       avoidAssets.push(lag);
     }
     if (sjcGold?.premiumVsWorldMillionVnd && sjcGold.premiumVsWorldMillionVnd >= 15) {
       avoidAssets.push(
-        `Mua đuổi Vàng miếng SJC ngắn hạn khi chênh lệch thế giới quá rộng (+${sjcGold.premiumVsWorldMillionVnd.toFixed(1)} tr/lượng)`,
+        `Vàng miếng SJC đang chênh lệch rộng so với giá thế giới quy đổi (+${sjcGold.premiumVsWorldMillionVnd.toFixed(1)} tr/lượng)`,
       );
     } else if (usdVnd && usdVnd.price >= 25_750) {
       avoidAssets.push(
-        `FOMO mua đuổi bằng margin cao khi tỷ giá USD/VND (${Math.round(usdVnd.price).toLocaleString('en-US')}₫) còn căng`,
+        `Nhóm nhạy cảm chi phí vốn ngoại tệ khi tỷ giá USD/VND (${Math.round(usdVnd.price).toLocaleString('en-US')}₫) neo cao`,
       );
     }
   }
@@ -906,7 +807,9 @@ export function evaluateInvestmentCompass(
     ...(netLiq
       ? {
         netLiquidityBillions: netLiq.netLiquidityBillions,
-        netLiquidityDelta4wBillions: netLiq.delta4wBillions,
+        ...(netLiq.delta4wBillions !== undefined
+          ? { netLiquidityDelta4wBillions: netLiq.delta4wBillions }
+          : {}),
       }
       : {}),
     ...(recessionProb12m !== undefined ? { recessionProb12m } : {}),
@@ -925,7 +828,7 @@ export function evaluateInvestmentCompass(
     ...(capitulationSignal ? { capitulationSignal, capitulationLabel } : {}),
     ...(dualConfirmation ? { dualConfirmation, dualConfirmationLabel } : {}),
     factorPillars,
-    sectorRotation,
+    ...(sectorRotation ? { sectorRotation } : {}),
     allocations,
     favoredAssets,
     watchAssets,

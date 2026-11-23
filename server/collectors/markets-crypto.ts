@@ -1,10 +1,14 @@
 import type {
+  FredMacroMetric,
+  MacroFieldMeta,
   MarketQuote,
   MarketSnapshot,
+  VietnamLiveMacroPulse,
+  VietnamMacroPulseFieldKey,
 } from '@shared/types';
 import { DEFAULT_BROWSER_UA, NAMED_APP_UA, fetchJsonWithTimeout, fetchTextWithTimeout } from '../lib/http';
 import { FearGreedPayload, fetchCryptoQuotes, normalizeFearGreed } from './markets/crypto';
-import { fetchFredMacroMetrics } from './markets/fred';
+import { FRED_SERIES_TARGETS, fetchFredMacroMetrics } from './markets/fred';
 import { ErApiPayload, YahooChartPayload, computeTechnicalIndicators, normalizeErApiFx, normalizeYahooChartQuote } from './markets/fx-yahoo';
 import { fetchVietnamDomesticGold, fetchVn30Leaders } from './markets/vn-gold-stocks';
 import { fetchSimplizeVnIndexValuation, fetchVietnamAndGlobalMacroPulse } from './markets/vn-valuation-macro';
@@ -178,6 +182,175 @@ async function fetchIndicesAndCommodities(now: number): Promise<MarketQuote[]> {
   return quotes;
 }
 
+const VN_PULSE_DATA_KEYS: readonly VietnamMacroPulseFieldKey[] = [
+  'vn10yYieldPct',
+  'interbankRatePct',
+  'sbvPolicyRatePct',
+  'monthlyCpiPct',
+  'ytdAvgCpiPct',
+  'ytdCoreCpiPct',
+  'manufacturingPmi',
+  'quarterlyGdpPct',
+  'tradeBalanceBillionUsd',
+  'ytdTradeBalanceBillionUsd',
+  'vcbSellUsdVnd',
+  'sp500PeRatio',
+];
+
+const DEFAULT_VN_PULSE_SOURCE: Record<VietnamMacroPulseFieldKey, string> = {
+  vn10yYieldPct: 'VBMA / TE',
+  interbankRatePct: 'SBV / TE',
+  sbvPolicyRatePct: 'NHNN / TE',
+  monthlyCpiPct: 'GSO / TradingEconomics',
+  ytdAvgCpiPct: 'Cục Thống kê (NSO)',
+  ytdCoreCpiPct: 'Cục Thống kê (NSO)',
+  manufacturingPmi: 'S&P Global / TE',
+  quarterlyGdpPct: 'NSO / TE',
+  tradeBalanceBillionUsd: 'Hải quan / TE',
+  ytdTradeBalanceBillionUsd: 'Cục Thống kê (NSO)',
+  vcbSellUsdVnd: 'Vietcombank',
+  sp500PeRatio: 'Multpl (S&P 500)',
+};
+
+export function mergeFredWithPrevious(
+  fresh: readonly FredMacroMetric[] | null | undefined,
+  previous: readonly FredMacroMetric[] | undefined,
+  now = Date.now(),
+): FredMacroMetric[] {
+  const freshById = new Map<string, FredMacroMetric>();
+  for (const m of fresh ?? []) {
+    freshById.set(m.id, {
+      ...m,
+      source: m.source ?? 'FRED',
+      fetchedAt: now,
+      retained: false,
+    });
+  }
+  const prevById = new Map<string, FredMacroMetric>();
+  for (const m of previous ?? []) {
+    prevById.set(m.id, m);
+  }
+
+  const orderedIds = [
+    ...FRED_SERIES_TARGETS.map((t) => t.id),
+    ...[...freshById.keys(), ...prevById.keys()].filter(
+      (id) => !FRED_SERIES_TARGETS.some((t) => t.id === id),
+    ),
+  ];
+  const seen = new Set<string>();
+  const out: FredMacroMetric[] = [];
+  for (const id of orderedIds) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const freshItem = freshById.get(id);
+    if (freshItem) {
+      out.push(freshItem);
+      continue;
+    }
+    const prevItem = prevById.get(id);
+    if (prevItem) {
+      out.push({
+        ...prevItem,
+        source: prevItem.source ?? 'FRED',
+        retained: true,
+      });
+    }
+  }
+  return out;
+}
+
+export function mergeVietnamMacroPulse(
+  fresh: Partial<VietnamLiveMacroPulse> | undefined,
+  previous: VietnamLiveMacroPulse | undefined,
+  now = Date.now(),
+): VietnamLiveMacroPulse | undefined {
+  if (!fresh && !previous) return undefined;
+
+  const out: VietnamLiveMacroPulse = { updatedAt: now };
+  const fieldMeta: Partial<Record<VietnamMacroPulseFieldKey, MacroFieldMeta>> = {};
+
+  for (const key of VN_PULSE_DATA_KEYS) {
+    const freshVal = fresh?.[key];
+    if (freshVal !== undefined) {
+      out[key] = freshVal;
+      const fm = fresh?.fieldMeta?.[key];
+      fieldMeta[key] = {
+        source: fm?.source ?? DEFAULT_VN_PULSE_SOURCE[key],
+        ...(fm?.period ? { period: fm.period } : {}),
+        fetchedAt: now,
+        retained: false,
+      };
+      continue;
+    }
+
+    const prevVal = previous?.[key];
+    if (prevVal !== undefined) {
+      out[key] = prevVal;
+      const pm = previous?.fieldMeta?.[key];
+      fieldMeta[key] = {
+        source: pm?.source ?? DEFAULT_VN_PULSE_SOURCE[key],
+        ...(pm?.period ? { period: pm.period } : {}),
+        fetchedAt: pm?.fetchedAt ?? 0,
+        retained: true,
+      };
+    }
+  }
+
+  if (fresh?.monthlyCpiPct !== undefined) {
+    if (fresh.monthlyCpiPrevPct !== undefined) out.monthlyCpiPrevPct = fresh.monthlyCpiPrevPct;
+  } else if (previous?.monthlyCpiPrevPct !== undefined) {
+    out.monthlyCpiPrevPct = previous.monthlyCpiPrevPct;
+  }
+
+  if (fresh?.manufacturingPmi !== undefined) {
+    if (fresh.manufacturingPmiPrev !== undefined) out.manufacturingPmiPrev = fresh.manufacturingPmiPrev;
+  } else if (previous?.manufacturingPmiPrev !== undefined) {
+    out.manufacturingPmiPrev = previous.manufacturingPmiPrev;
+  }
+
+  if (fresh?.quarterlyGdpPct !== undefined) {
+    if (fresh.quarterlyGdpPrevPct !== undefined) out.quarterlyGdpPrevPct = fresh.quarterlyGdpPrevPct;
+  } else if (previous?.quarterlyGdpPrevPct !== undefined) {
+    out.quarterlyGdpPrevPct = previous.quarterlyGdpPrevPct;
+  }
+
+  if (fresh?.ytdAvgCpiPct !== undefined) {
+    if (fresh.ytdCpiMonths !== undefined) out.ytdCpiMonths = fresh.ytdCpiMonths;
+  } else if (previous?.ytdCpiMonths !== undefined) {
+    out.ytdCpiMonths = previous.ytdCpiMonths;
+  }
+
+  if (Object.keys(fieldMeta).length > 0) {
+    out.fieldMeta = fieldMeta;
+  }
+
+  const hasData = VN_PULSE_DATA_KEYS.some((k) => out[k] !== undefined);
+  return hasData ? out : undefined;
+}
+
+export function markMarketSnapshotRetained(snapshot: MarketSnapshot, now = Date.now()): MarketSnapshot {
+  return {
+    ...snapshot,
+    quotes: snapshot.quotes.map((quote) => ({
+      ...quote,
+      retained: true,
+      ...(quote.peRatio !== undefined ? { valuationRetained: true } : {}),
+    })),
+    fred: mergeFredWithPrevious(undefined, snapshot.fred, now),
+    vnMacroPulse: mergeVietnamMacroPulse(undefined, snapshot.vnMacroPulse, now),
+    vn30: snapshot.vn30?.map((quote) => ({ ...quote, retained: true })),
+  };
+}
+
+export function getRetainedMarketSnapshot(
+  store: import('../cache/snapshot-store').SnapshotStore,
+  now = Date.now(),
+): MarketSnapshot | null {
+  const snapshot = store.get<MarketSnapshot>('markets-crypto', now);
+  if (!snapshot || store.getHealth('markets-crypto', now)?.status !== 'stale') return snapshot;
+  return markMarketSnapshotRetained(snapshot, now);
+}
+
 export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): Promise<MarketSnapshot> {
   const now = Date.now();
 
@@ -197,7 +370,7 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
     fetchSimplizeVnIndexValuation(),
     fetchVietnamAndGlobalMacroPulse(now),
     fetchVn30Leaders(now),
-    fetchFredMacroMetrics(),
+    fetchFredMacroMetrics(now),
   ]);
 
   const crypto =
@@ -214,20 +387,25 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
   const prevNonFx = (previous?.quotes ?? []).filter((q) => q.group !== 'fx');
 
   const baseFxQuotes =
-    fxRes.status === 'fulfilled' && fxRes.value.length > 0 ? fxRes.value : prevFx.filter((q) => q.symbol !== 'AUD/JPY');
+    fxRes.status === 'fulfilled' && fxRes.value.length > 0
+      ? fxRes.value.map((q) => ({ ...q, retained: false }))
+      : prevFx.filter((q) => q.symbol !== 'AUD/JPY').map((q) => ({ ...q, retained: true }));
 
-  // Merge per-symbol so transient Yahoo throttling on one symbol never drops prior valid quotes
+  // Merge per-symbol so transient Yahoo throttling on one symbol never drops prior valid quotes,
+  // while explicitly flagging retained quotes when an upstream call failed.
   const mergedNonFxMap = new Map<string, MarketQuote>();
   for (const oldQuote of prevNonFx) {
-    mergedNonFxMap.set(oldQuote.symbol, oldQuote);
+    mergedNonFxMap.set(oldQuote.symbol, { ...oldQuote, retained: true });
   }
-  let audJpyQuote = prevFx.find((q) => q.symbol === 'AUD/JPY');
+  const prevVni = prevNonFx.find((q) => q.symbol === 'VN-Index');
+  const prevAudJpy = prevFx.find((q) => q.symbol === 'AUD/JPY');
+  let audJpyQuote: MarketQuote | undefined = prevAudJpy ? { ...prevAudJpy, retained: true } : undefined;
   if (marketQuotesRes.status === 'fulfilled') {
     for (const freshQuote of marketQuotesRes.value) {
       if (freshQuote.group === 'fx') {
-        audJpyQuote = freshQuote;
+        audJpyQuote = { ...freshQuote, retained: false };
       } else {
-        mergedNonFxMap.set(freshQuote.symbol, freshQuote);
+        mergedNonFxMap.set(freshQuote.symbol, { ...freshQuote, retained: false });
       }
     }
   }
@@ -239,6 +417,21 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
     mergedNonFxMap.set('VN-Index', {
       ...vniCurrent,
       ...freshValuation,
+      valuationSource: 'Simplize',
+      valuationRetained: false,
+      valuationFetchedAt: now,
+    });
+  } else if (vniCurrent && prevVni?.peRatio !== undefined) {
+    mergedNonFxMap.set('VN-Index', {
+      ...vniCurrent,
+      peRatio: prevVni.peRatio,
+      ...(prevVni.pbRatio !== undefined ? { pbRatio: prevVni.pbRatio } : {}),
+      ...(prevVni.close52wLow !== undefined ? { close52wLow: prevVni.close52wLow } : {}),
+      ...(prevVni.close52wHigh !== undefined ? { close52wHigh: prevVni.close52wHigh } : {}),
+      ...(prevVni.volumeVs90dRatio !== undefined ? { volumeVs90dRatio: prevVni.volumeVs90dRatio } : {}),
+      valuationSource: prevVni.valuationSource ?? 'Simplize',
+      valuationRetained: true,
+      valuationFetchedAt: prevVni.valuationFetchedAt,
     });
   }
 
@@ -274,18 +467,20 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
 
   const vn30 =
     vn30Res.status === 'fulfilled' && vn30Res.value.length > 0
-      ? vn30Res.value
-      : (previous?.vn30 ?? []);
+      ? vn30Res.value.map((quote) => ({ ...quote, retained: false }))
+      : (previous?.vn30 ?? []).map((quote) => ({ ...quote, retained: true }));
 
-  const fred =
-    fredRes.status === 'fulfilled' && fredRes.value.length > 0
-      ? fredRes.value
-      : (previous?.fred ?? []);
+  const fred = mergeFredWithPrevious(
+    fredRes.status === 'fulfilled' ? fredRes.value : null,
+    previous?.fred,
+    now,
+  );
 
-  const vnMacroPulse =
-    vnPulseRes.status === 'fulfilled' && vnPulseRes.value
-      ? { ...(previous?.vnMacroPulse ?? {}), ...vnPulseRes.value }
-      : previous?.vnMacroPulse;
+  const vnMacroPulse = mergeVietnamMacroPulse(
+    vnPulseRes.status === 'fulfilled' ? vnPulseRes.value : undefined,
+    previous?.vnMacroPulse,
+    now,
+  );
 
   if (quotes.length === 0 && crypto.length === 0) {
     throw new Error('All market, FX, and crypto upstream endpoints failed');

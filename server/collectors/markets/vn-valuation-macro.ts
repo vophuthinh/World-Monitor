@@ -1,5 +1,7 @@
 import type {
+  MacroFieldMeta,
   VietnamLiveMacroPulse,
+  VietnamMacroPulseFieldKey,
 } from '@shared/types';
 import { fetchTextWithTimeout } from '../../lib/http';
 
@@ -69,51 +71,138 @@ export async function fetchSimplizeVnIndexValuation(): Promise<SimplizeIndexValu
   }
 }
 
+const EN_MONTH_TO_NUM: Record<string, number> = {
+  jan: 1, january: 1,
+  feb: 2, february: 2,
+  mar: 3, march: 3,
+  apr: 4, april: 4,
+  may: 5,
+  jun: 6, june: 6,
+  jul: 7, july: 7,
+  aug: 8, august: 8,
+  sep: 9, sept: 9, september: 9,
+  oct: 10, october: 10,
+  nov: 11, november: 11,
+  dec: 12, december: 12,
+};
+
+function parseTeReferencePeriod(raw: string): string | undefined {
+  const s = raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!s) return undefined;
+
+  const fullDateMatch = s.match(
+    /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t|tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2}),?\s*(20\d{2})\b/i,
+  );
+  if (fullDateMatch) {
+    const mNum = EN_MONTH_TO_NUM[fullDateMatch[1].toLowerCase()];
+    const day = String(Number(fullDateMatch[2])).padStart(2, '0');
+    if (mNum) return `${day}/${String(mNum).padStart(2, '0')}/${fullDateMatch[3]}`;
+  }
+
+  const qMatch = s.match(/\bQ([1-4])\s*[/-]?\s*(20\d{2}|\d{2})\b/i);
+  if (qMatch) {
+    const yr = qMatch[2].length === 2 ? `20${qMatch[2]}` : qMatch[2];
+    return `Q${qMatch[1]}/${yr}`;
+  }
+
+  const mMatch = s.match(
+    /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t|tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s*[/-]\s*(20\d{2}|\d{2})\b/i,
+  );
+  if (mMatch) {
+    const mNum = EN_MONTH_TO_NUM[mMatch[1].toLowerCase()];
+    const yr = mMatch[2].length === 2 ? `20${mMatch[2]}` : mMatch[2];
+    if (mNum) return `T${mNum}/${yr}`;
+  }
+
+  const isoMatch = s.match(/\b(20\d{2})-(\d{2})(?:-(\d{2}))?\b/);
+  if (isoMatch) {
+    return isoMatch[3]
+      ? `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`
+      : `T${Number(isoMatch[2])}/${isoMatch[1]}`;
+  }
+
+  return undefined;
+}
+
 export function parseTradingEconomicsVietnamHtml(
   indicatorsHtml: string,
   bondHtml = '',
+  now = Date.now(),
 ): Partial<VietnamLiveMacroPulse> {
   const out: Partial<VietnamLiveMacroPulse> = {};
+  const fieldMeta: Partial<Record<VietnamMacroPulseFieldKey, MacroFieldMeta>> = {};
+  const stamp = (key: VietnamMacroPulseFieldKey, source: string, period?: string) => {
+    fieldMeta[key] = {
+      source,
+      ...(period ? { period } : {}),
+      fetchedAt: now,
+      retained: false,
+    };
+  };
 
   if (bondHtml) {
     const bondMeta = bondHtml.match(
-      /Vietnam\s+10Y?\s+(?:Government\s+)?Bond\s+Yield[\s\S]{0,120}?at\s+([0-9]+\.[0-9]+)\s*%/i,
+      /Vietnam\s+10Y?\s+(?:Government\s+)?Bond\s+Yield[\s\S]{0,120}?at\s+([0-9]+\.[0-9]+)\s*%(?:[\s\S]{0,60}?on\s+([A-Za-z]+\s+\d{1,2},?\s*20\d{2}))?/i,
     );
     if (bondMeta) {
       const y = Number(bondMeta[1]);
-      if (Number.isFinite(y) && y > 0.5 && y < 20) out.vn10yYieldPct = Number(y.toFixed(2));
+      if (Number.isFinite(y) && y > 0.5 && y < 20) {
+        out.vn10yYieldPct = Number(y.toFixed(2));
+        stamp('vn10yYieldPct', 'VBMA / TE', bondMeta[2] ? parseTeReferencePeriod(bondMeta[2]) : undefined);
+      }
     }
   }
 
   if (indicatorsHtml) {
+    const trBlocks = [...indicatorsHtml.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)];
     const rowRe =
-      /href=['"]\/vietnam\/([^'"]+)['"][^>]*>\s*([^<]+?)\s*<\/a>\s*<\/td>\s*<td[^>]*>\s*([-0-9.,]+)\s*<\/td>\s*<td[^>]*>\s*([-0-9.,]+)\s*<\/td>/gi;
-    let m: RegExpExecArray | null;
-    while ((m = rowRe.exec(indicatorsHtml)) !== null) {
+      /href=['"]\/vietnam\/([^'"]+)['"][^>]*>\s*([^<]+?)\s*<\/a>\s*<\/td>\s*<td[^>]*>\s*([-0-9.,]+)\s*<\/td>\s*<td[^>]*>\s*([-0-9.,]+)\s*<\/td>([\s\S]*)$/i;
+
+    const processRow = (innerHtml: string) => {
+      const m = innerHtml.match(rowRe);
+      if (!m) return;
       const slug = m[1].toLowerCase().trim();
       const latest = Number(m[3].replace(/,/g, ''));
       const prev = Number(m[4].replace(/,/g, ''));
-      if (!Number.isFinite(latest)) continue;
+      if (!Number.isFinite(latest)) return;
+      const refPeriod = m[5] ? parseTeReferencePeriod(m[5]) : undefined;
 
       if (slug === 'inflation-cpi' && latest > -10 && latest < 40) {
         out.monthlyCpiPct = Number(latest.toFixed(2));
         if (Number.isFinite(prev)) out.monthlyCpiPrevPct = Number(prev.toFixed(2));
+        stamp('monthlyCpiPct', 'GSO / TradingEconomics', refPeriod);
       } else if (slug === 'manufacturing-pmi' && latest > 20 && latest < 85) {
         out.manufacturingPmi = Number(latest.toFixed(1));
         if (Number.isFinite(prev)) out.manufacturingPmiPrev = Number(prev.toFixed(1));
+        stamp('manufacturingPmi', 'S&P Global / TE', refPeriod);
       } else if (slug === 'interbank-rate' && latest >= 0 && latest < 30) {
         out.interbankRatePct = Number(latest.toFixed(2));
+        stamp('interbankRatePct', 'SBV / TE', refPeriod);
       } else if (slug === 'interest-rate' && latest >= 0 && latest < 25) {
         out.sbvPolicyRatePct = Number(latest.toFixed(2));
+        stamp('sbvPolicyRatePct', 'NHNN / TE', refPeriod);
       } else if (slug === 'gdp-growth-annual' && latest > -15 && latest < 25) {
         out.quarterlyGdpPct = Number(latest.toFixed(2));
         if (Number.isFinite(prev)) out.quarterlyGdpPrevPct = Number(prev.toFixed(2));
+        stamp('quarterlyGdpPct', 'NSO / TE', refPeriod);
       } else if (slug === 'balance-of-trade' && Math.abs(latest) < 100) {
         out.tradeBalanceBillionUsd = Number(latest.toFixed(2));
+        stamp('tradeBalanceBillionUsd', 'Hải quan / TE', refPeriod);
       } else if (slug === 'government-bond-yield' && out.vn10yYieldPct === undefined && latest > 0.5 && latest < 20) {
         out.vn10yYieldPct = Number(latest.toFixed(2));
+        stamp('vn10yYieldPct', 'VBMA / TE', refPeriod);
       }
+    };
+
+    if (trBlocks.length > 0) {
+      for (const tr of trBlocks) processRow(tr[1]);
+    } else {
+      processRow(indicatorsHtml);
     }
+  }
+
+  if (Object.keys(fieldMeta).length > 0) {
+    out.fieldMeta = fieldMeta;
   }
 
   return out;
@@ -199,10 +288,13 @@ export function parseVietnamOfficialYtdContext(params: {
   now?: number;
 }): Partial<VietnamLiveMacroPulse> {
   const out: Partial<VietnamLiveMacroPulse> = {};
-  const vnNow = new Date((params.now ?? Date.now()) + 7 * 3_600_000);
+  const fieldMeta: Partial<Record<VietnamMacroPulseFieldKey, MacroFieldMeta>> = {};
+  const ts = params.now ?? Date.now();
+  const vnNow = new Date(ts + 7 * 3_600_000);
   const currentYear = vnNow.getUTCFullYear();
   const currentMonth = vnNow.getUTCMonth() + 1;
   const dayOfMonth = vnNow.getUTCDate();
+  const vnDateStr = `${String(dayOfMonth).padStart(2, '0')}/${String(currentMonth).padStart(2, '0')}/${currentYear}`;
 
   // GSO releases cumulative M-month CPI & trade around the 3rd–6th day of month M+1.
   // Before Feb 5 of a new year, multi-month YTD belongs to the prior year (12M); otherwise cap to published months of currentYear.
@@ -218,6 +310,12 @@ export function parseVietnamOfficialYtdContext(params: {
       const num = Number(vcbMatch[1].replace(/,/g, ''));
       if (Number.isFinite(num) && num > 18_000 && num < 40_000) {
         out.vcbSellUsdVnd = Math.round(num);
+        fieldMeta.vcbSellUsdVnd = {
+          source: 'Vietcombank',
+          period: vnDateStr,
+          fetchedAt: ts,
+          retained: false,
+        };
       }
     }
   }
@@ -267,8 +365,21 @@ export function parseVietnamOfficialYtdContext(params: {
               bestCpiScore = score;
               out.ytdCpiMonths = months;
               out.ytdAvgCpiPct = Number(avgCpi.toFixed(2));
+              const periodLabel = `${months}T/${statYear}`;
+              fieldMeta.ytdAvgCpiPct = {
+                source: 'Cục Thống kê (NSO)',
+                period: periodLabel,
+                fetchedAt: ts,
+                retained: false,
+              };
               if (coreCpi !== undefined && Number.isFinite(coreCpi) && coreCpi > 0 && coreCpi < 25) {
                 out.ytdCoreCpiPct = Number(coreCpi.toFixed(2));
+                fieldMeta.ytdCoreCpiPct = {
+                  source: 'Cục Thống kê (NSO)',
+                  period: periodLabel,
+                  fetchedAt: ts,
+                  retained: false,
+                };
               }
             }
           }
@@ -291,6 +402,12 @@ export function parseVietnamOfficialYtdContext(params: {
             bestTradeMonths = months;
             const isDeficit = /nhập\s+siêu/i.test(tm[3]);
             out.ytdTradeBalanceBillionUsd = isDeficit ? -Number(val.toFixed(2)) : Number(val.toFixed(2));
+            fieldMeta.ytdTradeBalanceBillionUsd = {
+              source: 'Cục Thống kê (NSO)',
+              period: `${months}T/${targetStatYear}`,
+              fetchedAt: ts,
+              retained: false,
+            };
           }
         }
       }
@@ -330,13 +447,27 @@ export function parseVietnamOfficialYtdContext(params: {
         bestScore = candidateScore;
         out.ytdCpiMonths = months;
         out.ytdAvgCpiPct = Number(avgCpi.toFixed(2));
+        const periodLabel = `${months}T/${targetStatYear}`;
+        fieldMeta.ytdAvgCpiPct = {
+          source: 'Báo chí / GSO (RSS)',
+          period: periodLabel,
+          fetchedAt: ts,
+          retained: false,
+        };
         if (coreMatch) {
           const coreVal = Number(coreMatch[1].replace(',', '.'));
           if (Number.isFinite(coreVal) && coreVal > 0 && coreVal < 25) {
             out.ytdCoreCpiPct = Number(coreVal.toFixed(2));
+            fieldMeta.ytdCoreCpiPct = {
+              source: 'Báo chí / GSO (RSS)',
+              period: periodLabel,
+              fetchedAt: ts,
+              retained: false,
+            };
           }
         } else {
           delete out.ytdCoreCpiPct;
+          delete fieldMeta.ytdCoreCpiPct;
         }
       }
     }
@@ -393,8 +524,19 @@ export function parseVietnamOfficialYtdContext(params: {
       if (score > bestTradeScore) {
         bestTradeScore = score;
         out.ytdTradeBalanceBillionUsd = signedVal;
+        const resolvedMonths = explicitMonths >= 2 ? explicitMonths : targetMonths;
+        fieldMeta.ytdTradeBalanceBillionUsd = {
+          source: 'Hải quan / GSO (RSS)',
+          period: `${resolvedMonths}T/${targetStatYear}`,
+          fetchedAt: ts,
+          retained: false,
+        };
       }
     }
+  }
+
+  if (Object.keys(fieldMeta).length > 0) {
+    out.fieldMeta = fieldMeta;
   }
 
   return out;
@@ -460,16 +602,25 @@ export async function fetchVietnamAndGlobalMacroPulse(now: number): Promise<Viet
     now,
   });
 
-  const vnParsed = parseTradingEconomicsVietnamHtml(indHtml, bondHtml);
+  const vnParsed = parseTradingEconomicsVietnamHtml(indHtml, bondHtml, now);
   const sp500PeRatio = parseMultplSp500PeHtml(multplHtml);
+  const mergedMeta: Partial<Record<VietnamMacroPulseFieldKey, MacroFieldMeta>> = {
+    ...(vnParsed.fieldMeta ?? {}),
+    ...(ytdContext.fieldMeta ?? {}),
+    ...(sp500PeRatio !== undefined
+      ? { sp500PeRatio: { source: 'Multpl (S&P 500)', fetchedAt: now, retained: false } }
+      : {}),
+  };
 
   const combined: VietnamLiveMacroPulse = {
     ...vnParsed,
     ...ytdContext,
     ...(sp500PeRatio !== undefined ? { sp500PeRatio } : {}),
+    ...(Object.keys(mergedMeta).length > 0 ? { fieldMeta: mergedMeta } : {}),
     updatedAt: now,
   };
 
-  return Object.keys(combined).length > 1 ? combined : undefined;
+  const hasDataFields = Object.keys(combined).some((k) => k !== 'updatedAt' && k !== 'fieldMeta');
+  return hasDataFields ? combined : undefined;
 }
 

@@ -16,6 +16,7 @@ import type {
   VietnamEnvSnapshot,
 } from '@shared/types';
 import type { SnapshotStore } from '../cache/snapshot-store';
+import { getRetainedMarketSnapshot } from '../collectors/markets-crypto';
 
 export const GROQ_MODEL_CHAIN = [
   'qwen/qwen3.8-27b',
@@ -147,7 +148,7 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now()):
   const gpsOutages = store.get<GeoPointFeature[]>('gps-outages', now) ?? [];
   const earthquakes = store.get<GeoPointFeature[]>('earthquakes', now) ?? [];
   const geopolitics = store.get<GeoPointFeature[]>('geopolitics-gdelt', now) ?? [];
-  const markets = store.get<MarketSnapshot>('markets-crypto', now);
+  const markets = getRetainedMarketSnapshot(store, now);
   const predictions = store.get<PredictionItem[]>('polymarket', now) ?? [];
   const trends = store.get<GoogleTrendsSnapshot>('google-trends', now);
   const policy = store.get<PolicyLegalSnapshot>('policy-legal', now);
@@ -235,7 +236,7 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now()):
     }
 
     const wbMacro = store.get<MacroCountryIndicator[]>('macro-worldbank', now) ?? markets.macro ?? [];
-    const health = evaluateMacroHealth({ ...markets, macro: wbMacro }, predictions);
+    const health = evaluateMacroHealth({ ...markets, macro: wbMacro }, predictions, now);
     if (health.vn || health.us) {
       const parts = [
         health.vn
@@ -250,7 +251,7 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now()):
       lines.push(`[CHẨN ĐOÁN SỨC KHỎE VĨ MÔ] ${parts.join(' | ')}`);
     }
 
-    const compass = evaluateInvestmentCompass({ ...markets, macro: wbMacro }, predictions);
+    const compass = evaluateInvestmentCompass({ ...markets, macro: wbMacro }, predictions, now);
     if (compass) {
       const netLiqPart =
         compass.netLiquidityBillions !== undefined

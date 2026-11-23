@@ -149,6 +149,10 @@ export interface MarketQuote {
   close52wLow?: number;
   close52wHigh?: number;
   volumeVs90dRatio?: number;
+  valuationSource?: string;
+  valuationRetained?: boolean;
+  valuationFetchedAt?: number;
+  retained?: boolean;
   updatedAt: number;
   source: string;
 }
@@ -180,6 +184,7 @@ export interface Vn30StockQuote {
   ma200?: number;
   rsi14?: number;
   updatedAt: number;
+  retained?: boolean;
 }
 
 export interface FredMacroMetric {
@@ -188,17 +193,21 @@ export interface FredMacroMetric {
   subtitle: string;
   value: number;
   change: number;
-  delta4p?: number;
+  delta4w?: number;
   zScore?: number;
   unit: string;
   date: string;
+  frequency?: 'monthly';
   pillar?: 'growth' | 'inflation' | 'monetary' | 'market' | 'leading';
   benchmarkLabel?: string;
   benchmarkValue?: number;
-  avg3m?: number;
-  avg12m?: number;
+  avg3Observations?: number;
+  avg12Observations?: number;
   trendSlope?: number;
   alertBadge?: string;
+  source?: string;
+  fetchedAt?: number;
+  retained?: boolean;
   sparkline: number[];
 }
 
@@ -233,13 +242,20 @@ export interface MacroCountryIndicator {
   cpiPrevPct?: number | null;
   cpiYear: number | null;
   manufacturingGrowthPct?: number | null;
+  manufacturingYear?: number | null;
   exportsPctGdp?: number | null;
+  exportsYear?: number | null;
   fdiPctGdp?: number | null;
+  fdiYear?: number | null;
   unemploymentPct?: number | null;
+  unemploymentYear?: number | null;
   currentAccountPctGdp?: number | null;
   currentAccountYear?: number | null;
   creditPctGdp?: number | null;
+  creditYear?: number | null;
   realInterestRatePct?: number | null;
+  realInterestYear?: number | null;
+  retained?: boolean;
 }
 
 export type EconomicRegime =
@@ -266,6 +282,9 @@ export interface MacroPillarMetric {
   trendSlope?: number;
   trendLabel?: string;
   periodLabel: string;
+  sourceLabel?: string;
+  retained?: boolean;
+  fetchedAt?: number;
   status: 'good' | 'watch' | 'warn';
 }
 
@@ -276,12 +295,21 @@ export interface MacroPillarGroup {
   metrics: MacroPillarMetric[];
 }
 
+export interface ExpiredMacroMetricNotice {
+  id: string;
+  label: string;
+  sourceLabel: string;
+  periodLabel?: string;
+  lastValueLabel?: string;
+  fetchedAt?: number;
+}
+
 export interface EconomyHealthReport {
   id: 'VN' | 'US';
   title: string;
   subtitle: string;
   compositeScore: number;
-  regime: EconomicRegime;
+  regime?: EconomicRegime;
   regimeLabel: string;
   regimeSummary: string;
   quadrant?: MacroQuadrant;
@@ -290,6 +318,7 @@ export interface EconomyHealthReport {
   inflationZ?: number;
   recessionProb12m?: number;
   pillars: MacroPillarGroup[];
+  expiredMetrics?: ExpiredMacroMetricNotice[];
   warningFlags: Array<{
     severity: 'critical' | 'warn' | 'good';
     text: string;
@@ -326,6 +355,27 @@ export interface PortfolioAllocationSlice {
   colorHex: string;
 }
 
+export type VietnamMacroPulseFieldKey =
+  | 'vn10yYieldPct'
+  | 'interbankRatePct'
+  | 'sbvPolicyRatePct'
+  | 'monthlyCpiPct'
+  | 'ytdAvgCpiPct'
+  | 'ytdCoreCpiPct'
+  | 'manufacturingPmi'
+  | 'quarterlyGdpPct'
+  | 'tradeBalanceBillionUsd'
+  | 'ytdTradeBalanceBillionUsd'
+  | 'vcbSellUsdVnd'
+  | 'sp500PeRatio';
+
+export interface MacroFieldMeta {
+  source: string;
+  period?: string;
+  fetchedAt: number;
+  retained?: boolean;
+}
+
 export interface VietnamLiveMacroPulse {
   vn10yYieldPct?: number;
   interbankRatePct?: number;
@@ -343,6 +393,7 @@ export interface VietnamLiveMacroPulse {
   ytdTradeBalanceBillionUsd?: number;
   vcbSellUsdVnd?: number;
   sp500PeRatio?: number;
+  fieldMeta?: Partial<Record<VietnamMacroPulseFieldKey, MacroFieldMeta>>;
   updatedAt: number;
 }
 
@@ -351,6 +402,8 @@ export interface CompassFactorPillar {
   label: string;
   weightPct: number;
   score: number;
+  hasData?: boolean;
+  inputCount?: number;
 }
 
 export interface SectorRotationRecommendation {
@@ -398,6 +451,7 @@ export interface MarketSnapshot {
   vn30?: Vn30StockQuote[];
   fred?: FredMacroMetric[];
   vnMacroPulse?: VietnamLiveMacroPulse;
+  expiredMacroNotices?: { vn: ExpiredMacroMetricNotice[]; us: ExpiredMacroMetricNotice[] };
   updatedAt: number;
 }
 
@@ -765,14 +819,16 @@ export interface TheaterViewPreset {
 
 export interface RegimeHistoryPoint {
   date: string;
-  vnMacroScore: number;
-  usMacroScore: number;
+  vnMacroScore?: number;
+  usMacroScore?: number;
   compassScore: number;
   vnIndexPrice?: number;
   vnIndexPe?: number;
   quadrant?: MacroQuadrant;
   stance: InvestmentStance;
   equitiesWeightPct: number;
+  reconstructed?: boolean;
+  observedAt?: number;
 }
 
 export interface MarketCatalystEvent {
@@ -785,6 +841,7 @@ export interface MarketCatalystEvent {
   daysUntil: number;
   impactNote: string;
   urgency: 'imminent' | 'soon' | 'scheduled';
+  estimated?: boolean;
 }
 
 export interface ChokepointMarketImpact {
@@ -844,6 +901,9 @@ export interface LiveFastResponse {
   quotes: MarketQuote[];
   crypto: CryptoQuote[];
   fearGreed: FearGreedSnapshot | null;
+  fred: FredMacroMetric[];
+  vnMacroPulse?: VietnamLiveMacroPulse;
+  expiredMacroNotices?: { vn: ExpiredMacroMetricNotice[]; us: ExpiredMacroMetricNotice[] };
   predictions?: PredictionItem[];
   googleTrends?: GoogleTrendsSnapshot | null;
   health: SourceHealth[];

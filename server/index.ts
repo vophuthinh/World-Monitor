@@ -26,7 +26,7 @@ import { fetchGoogleTrendsRealtime } from './collectors/google-trends';
 import { fetchHptCompanyIntelligence } from './collectors/hpt-company-intel';
 import { fetchWorldBankMacro } from './collectors/macro-worldbank';
 import { MaritimeVesselStreamManager } from './collectors/maritime-vessels';
-import { fetchMarketsAndCrypto } from './collectors/markets-crypto';
+import { fetchMarketsAndCrypto, getRetainedMarketSnapshot } from './collectors/markets-crypto';
 import { fetchMilitaryFlights } from './collectors/military-flights';
 import { fetchNaturalEvents } from './collectors/natural-events';
 import { fetchCuratedRssNews, fetchPolymarketPredictions } from './collectors/polymarket-news';
@@ -95,7 +95,7 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
     }
 
     if (id === 'markets-crypto' || id === 'macro-worldbank' || id === 'polymarket') {
-      const rawMarkets = store.get<MarketSnapshot>('markets-crypto', now);
+      const rawMarkets = getRetainedMarketSnapshot(store, now);
       const macro =
         store.get<MacroCountryIndicator[]>('macro-worldbank', now) ?? rawMarkets?.macro ?? [];
       const preds = store.get<PredictionItem[]>('polymarket', now) ?? [];
@@ -202,6 +202,7 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
     label: 'Tài chính, Vàng SJC, VN30, FRED & Crypto (+ WS · 2p)',
     intervalMs: 120_000,
     retainMs: 6 * 3_600_000,
+    retainExpiredForDiagnostics: true,
     countItems: (snap) =>
       snap.quotes.length + snap.crypto.length + (snap.vnGold?.length ?? 0) + (snap.vn30?.length ?? 0),
     fetcher: (prev) => fetchMarketsAndCrypto(prev),

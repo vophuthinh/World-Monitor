@@ -9,6 +9,8 @@ export interface FredSeriesTarget {
   subtitle: string;
   unit: string;
   unitsParam?: 'pc1';
+  frequencyParam?: 'm';
+  aggregationMethodParam?: 'avg';
   pillar: 'growth' | 'inflation' | 'monetary' | 'market' | 'leading';
   benchmarkLabel?: string;
   benchmarkValue?: number;
@@ -208,11 +210,13 @@ export const FRED_SERIES_TARGETS: readonly FredSeriesTarget[] = [
   {
     id: 'T10Y3M',
     label: '10Y–3M Spread',
-    subtitle: 'Độ dốc 10Y–3M Giao ngay (Daily CMT)',
+    subtitle: 'Độ dốc 10Y–3M Bình quân Tháng',
     unit: '%',
     pillar: 'leading',
     benchmarkLabel: 'Ngưỡng dương',
     benchmarkValue: 0.0,
+    frequencyParam: 'm',
+    aggregationMethodParam: 'avg',
   },
   {
     id: 'GS10',
@@ -277,22 +281,38 @@ export interface FredObservationsPayload {
 export function normalizeFredObservationSeries(
   target: FredSeriesTarget,
   payload: FredObservationsPayload,
+  now = Date.now(),
 ): FredMacroMetric | null {
   const valid = (payload?.observations ?? [])
     .map((o) => ({
       date: String(o.date ?? ''),
       num: Number(o.value),
     }))
-    .filter((o) => o.date && Number.isFinite(o.num));
+    .filter(
+      (o) =>
+        /^\d{4}-\d{2}-\d{2}$/.test(o.date) &&
+        Number.isFinite(Date.parse(`${o.date}T00:00:00Z`)) &&
+        Number.isFinite(o.num),
+    );
 
   if (valid.length === 0) return null;
 
   // FRED sort_order=desc returns newest first
   const latest = valid[0];
   const prev = valid.length >= 2 ? valid[1] : latest;
-  const prev4 = valid.length >= 5 ? valid[4] : valid[valid.length - 1];
   const change = Number((latest.num - prev.num).toFixed(2));
-  const delta4p = prev4 ? Number((latest.num - prev4.num).toFixed(2)) : 0;
+  const fourWeeksAgo = new Date(`${latest.date}T00:00:00Z`);
+  fourWeeksAgo.setUTCDate(fourWeeksAgo.getUTCDate() - 28);
+  const fourWeeksAgoDate = fourWeeksAgo.toISOString().slice(0, 10);
+  const deltaBaseline = valid.find((observation) => observation.date <= fourWeeksAgoDate);
+  const baselineDate = deltaBaseline ? new Date(`${deltaBaseline.date}T00:00:00Z`) : undefined;
+  const baselineGapDays = baselineDate
+    ? (fourWeeksAgo.getTime() - baselineDate.getTime()) / 86_400_000
+    : undefined;
+  const delta4w =
+    deltaBaseline && baselineGapDays !== undefined && baselineGapDays <= 7
+      ? Number((latest.num - deltaBaseline.num).toFixed(2))
+      : undefined;
   const chronological = valid
     .slice(0, 10)
     .reverse()
@@ -301,9 +321,9 @@ export function normalizeFredObservationSeries(
   const slice3 = valid.slice(0, Math.min(3, valid.length));
   const slice12 = valid.slice(0, Math.min(12, valid.length));
   const mean12Raw = slice12.reduce((s, x) => s + x.num, 0) / slice12.length;
-  const avg3m = Number((slice3.reduce((s, x) => s + x.num, 0) / slice3.length).toFixed(2));
-  const avg12m = Number(mean12Raw.toFixed(2));
-  const trendSlope = Number((avg3m - avg12m).toFixed(2));
+  const avg3Observations = Number((slice3.reduce((s, x) => s + x.num, 0) / slice3.length).toFixed(2));
+  const avg12Observations = Number(mean12Raw.toFixed(2));
+  const trendSlope = Number((avg3Observations - avg12Observations).toFixed(2));
 
   const variance12 =
     slice12.length >= 4
@@ -336,22 +356,26 @@ export function normalizeFredObservationSeries(
     subtitle: target.subtitle,
     value: Number(latest.num.toFixed(2)),
     change,
-    delta4p,
+    ...(delta4w !== undefined ? { delta4w } : {}),
     ...(zScore !== undefined ? { zScore } : {}),
     unit: target.unit,
     date: latest.date,
+    ...(target.frequencyParam === 'm' ? { frequency: 'monthly' as const } : {}),
     pillar: target.pillar,
     ...(target.benchmarkLabel ? { benchmarkLabel: target.benchmarkLabel } : {}),
     ...(target.benchmarkValue !== undefined ? { benchmarkValue: target.benchmarkValue } : {}),
-    avg3m,
-    avg12m,
+    avg3Observations,
+    avg12Observations,
     trendSlope,
     alertBadge,
+    source: 'FRED',
+    fetchedAt: now,
+    retained: false,
     sparkline: chronological,
   };
 }
 
-export async function fetchFredMacroMetrics(): Promise<FredMacroMetric[]> {
+export async function fetchFredMacroMetrics(now = Date.now()): Promise<FredMacroMetric[]> {
   const apiKey = process.env.FRED_API_KEY?.trim();
   if (!apiKey) return [];
 
@@ -362,13 +386,16 @@ export async function fetchFredMacroMetrics(): Promise<FredMacroMetric[]> {
     const results = await Promise.allSettled(
       batch.map(async (target) => {
         const unitsPart = target.unitsParam ? `&units=${target.unitsParam}` : '';
-        const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${encodeURIComponent(target.id)}&api_key=${encodeURIComponent(apiKey)}${unitsPart}&file_type=json&sort_order=desc&limit=16`;
+        const frequencyPart = target.frequencyParam
+          ? `&frequency=${target.frequencyParam}&aggregation_method=${target.aggregationMethodParam ?? 'avg'}`
+          : '';
+        const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${encodeURIComponent(target.id)}&api_key=${encodeURIComponent(apiKey)}${unitsPart}${frequencyPart}&file_type=json&sort_order=desc&limit=32`;
         const payload = await fetchJsonWithTimeout<FredObservationsPayload>(url, {
           timeoutMs: 8_000,
           retries: 1,
           userAgent: NAMED_APP_UA,
         });
-        return normalizeFredObservationSeries(target, payload);
+        return normalizeFredObservationSeries(target, payload, now);
       }),
     );
 

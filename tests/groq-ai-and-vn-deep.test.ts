@@ -19,6 +19,7 @@ import {
   evaluateInvestmentCompass,
   evaluateMacroHealth,
   extractPolymarketMacroInsight,
+  resolveNyFedSpreadAndProb,
   smoothFactorScore,
 } from '../shared/macro-health';
 import { SnapshotStore } from '../server/cache/snapshot-store';
@@ -361,10 +362,28 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     );
     expect(fredMetric).not.toBeNull();
     expect(fredMetric?.value).toBe(-0.18);
-    expect(fredMetric?.avg3m).toBeCloseTo(-0.12, 1);
+    expect(fredMetric?.avg3Observations).toBeCloseTo(-0.12, 1);
     expect(fredMetric?.trendSlope).toBeLessThan(0);
+    expect(fredMetric?.delta4w).toBeUndefined();
     expect(fredMetric?.alertBadge).toContain('ĐẢO NGƯỢC');
     expect(fredMetric?.sparkline).toEqual([0.1, -0.05, -0.12, -0.18]);
+
+    const fourWeekMetric = normalizeFredObservationSeries(
+      {
+        id: 'WALCL',
+        label: 'Fed Assets',
+        subtitle: 'Fed Assets',
+        unit: 'M$',
+        pillar: 'leading',
+      },
+      {
+        observations: [
+          { date: '2026-11-20', value: '100' },
+          { date: '2026-10-23', value: '90' },
+        ],
+      },
+    );
+    expect(fourWeekMetric?.delta4w).toBe(10);
 
     const viirsCsv = [
       'latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight',
@@ -379,6 +398,7 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
   });
 
   it('evaluates Vietnam & US Macroeconomic Health Scores, Actual-vs-Forecast deltas, and Regime classifications', () => {
+    const testNow = Date.UTC(2026, 10, 22);
     const health = evaluateMacroHealth({
       quotes: [
         {
@@ -387,7 +407,7 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
           group: 'fx',
           price: 25480,
           changePercent24h: 0,
-          updatedAt: 1700000000000,
+          updatedAt: testNow,
           source: 'FX',
         },
       ],
@@ -413,6 +433,19 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
           unemploymentPct: 1.52,
         },
       ],
+      vnMacroPulse: {
+        ytdAvgCpiPct: 3.63,
+        ytdCpiMonths: 10,
+        updatedAt: testNow,
+        fieldMeta: {
+          ytdAvgCpiPct: {
+            source: 'Cục Thống kê (NSO)',
+            period: '10T/2026',
+            fetchedAt: testNow,
+            retained: false,
+          },
+        },
+      },
       fred: [
         {
           id: 'A191RL1Q225SBEA',
@@ -480,8 +513,8 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
           sparkline: [0.05, -0.08, -0.15],
         },
       ],
-      updatedAt: 1700000000000,
-    });
+      updatedAt: testNow,
+    }, [], testNow);
 
     expect(health.vn).not.toBeNull();
     expect(health.vn?.regime).toBe('soft_landing');
@@ -527,14 +560,16 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
         { id: 'PERMIT', label: 'Permits', subtitle: 'Permits', value: -8.67, change: -1.1, unit: '%', date: '2026-10-01', pillar: 'leading', sparkline: [-6.5, -7.5, -8.67] },
       ],
       updatedAt: 1700000000000,
-    });
+    }, [], 1700000000000);
 
     expect(compass).not.toBeNull();
     expect(compass?.stance).toBe('selective_growth');
     // Valuation/trend/FX pillars have no data here and now use a neutral prior (52), not a bullish one.
     expect(compass?.riskAppetiteScore).toBeGreaterThan(65);
+    expect(compass?.riskAppetiteScore).toBeLessThan(80);
     expect(compass?.signals.length).toBe(8);
-    expect(compass?.favoredAssets.length).toBeGreaterThanOrEqual(2);
+    expect(compass?.favoredAssets).toHaveLength(1);
+    expect(compass?.sectorRotation).toBeUndefined();
     expect(compass?.avoidAssets.some((a) => a.includes('SJC'))).toBe(true);
   });
 
@@ -551,9 +586,9 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
       walclMillions: 6_741_452,
       wtregenMillions: 916_613,
       rrpBillions: 0.4,
-      walclDelta4pMillions: 28_000,
-      wtregenDelta4pMillions: -22_000,
-      rrpDelta4pBillions: -5,
+      walclDelta4wMillions: 28_000,
+      wtregenDelta4wMillions: -22_000,
+      rrpDelta4wBillions: -5,
     });
     expect(netLiq).not.toBeNull();
     expect(netLiq?.netLiquidityBillions).toBeCloseTo(5824.4, 1);
@@ -628,14 +663,15 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
       fearGreed: null,
       macro: [],
       fred: [
-        { id: 'WALCL', label: 'WALCL', subtitle: 'WALCL', value: 6_741_452, change: 1000, delta4p: 25_000, unit: 'M$', date: '2026-11-18', pillar: 'leading', sparkline: [] },
-        { id: 'WTREGEN', label: 'TGA', subtitle: 'TGA', value: 916_613, change: -500, delta4p: -15_000, unit: 'M$', date: '2026-11-18', pillar: 'leading', sparkline: [] },
-        { id: 'RRPONTSYD', label: 'RRP', subtitle: 'RRP', value: 0.4, change: 0, delta4p: 0, unit: 'B$', date: '2026-11-20', pillar: 'leading', sparkline: [] },
+        { id: 'WALCL', label: 'WALCL', subtitle: 'WALCL', value: 6_741_452, change: 1000, delta4w: 25_000, unit: 'M$', date: '2026-11-18', pillar: 'leading', sparkline: [] },
+        { id: 'WTREGEN', label: 'TGA', subtitle: 'TGA', value: 916_613, change: -500, delta4w: -15_000, unit: 'M$', date: '2026-11-18', pillar: 'leading', sparkline: [] },
+        { id: 'RRPONTSYD', label: 'RRP', subtitle: 'RRP', value: 0.4, change: 0, delta4w: 0, unit: 'B$', date: '2026-11-20', pillar: 'leading', sparkline: [] },
         { id: 'M2SL', label: 'M2', subtitle: 'M2', value: 5.2, change: 0.2, unit: '%', date: '2026-10-01', pillar: 'leading', sparkline: [] },
         { id: 'NFCI', label: 'NFCI', subtitle: 'NFCI', value: -0.45, change: -0.02, unit: 'idx', date: '2026-11-13', pillar: 'leading', sparkline: [] },
         { id: 'STLFSI4', label: 'Stress', subtitle: 'Stress', value: -0.62, change: -0.05, unit: 'idx', date: '2026-11-13', pillar: 'leading', sparkline: [] },
         { id: 'BAMLH0A0HYM2', label: 'HY', subtitle: 'HY', value: 3.1, change: -0.05, unit: '%', date: '2026-11-19', pillar: 'leading', sparkline: [] },
-        { id: 'T10Y3M', label: '10Y3M', subtitle: '10Y3M', value: 0.6, change: 0.02, unit: '%', date: '2026-11-20', pillar: 'leading', sparkline: [] },
+        { id: 'DFII10', label: '10Y Real Yield', subtitle: '10Y Real Yield', value: 1.8, change: 0, unit: '%', date: '2026-11-19', pillar: 'leading', sparkline: [] },
+        { id: 'T10Y3M', label: '10Y3M', subtitle: '10Y3M', value: 0.6, change: 0.02, unit: '%', date: '2026-11-01', frequency: 'monthly', pillar: 'leading', sparkline: [] },
       ],
       updatedAt: 1700000000000,
     });
@@ -706,10 +742,11 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
       crypto: [],
       fearGreed: null,
       macro: [],
+      vnMacroPulse: { vn10yYieldPct: 5.2, updatedAt: 1 },
       fred: [
         { id: 'M2SL', label: 'M2', subtitle: 'M2', value: 5.7, change: 0.2, unit: '%', date: '2026-10-01', pillar: 'leading', sparkline: [] },
         { id: 'VIXCLS', label: 'VIX', subtitle: 'VIX', value: 24.2, change: 3.1, unit: 'pts', date: '2026-11-20', pillar: 'market', sparkline: [] },
-        { id: 'T10Y3M', label: '10Y3M', subtitle: '10Y3M', value: 0.6, change: 0.02, unit: '%', date: '2026-11-20', pillar: 'leading', sparkline: [] },
+        { id: 'T10Y3M', label: '10Y3M', subtitle: '10Y3M', value: 0.6, change: 0.02, unit: '%', date: '2026-11-01', frequency: 'monthly', pillar: 'leading', sparkline: [] },
         { id: 'T5YIFR', label: '5Y5Y', subtitle: '5Y5Y', value: 2.31, change: -0.01, unit: '%', date: '2026-11-21', pillar: 'inflation', sparkline: [] },
       ],
       updatedAt: 1,
@@ -724,6 +761,7 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
   });
 
   it('computes continuous multi-factor scores, live VN 10Y / PMI / CPI pulse, S&P 500 ERP, Polymarket FOMC odds & 4-phase Sector Rotation', () => {
+    const now = Date.UTC(2026, 10, 22);
     // 1. Continuous smooth factor scoring has zero step-function discontinuities
     const s1 = smoothFactorScore(3.89, 4.15, 0.75, true);
     const s2 = smoothFactorScore(3.91, 4.15, 0.75, true);
@@ -733,13 +771,14 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     // 2. Parse live Vietnam monthly PMI, CPI, Interbank, Quarterly GDP, Trade Surplus & VN10Y Bond Yield
     const vnPulse = parseTradingEconomicsVietnamHtml(
       `<table>
-        <tr><td><a href='/vietnam/inflation-cpi'>Inflation Rate</a></td><td>5.09</td><td>5.08</td></tr>
+        <tr><td><a href='/vietnam/inflation-cpi'>Inflation Rate</a></td><td>5.09</td><td>5.08</td><td>Oct/26</td></tr>
         <tr><td><a href='/vietnam/manufacturing-pmi'>Manufacturing PMI</a></td><td>52.3</td><td>51.9</td></tr>
         <tr><td><a href='/vietnam/interbank-rate'>Interbank Rate</a></td><td>7.66</td><td>7.04</td></tr>
         <tr><td><a href='/vietnam/gdp-growth-annual'>GDP Annual Growth Rate</a></td><td>9.95</td><td>8.81</td></tr>
         <tr><td><a href='/vietnam/balance-of-trade'>Balance of Trade</a></td><td>7.31</td><td>1.27</td></tr>
       </table>`,
       `<meta name="description" content="The yield on Vietnam 10Y Bond Yield held steady at 4.57% on November 20, 2026." />`,
+      now,
     );
     expect(vnPulse.vn10yYieldPct).toBe(4.57);
     expect(vnPulse.monthlyCpiPct).toBe(5.09);
@@ -830,13 +869,13 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
       },
     ];
 
-    const health = evaluateMacroHealth(snapshot, predictions);
-    // Live monthly CPI 5.09% (>4.5% ceiling) + Quarterly GDP 9.95% accurately shifts VN to Q2 Reflation!
+    const health = evaluateMacroHealth(snapshot, predictions, now);
+    // Monthly CPI can inform the quadrant, but cannot establish whether the annual CPI target is met.
     expect(health.vn?.quadrant).toBe('Q2_REFLATION');
-    expect(health.vn?.regime).toBe('overheating');
+    expect(health.vn?.regime).toBeUndefined();
     expect(health.us?.warningFlags.some((f) => f.text.includes('Polymarket'))).toBe(true);
 
-    const compassFull = evaluateInvestmentCompass(snapshot, predictions);
+    const compassFull = evaluateInvestmentCompass(snapshot, predictions, now);
     expect(compassFull?.vnErpPct).toBeCloseTo(4.99, 1); // 100/10.46 - 4.57% live VN10Y!
     expect(compassFull?.usErpPct).toBeCloseTo(-0.79, 1); // 100/23.55 - 5.04% live US10Y!
     expect(compassFull?.vnUsYieldSpreadBps).toBe(-47);
@@ -906,7 +945,7 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     expect(chokepoints[0].polymarketNote).toContain('97%');
     expect(chokepoints[0].vnStockImpact).toContain('GAS');
 
-    // 3. RegimeHistoryLedger backfills recent sessions & persists daily snapshot + TelegramAlertEngine masks token cleanly
+    // 3. RegimeHistoryLedger persists only observed daily snapshots
     const tempDir = mkdtempSync(join(tmpdir(), 'wm-ledger-tg-'));
     try {
       const ledger = new RegimeHistoryLedger(tempDir);
@@ -950,7 +989,7 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
         [],
         Date.UTC(2026, 10, 22, 11, 0, 0),
       );
-      expect(history.length).toBeGreaterThanOrEqual(5);
+      expect(history).toHaveLength(1);
       expect(history[history.length - 1].date).toBe('2026-11-22');
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
@@ -1017,10 +1056,11 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     });
     expect(rssFallbackCtx.ytdTradeBalanceBillionUsd).toBe(-12.07);
 
+    const pulseNow = Date.UTC(2026, 10, 22, 8, 0, 0);
     const health = evaluateMacroHealth({
       quotes: [
-        { symbol: 'USD/VND', name: 'USD/VND', group: 'fx', price: 25783, changePercent24h: 0, updatedAt: 1, source: 'FX' },
-        { symbol: 'VN-Index', name: 'VN-Index', group: 'index', price: 1689, changePercent24h: -0.05, peRatio: 10.46, pbRatio: 1.8, updatedAt: 1, source: 'HOSE' },
+        { symbol: 'USD/VND', name: 'USD/VND', group: 'fx', price: 25783, changePercent24h: 0, updatedAt: pulseNow, source: 'FX' },
+        { symbol: 'VN-Index', name: 'VN-Index', group: 'index', price: 1689, changePercent24h: -0.05, peRatio: 10.46, pbRatio: 1.8, updatedAt: pulseNow, source: 'HOSE' },
       ],
       crypto: [],
       fearGreed: null,
@@ -1054,10 +1094,22 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
         interbankRatePct: 7.66,
         vn10yYieldPct: 4.57,
         vcbSellUsdVnd: 25980,
-        updatedAt: 1,
+        fieldMeta: {
+          quarterlyGdpPct: { source: 'NSO / TE', period: 'Q3/2026', fetchedAt: pulseNow, retained: false },
+          manufacturingPmi: { source: 'S&P Global / TE', period: 'T10/2026', fetchedAt: pulseNow, retained: false },
+          monthlyCpiPct: { source: 'GSO / TradingEconomics', period: 'T10/2026', fetchedAt: pulseNow, retained: false },
+          ytdAvgCpiPct: { source: 'Cục Thống kê (NSO)', period: '10T/2026', fetchedAt: pulseNow, retained: false },
+          ytdCoreCpiPct: { source: 'Cục Thống kê (NSO)', period: '10T/2026', fetchedAt: pulseNow, retained: false },
+          tradeBalanceBillionUsd: { source: 'Hải quan / TE', period: 'T10/2026', fetchedAt: pulseNow, retained: false },
+          ytdTradeBalanceBillionUsd: { source: 'Cục Thống kê (NSO)', period: '10T/2026', fetchedAt: pulseNow, retained: false },
+          interbankRatePct: { source: 'SBV / TE', fetchedAt: pulseNow, retained: false },
+          vn10yYieldPct: { source: 'VBMA / TE', fetchedAt: pulseNow, retained: false },
+          vcbSellUsdVnd: { source: 'Vietcombank', fetchedAt: pulseNow, retained: false },
+        },
+        updatedAt: pulseNow,
       },
-      updatedAt: 1,
-    });
+      updatedAt: pulseNow,
+    }, [], pulseNow);
 
     const vnCpiMetric = health.vn?.pillars[1].metrics.find((m) => m.id === 'vn-cpi');
     // Must compare YTD Average CPI (4.57%), NOT single-month 5.09%, against the 4.5% National Assembly target!
@@ -1072,15 +1124,65 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     expect(health.vn?.warningFlags.some((f) => f.text.includes('lũy kế 10 tháng nhập siêu -12.07B$'))).toBe(true);
     expect(
       health.vn?.warningFlags.some(
-        (f) => f.text.includes('năm 2025') && f.text.includes('(-12.07B$)') && f.text.includes('~0.3% GDP'),
+        (f) => f.text.includes('Cán cân vãng lai/GDP năm 2025') && f.text.includes('không suy ra'),
       ),
     ).toBe(true);
+    expect(health.vn?.pillars[2].metrics.find((m) => m.id === 'vn-cab')?.status).toBe('watch');
+  });
+
+  it('does not treat a prior-year World Bank current-account value as current when live data is absent', () => {
+    const health = evaluateMacroHealth({
+      quotes: [],
+      crypto: [],
+      fearGreed: null,
+      macro: [{
+        countryCode: 'VNM',
+        countryName: 'Việt Nam',
+        regionLabel: 'ASEAN',
+        gdpGrowthPct: 8.0,
+        gdpGrowthYear: 2025,
+        gdpCurrentUsd: 514_000_000_000,
+        gdpCurrentYear: 2025,
+        cpiInflationPct: 3.3,
+        cpiYear: 2025,
+        currentAccountPctGdp: 6.44,
+        currentAccountYear: 2025,
+      }],
+      updatedAt: 1,
+    });
+
+    expect(health.vn?.warningFlags.some((f) => f.text.includes('Lá chắn ngoại hối vững'))).toBe(false);
+    expect(health.vn?.warningFlags.some((f) => f.text.includes('Cán cân vãng lai/GDP năm 2025'))).toBe(true);
+    expect(health.vn?.pillars[2].metrics.find((m) => m.id === 'vn-cab')?.status).toBe('watch');
   });
 
   it('reproduces official NY Fed monthly bond-equivalent 10Y-3M recession probability (12.4%), breakeven terminology, and Dec 9 FOMC schedule', () => {
     const spreadOct2026 = computeNyFedBondEquivalentSpread(5.13, 4.05);
     expect(spreadOct2026).toBe(0.98128);
     expect(computeNyFedRecessionProb12m(spreadOct2026)).toBe(12.4);
+    const monthlySpread = {
+      id: 'T10Y3M',
+      label: '10Y-3M',
+      subtitle: '10Y-3M',
+      value: 0.6,
+      change: 0,
+      unit: '%',
+      date: '2026-10-01',
+      frequency: 'monthly' as const,
+      sparkline: [0.6],
+    };
+    expect(resolveNyFedSpreadAndProb(new Map([['T10Y3M', monthlySpread]])).spreadPct).toBe(0.6);
+    const gs10 = { ...monthlySpread, id: 'GS10', value: 5.13 };
+    const tb3ms = { ...monthlySpread, id: 'TB3MS', value: 4.05 };
+    expect(resolveNyFedSpreadAndProb(new Map([['GS10', gs10], ['TB3MS', tb3ms]])).prob12m).toBe(12.4);
+    const mismatch = { ...tb3ms, date: '2026-09-01' };
+    expect(resolveNyFedSpreadAndProb(new Map([['GS10', gs10], ['TB3MS', mismatch]])).prob12m).toBeUndefined();
+    expect(resolveNyFedSpreadAndProb(new Map([['GS10', gs10], ['TB3MS', mismatch], ['T10Y3M', monthlySpread]])).spreadPct).toBe(0.6);
+    expect(
+      resolveNyFedSpreadAndProb(
+        new Map([['T10Y3M', { ...monthlySpread, frequency: undefined }]]),
+      ).prob12m,
+    ).toBeUndefined();
 
     const usHealth = evaluateMacroHealth({
       quotes: [],
@@ -1116,5 +1218,9 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     const fomc = cal.find((e) => e.category === 'fomc');
     expect(fomc?.dateIso).toBe('2026-12-09');
     expect(fomc?.dateLabel).toBe('09/12');
+    expect(fomc?.estimated).toBe(false);
+    expect(cal.find((e) => e.id === 'us-cpi')?.estimated).toBe(true);
+    const future = buildMarketCatalystCalendar(Date.UTC(2027, 11, 18));
+    expect(future.find((e) => e.id === 'fomc-rate')).toBeUndefined();
   });
 });

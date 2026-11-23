@@ -2,10 +2,11 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { BootstrapResponse, LiveFastResponse, SourceHealth } from '../shared/types';
+import type { BootstrapResponse, LiveFastResponse, MarketSnapshot, SourceHealth } from '../shared/types';
 import { createApp } from '../server/app';
 import { CollectorScheduler } from '../server/cache/scheduler';
 import { SnapshotStore } from '../server/cache/snapshot-store';
+import { evaluateMacroHealth } from '../shared/macro-health';
 
 describe('Hono Backend API Routes', () => {
   let cacheDir: string;
@@ -96,6 +97,91 @@ describe('Hono Backend API Routes', () => {
     const healthBody = (await healthRes.json()) as SourceHealth[];
     expect(Array.isArray(healthBody)).toBe(true);
     expect(healthBody.find((h) => h.id === 'earthquakes')?.status).toBe('ok');
+  });
+
+  it('marks market data retained on bootstrap and fast poll after a whole collector failure', async () => {
+    const now = Date.now();
+    const markets: MarketSnapshot = {
+      quotes: [{ symbol: 'USD/VND', name: 'FX', group: 'fx', price: 25000,
+        changePercent24h: 0, updatedAt: now, source: 'FX' }],
+      crypto: [], fearGreed: null, macro: [],
+      fred: [{ id: 'FEDFUNDS', label: 'Fed', subtitle: 'Fed', value: 4, change: 0,
+        unit: '%', date: '2026-10-01', sparkline: [4], fetchedAt: now, retained: false }],
+      vnMacroPulse: { manufacturingPmi: 52, updatedAt: now, fieldMeta: {
+        manufacturingPmi: { source: 'TE', period: 'T10/2026', fetchedAt: now, retained: false },
+      } },
+      updatedAt: now,
+    };
+    scheduler.registerCollector({
+      id: 'markets-crypto', label: 'Markets', intervalMs: 60_000, retainMs: 3_600_000,
+      countItems: () => 1,
+      fetcher: async () => { throw new Error('market outage'); },
+    });
+    store.set('markets-crypto', markets, 3_600_000);
+    await scheduler.refreshCollector('markets-crypto');
+
+    const app = createApp(scheduler);
+    const body = await (await app.request('/api/bootstrap')).json() as BootstrapResponse;
+    expect(body.markets.fred?.[0].retained).toBe(true);
+    expect(body.markets.fred?.[0].fetchedAt).toBe(now);
+    expect(body.markets.vnMacroPulse?.fieldMeta?.manufacturingPmi?.retained).toBe(true);
+    expect(body.markets.quotes[0].retained).toBe(true);
+    const fast = await (await app.request('/api/live-fast')).json() as LiveFastResponse;
+    expect(fast.quotes[0].retained).toBe(true);
+    expect(fast.fred[0].retained).toBe(true);
+    expect(fast.vnMacroPulse?.fieldMeta?.manufacturingPmi?.retained).toBe(true);
+    expect(store.get<MarketSnapshot>('markets-crypto')?.fred?.[0].retained).toBe(false);
+  });
+
+  it('preserves expired market diagnostics across an outage and restart without restoring score inputs', async () => {
+    const now = Date.now();
+    const fetchedAt = now - 8 * 86_400_000;
+    const markets: MarketSnapshot = {
+      quotes: [], crypto: [], fearGreed: null, macro: [], updatedAt: fetchedAt,
+      fred: [{ id: 'CPIAUCSL', label: 'CPI', subtitle: 'CPI Mỹ', value: 3, change: 0,
+        unit: '%', date: '2026-10-01', sparkline: [3], fetchedAt, retained: false }],
+      vnMacroPulse: { ytdCoreCpiPct: 4, updatedAt: fetchedAt, fieldMeta: {
+        ytdCoreCpiPct: { source: 'NSO', period: '10T/2026', fetchedAt, retained: false },
+      } },
+    };
+    const registration = {
+      id: 'markets-crypto' as const, label: 'Markets', intervalMs: 60_000, retainMs: 6 * 3_600_000,
+      retainExpiredForDiagnostics: true, countItems: () => 1,
+      fetcher: async (): Promise<MarketSnapshot> => { throw new Error('market outage'); },
+    };
+    scheduler.registerCollector(registration);
+    await store.refresh('markets-crypto', async () => markets, fetchedAt);
+    await scheduler.refreshCollector('markets-crypto');
+    expect(store.get('markets-crypto')).toBeNull();
+
+    const coldStore = new SnapshotStore(cacheDir);
+    const coldScheduler = new CollectorScheduler(coldStore);
+    coldScheduler.registerCollector(registration);
+    await coldStore.hydrateFromDisk(now);
+    expect(coldStore.get('markets-crypto')).toBeNull();
+    for (const app of [createApp(scheduler), createApp(coldScheduler)]) {
+      const body = await (await app.request('/api/bootstrap')).json() as BootstrapResponse;
+      expect(body.markets.fred).toEqual([]);
+      expect(body.markets.vnMacroPulse).toBeUndefined();
+      expect(body.markets.expiredMacroNotices?.us).toContainEqual(expect.objectContaining({ id: 'CPIAUCSL' }));
+      expect(body.markets.expiredMacroNotices?.vn).toContainEqual(expect.objectContaining({ id: 'ytdCoreCpiPct' }));
+      const evaluated = evaluateMacroHealth({ ...body.markets, macro: [{
+        countryCode: 'VNM', countryName: 'Việt Nam', regionLabel: 'ASEAN',
+        gdpGrowthPct: 6, gdpGrowthYear: 2025, gdpCurrentUsd: null, gdpCurrentYear: null,
+        cpiInflationPct: null, cpiYear: null,
+      }] }, [], now);
+      expect(evaluated.us).toBeNull();
+      expect(evaluated.vn?.expiredMetrics).toContainEqual(expect.objectContaining({ id: 'ytdCoreCpiPct' }));
+      expect(evaluated.vn?.pillars.flatMap((pillar) => pillar.metrics)
+        .find((metric) => metric.id === 'vn-cpi')).toBeUndefined();
+      const fast = await (await app.request('/api/live-fast')).json() as LiveFastResponse;
+      expect(fast.fred).toEqual([]);
+      expect(fast.expiredMacroNotices?.us).toContainEqual(expect.objectContaining({ id: 'CPIAUCSL' }));
+    }
+
+    await store.refresh('markets-crypto', async () => ({ ...markets, fred: [], vnMacroPulse: undefined, updatedAt: now }));
+    const recovered = await (await createApp(scheduler).request('/api/bootstrap')).json() as BootstrapResponse;
+    expect(recovered.markets.expiredMacroNotices).toBeUndefined();
   });
 
   it('enforces 10s rate limit on POST /api/refresh/:collectorName and returns 404 for unknown collector', async () => {

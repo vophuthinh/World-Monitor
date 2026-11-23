@@ -94,14 +94,13 @@ function nextQuarterlyEtfRebalanceUtc(todayStartMs: number): number {
   return getNthWeekdayOfMonthUtc(startYear + 1, 2, 5, 3);
 }
 
-function nextFomcMeetingUtc(todayStartMs: number): number {
+function nextFomcMeetingUtc(todayStartMs: number): number | undefined {
   for (const iso of FOMC_DECISION_DATES) {
     const [y, m, day] = iso.split('-').map(Number);
     const ms = toUtcDateStartMs(y, m - 1, day);
     if (ms >= todayStartMs) return ms;
   }
-  // Fallback ~42-day cycle beyond 2027
-  return todayStartMs + 35 * 86_400_000;
+  return undefined;
 }
 
 /**
@@ -128,9 +127,25 @@ export function buildMarketCatalystCalendar(
   const vn30Days = daysTo(vn30ExpMs);
 
   const fomcMs = nextFomcMeetingUtc(todayStartMs);
-  const fomcDays = daysTo(fomcMs);
+  const fomcDays = fomcMs === undefined ? undefined : daysTo(fomcMs);
+  const fomcEvent: MarketCatalystEvent | undefined = fomcMs === undefined || fomcDays === undefined
+    ? undefined
+    : {
+      id: 'fomc-rate',
+      title: 'Họp Lãi suất FOMC (Fed Mỹ)',
+      region: 'US',
+      category: 'fomc',
+      dateIso: formatIsoDate(fomcMs),
+      dateLabel: formatDayMonth(fomcMs),
+      daysUntil: fomcDays,
+      impactNote: polymarketFedSummary
+        ? `Polymarket: ${polymarketFedSummary.split('(')[0].trim()}`
+        : 'Quyết định lãi suất USD, tác động trực tiếp DXY, Vàng & tỷ giá USD/VND',
+      urgency: urgencyOf(fomcDays),
+      estimated: false,
+    };
 
-  // Under Decree 94/2022/NĐ-CP, GSO Vietnam publishes monthly CPI/IIP/Trade on the 6th of every month
+  // Approximate dates, not official release calendars.
   const gsoMs = nextMonthlyDayUtc(todayStartMs, 6);
   const gsoDays = daysTo(gsoMs);
 
@@ -157,20 +172,9 @@ export function buildMarketCatalystCalendar(
       daysUntil: vn30Days,
       impactNote: 'Biến động mạnh phiên ATC nhóm trụ VN30 — hạn chế mua đuổi ngắn hạn',
       urgency: urgencyOf(vn30Days),
+      estimated: true,
     },
-    {
-      id: 'fomc-rate',
-      title: 'Họp Lãi suất FOMC (Fed Mỹ)',
-      region: 'US',
-      category: 'fomc',
-      dateIso: formatIsoDate(fomcMs),
-      dateLabel: formatDayMonth(fomcMs),
-      daysUntil: fomcDays,
-      impactNote: polymarketFedSummary
-        ? `Polymarket: ${polymarketFedSummary.split('(')[0].trim()}`
-        : 'Quyết định lãi suất USD, tác động trực tiếp DXY, Vàng & tỷ giá USD/VND',
-      urgency: urgencyOf(fomcDays),
-    },
+    ...(fomcEvent ? [fomcEvent] : []),
     {
       id: 'vn-gso-cpi',
       title: 'Công bố CPI & Vĩ mô Tháng VN (GSO)',
@@ -181,6 +185,7 @@ export function buildMarketCatalystCalendar(
       daysUntil: gsoDays,
       impactNote: 'Cập nhật CPI, Sản xuất công nghiệp & Xuất siêu tháng của Tổng cục Thống kê',
       urgency: urgencyOf(gsoDays),
+      estimated: true,
     },
     {
       id: 'us-cpi',
@@ -192,6 +197,7 @@ export function buildMarketCatalystCalendar(
       daysUntil: usCpiDays,
       impactNote: 'Dữ liệu lạm phát tiêu dùng Mỹ dẫn dắt lợi suất TP 10Y & chứng khoán toàn cầu',
       urgency: urgencyOf(usCpiDays),
+      estimated: true,
     },
     {
       id: 'us-pce',
@@ -203,6 +209,7 @@ export function buildMarketCatalystCalendar(
       daysUntil: usPceDays,
       impactNote: 'Chỉ số lạm phát lõi mục tiêu 2.0% quan trọng nhất của FOMC',
       urgency: urgencyOf(usPceDays),
+      estimated: true,
     },
     {
       id: 'vn-etf-rebal',
@@ -214,6 +221,7 @@ export function buildMarketCatalystCalendar(
       daysUntil: etfDays,
       impactNote: 'FTSE Vietnam & VanEck VNM ETF tái cơ cấu danh mục quý (thanh khoản đột biến ATC)',
       urgency: urgencyOf(etfDays),
+      estimated: true,
     },
   ];
 
