@@ -4,7 +4,7 @@
 #
 # Set the public address people use to open the app (scheme + host + port), otherwise the API
 # rejects requests with an unknown Host/Origin. Put it in a `.env` file next to this one:
-#   WM_PUBLIC_ORIGIN=http://10.0.66.21:8787
+#   WM_PUBLIC_ORIGIN=http://<server-ip>:8787
 # The app has NO user authentication: expose it only on a trusted network or behind an
 # authenticating reverse proxy.
 services:
