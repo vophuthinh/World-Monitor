@@ -1,4 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
+import { attachEnsembles, fetchMultiModelForecasts } from './forecast-ensemble';
 import type {
   AqiBand,
   GeoPointFeature,
@@ -300,7 +301,7 @@ export async function fetchVietnamEnvironment(): Promise<VietnamEnvSnapshot> {
   const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${mLats}&longitude=${mLons}&current=us_aqi,pm2_5`;
   const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${sLats}&longitude=${sLons}&current=wave_height,wave_direction,wave_period`;
 
-  const [fcRaw, aqiRaw, marineRaw, nchmfRssText] = await Promise.all([
+  const [fcRaw, aqiRaw, marineRaw, nchmfRssText, ensembles] = await Promise.all([
     fetchJsonWithTimeout<OpenMeteoForecastEntry[] | OpenMeteoForecastEntry>(forecastUrl, {
       timeoutMs: 8_500,
       retries: 1,
@@ -323,13 +324,19 @@ export async function fetchVietnamEnvironment(): Promise<VietnamEnvSnapshot> {
     })
       .then((r) => r.text)
       .catch(() => ''),
+    // Never throws: no multi-model data simply means no ensemble line in the UI.
+    fetchMultiModelForecasts(VIETNAM_STATIONS, now),
   ]);
 
   const fcArray = Array.isArray(fcRaw) ? fcRaw : [fcRaw];
   const aqiArray = Array.isArray(aqiRaw) ? aqiRaw : [aqiRaw];
   const marineArray = Array.isArray(marineRaw) ? marineRaw : [marineRaw];
 
-  const locations = normalizeVietnamEnvLocations(fcArray, aqiArray, marineArray);
+  const locations = attachEnsembles(
+    normalizeVietnamEnvLocations(fcArray, aqiArray, marineArray),
+    VIETNAM_STATIONS.map((s) => s.id),
+    ensembles,
+  );
   if (locations.length === 0) {
     throw new Error('Open-Meteo Vietnam environment feed returned no stations');
   }

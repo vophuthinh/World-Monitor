@@ -1,7 +1,24 @@
+import { describeEnsemble, type EnsembleAgreement } from '../../lib/ensemble-format';
 import { ArrowsClockwise, CloudSun, Wind } from '@phosphor-icons/react';
 import { AQI_BADGE_STYLE, VN_ENV_DISPLAY_ORDER, formatRelativeTime } from './shared';
-import type { CollectorId, VietnamEnvSnapshot } from '@shared/types';
+import type { CollectorId, VietnamEnvEnsemble, VietnamEnvSnapshot } from '@shared/types';
 import { safeHref } from '../../lib/safe-href';
+
+const AGREEMENT_STYLE: Record<EnsembleAgreement, { label: string; cls: string }> = {
+  high: { label: 'Đồng thuận cao', cls: 'text-emerald-300' },
+  medium: { label: 'Khá phân tán', cls: 'text-amber-300' },
+  low: { label: 'Mô hình bất đồng', cls: 'font-semibold text-rose-300' },
+};
+
+function EnsembleLine({ ensemble }: { ensemble: VietnamEnvEnsemble }) {
+  const { summary, agreement, tooltip } = describeEnsemble(ensemble);
+  const style = AGREEMENT_STYLE[agreement];
+  return (
+    <div className="mt-1 border-t border-slate-800/80 pt-1 text-[9px] leading-snug text-slate-400" title={tooltip}>
+      <span>{summary}</span> · <span className={style.cls}>{style.label}</span>
+    </div>
+  );
+}
 
 export function VietnamEnvSection({ vietnamEnv, onFlyToLocation, onForceRefresh, onOpenWindy, refreshingIds }: {
   vietnamEnv: VietnamEnvSnapshot;
@@ -122,6 +139,7 @@ export function VietnamEnvSection({ vietnamEnv, onFlyToLocation, onForceRefresh,
                     </div>
                   </div>
                 )}
+                {loc.ensemble && <EnsembleLine ensemble={loc.ensemble} />}
               </button>
             );
           })}

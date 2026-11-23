@@ -525,6 +525,21 @@ export interface MarketSnapshot {
 
 export type AqiBand = 'good' | 'moderate' | 'sensitive' | 'unhealthy' | 'hazardous';
 
+/** Spread of the next-24h forecast across several weather models (Open-Meteo multi-model). */
+export interface VietnamEnvEnsemble {
+  models: number;
+  tempMaxMeanC: number;
+  tempMaxMinC: number;
+  tempMaxMaxC: number;
+  tempMinMeanC: number;
+  rainMeanMm: number;
+  rainMinMm: number;
+  rainMaxMm: number;
+  /** Models forecasting at least 1 mm in the window */
+  wetModels: number;
+  perModel: Array<{ model: string; tempMaxC: number; tempMinC: number; rainMm: number }>;
+}
+
 export interface VietnamEnvLocation {
   id: string;
   name: string;
@@ -551,6 +566,7 @@ export interface VietnamEnvLocation {
   usAqi?: number;
   pm25?: number;
   aqiBand?: AqiBand;
+  ensemble?: VietnamEnvEnsemble;
 }
 
 export interface VietnamWeatherAlert {
