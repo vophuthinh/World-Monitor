@@ -17,8 +17,9 @@ services:
       - "${WM_PORT:-8787}:8787"
     environment:
       ALLOWED_ORIGINS: ${WM_PUBLIC_ORIGIN:-http://localhost:8787}
-      # SearXNG is an optional sidecar (docker-compose.searxng.yml); keep it off unless you start it.
-      SEARXNG_BASE_URL: ${SEARXNG_BASE_URL:-off}
+      # SearXNG runs as the `searxng` service below, reachable only inside the compose network.
+      # Set SEARXNG_BASE_URL=off in `.env` to disable it.
+      SEARXNG_BASE_URL: ${SEARXNG_BASE_URL:-http://searxng:8080}
       # Optional keys: pass through from the host `.env` when set.
       AISSTREAM_API_KEY: ${AISSTREAM_API_KEY:-}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
@@ -29,8 +30,32 @@ services:
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
     volumes:
       - wm-cache:/app/.cache
+    depends_on:
+      - searxng
     cap_drop:
       - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  # Metasearch used for HPT social/forum listening. No published port: only `worldmonitor` can reach it.
+  searxng:
+    image: docker.io/searxng/searxng:latest
+    container_name: worldmonitor-searxng
+    restart: unless-stopped
+    volumes:
+      - ./infra/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    environment:
+      SEARXNG_BASE_URL: http://searxng:8080/
+      # Overrides server.secret_key from settings.yml. Generate one: openssl rand -hex 32
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-}
+      UWSGI_WORKERS: "2"
+      UWSGI_THREADS: "2"
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
     security_opt:
       - no-new-privileges:true
 
