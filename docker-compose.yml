@@ -1,0 +1,38 @@
+# Production-style run: web + API on one port.
+#
+#   docker compose up -d --build
+#
+# Set the public address people use to open the app (scheme + host + port), otherwise the API
+# rejects requests with an unknown Host/Origin. Put it in a `.env` file next to this one:
+#   WM_PUBLIC_ORIGIN=http://10.0.66.21:8787
+# The app has NO user authentication: expose it only on a trusted network or behind an
+# authenticating reverse proxy.
+services:
+  worldmonitor:
+    build: .
+    image: worldmonitor:latest
+    container_name: worldmonitor
+    restart: unless-stopped
+    ports:
+      - "${WM_PORT:-8787}:8787"
+    environment:
+      ALLOWED_ORIGINS: ${WM_PUBLIC_ORIGIN:-http://localhost:8787}
+      # SearXNG is an optional sidecar (docker-compose.searxng.yml); keep it off unless you start it.
+      SEARXNG_BASE_URL: ${SEARXNG_BASE_URL:-off}
+      # Optional keys: pass through from the host `.env` when set.
+      AISSTREAM_API_KEY: ${AISSTREAM_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      FRED_API_KEY: ${FRED_API_KEY:-}
+      NASA_FIRMS_API_KEY: ${NASA_FIRMS_API_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+    volumes:
+      - wm-cache:/app/.cache
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  wm-cache:

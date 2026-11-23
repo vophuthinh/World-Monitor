@@ -1,0 +1,11 @@
+node_modules
+dist
+.cache
+.git
+.env
+.env.*
+!.env.example
+.remember
+.DS_Store
+docs/chat-history
+*.log
