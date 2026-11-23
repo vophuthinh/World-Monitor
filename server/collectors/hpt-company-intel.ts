@@ -222,8 +222,12 @@ export function resolveSearxngBaseUrl(rawEnv = process.env.SEARXNG_BASE_URL): st
 }
 
 // Flat, exact-phrase HPT queries rotated one per cycle (no tangential personal names and no nested boolean soup)
+// The general-press query appears twice so it runs every other turn (30 min) between the social/forum queries.
+const SEARXNG_GENERAL_QUERY = '"Công nghệ Tin học HPT" OR "cổ phiếu HPT" OR "HPT UPCoM"';
 const SEARXNG_HPT_QUERIES: readonly string[] = [
+  SEARXNG_GENERAL_QUERY,
   'site:facebook.com "Công nghệ Tin học HPT" -site:facebook.com/HPTVietnamCorp -site:facebook.com/LifeAtHPT',
+  SEARXNG_GENERAL_QUERY,
   '(site:fireant.vn/bai-viet OR site:f319.com OR site:f247.com OR site:voz.vn OR site:tinhte.vn) ("cổ phiếu HPT" OR "Công nghệ Tin học HPT")',
 ];
 

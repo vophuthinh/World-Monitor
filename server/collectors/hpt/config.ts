@@ -29,6 +29,11 @@ export const HPT_EXTERNAL_FEEDS: readonly ExternalRssFeedDef[] = [
     url: 'https://news.google.com/rss/search?q=%22HPT%22+%22C%C3%B4ng+ngh%E1%BB%87%22+when%3A14d&hl=vi&gl=VN&ceid=VN:vi',
   },
   {
+    name: 'Báo chí tổng hợp · Cổ phiếu HPT (UPCoM)',
+    defaultCategory: 'it_press_partner',
+    url: 'https://news.google.com/rss/search?q=%22HPT%22+(UPCOM+OR+%22C%C3%B4ng+ngh%E1%BB%87+Tin+h%E1%BB%8Dc%22+OR+%22HPT+Vietnam%22)+when%3A14d&hl=vi&gl=VN&ceid=VN:vi',
+  },
+  {
     name: 'Đấu thầu & Dự án (Báo Đấu thầu / MST 0301447436)',
     defaultCategory: 'bidding_project',
     url: 'https://news.google.com/rss/search?q=(%22HPT%22+OR+%220301447436%22)+(%22tr%C3%BAng+th%E1%BA%A7u%22+OR+%22g%C3%B3i+th%E1%BA%A7u%22+OR+%22%C4%91%E1%BA%A5u+th%E1%BA%A7u%22+OR+%22l%E1%BB%B1a+ch%E1%BB%8Dn+nh%C3%A0+th%E1%BA%A7u%22+OR+site:baodauthau.vn)+(%22c%C3%B4ng+ngh%E1%BB%87%22+OR+%22tin+h%E1%BB%8Dc%22+OR+%22ng%C3%A2n+h%C3%A0ng%22+OR+%22an+to%C3%A0n+th%C3%B4ng+tin%22)&hl=vi&gl=VN&ceid=VN:vi',
@@ -54,39 +59,14 @@ export const HPT_EXTERNAL_FEEDS: readonly ExternalRssFeedDef[] = [
     url: 'https://www.bing.com/news/search?q=%22C%C3%B4ng+ngh%E1%BB%87+Tin+h%E1%BB%8Dc+HPT%22&format=rss&mkt=vi-VN',
   },
   {
-    name: 'Bing News Search · Cổ phiếu HPT & HSOC',
-    defaultCategory: 'press_social',
-    url: 'https://www.bing.com/news/search?q=(%22c%E1%BB%95+phi%E1%BA%BFu+HPT%22+OR+%22HPT+Cyber+Security%22+OR+%22HSOC%22)&format=rss&mkt=vi-VN',
-  },
-  {
     name: 'Pháp lý · Thuế · Sở hữu trí tuệ (MST 0301447436)',
     defaultCategory: 'press_social',
     url: 'https://news.google.com/rss/search?q=(%220301447436%22+OR+%22C%C3%B4ng+ngh%E1%BB%87+Tin+h%E1%BB%8Dc+HPT%22)+(%22thu%E1%BA%BF%22+OR+%22s%E1%BB%9F+h%E1%BB%AFu+tr%C3%AD+tu%E1%BB%87%22+OR+%22ch%E1%BB%A9ng+nh%E1%BA%ADn%22+OR+%22t%C3%B2a+%C3%A1n%22+OR+%22%C4%91%C4%83ng+k%C3%BD+kinh+doanh%22+OR+%22k%C3%BD+k%E1%BA%BFt%22)&hl=vi&gl=VN&ceid=VN:vi',
   },
   {
-    name: 'Diễn đàn & Cộng đồng Mở (VOZ / Tinh tế / F319 / F247 / Spiderum)',
-    defaultCategory: 'press_social',
-    url: 'https://news.google.com/rss/search?q=(site:f319.com+OR+site:f247.com+OR+site:voz.vn+OR+site:tinhte.vn+OR+site:spiderum.com+OR+site:reddit.com)+(%22C%C3%B4ng+ngh%E1%BB%87+Tin+h%E1%BB%8Dc+HPT%22+OR+%22c%E1%BB%95+phi%E1%BA%BFu+HPT%22+OR+%22m%C3%A3+HPT%22+OR+%22HSOC%22)&hl=vi&gl=VN&ceid=VN:vi',
-  },
-  {
-    name: 'YouTube Video & Podcast Công nghệ / Tài chính',
-    defaultCategory: 'press_social',
-    url: 'https://news.google.com/rss/search?q=site:youtube.com+(%22C%C3%B4ng+ngh%E1%BB%87+Tin+h%E1%BB%8Dc+HPT%22+OR+%22c%E1%BB%95+phi%E1%BA%BFu+HPT%22+OR+%22HPT+Cyber+Security%22+OR+%22HSOC%22)&hl=vi&gl=VN&ceid=VN:vi',
-  },
-  {
     name: 'Facebook Công khai (Bài đăng bên thứ ba nhắc HPT)',
     defaultCategory: 'press_social',
     url: 'https://news.google.com/rss/search?q=site:facebook.com+-site:facebook.com/HPTVietnamCorp+-site:facebook.com/LifeAtHPT+(%22C%C3%B4ng+ngh%E1%BB%87+Tin+h%E1%BB%8Dc+HPT%22+OR+%22HPT+Cyber+Security%22+OR+%22c%C3%B4ng+ty+HPT%22+OR+%22c%E1%BB%95+phi%E1%BA%BFu+HPT%22+OR+%22HPT+Vietnam%22+OR+%220301447436%22)&hl=vi&gl=VN&ceid=VN:vi',
-  },
-  {
-    name: 'LinkedIn Posts & Pulse (Bên thứ ba nhắc HPT)',
-    defaultCategory: 'press_social',
-    url: 'https://news.google.com/rss/search?q=(site:linkedin.com/posts+OR+site:vn.linkedin.com/posts+OR+site:linkedin.com/pulse+OR+site:vn.linkedin.com/pulse)+-site:linkedin.com/posts/hpt-vietnam-corporation+(%22C%C3%B4ng+ngh%E1%BB%87+Tin+h%E1%BB%8Dc+HPT%22+OR+%22HPT+Cyber+Security%22+OR+%22HPT+Vietnam%22+OR+%22c%E1%BB%95+phi%E1%BA%BFu+HPT%22)&hl=vi&gl=VN&ceid=VN:vi',
-  },
-  {
-    name: 'Threads · TikTok (Bên thứ ba nhắc HPT)',
-    defaultCategory: 'press_social',
-    url: 'https://news.google.com/rss/search?q=(site:threads.net+OR+site:threads.com+OR+site:tiktok.com)+-site:tiktok.com/@hptvietnamcorp+-site:threads.net/@hptvietnamcorp+(%22C%C3%B4ng+ngh%E1%BB%87+Tin+h%E1%BB%8Dc+HPT%22+OR+%22HPT+Cyber+Security%22+OR+%22c%E1%BB%95+phi%E1%BA%BFu+HPT%22+OR+%22HPT+Vietnam%22)&hl=vi&gl=VN&ceid=VN:vi',
   },
   {
     name: 'Vietstock · FireAnt · 24hMoney · Tin nhanh Chứng khoán',

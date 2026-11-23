@@ -448,13 +448,8 @@ describe('Economic RSS Feeds & Independent External HPT (UPCoM · MST 0301447436
   it('excludes self-authored HPT posts across Facebook, linkedin.com/posts, linkedin.com/pulse, threads.net, and tiktok.com while keeping third-party mentions', () => {
     // 1. Upstream RSS feed queries must contain -site: exclusions for official HPT accounts while staying concise
     const fbFeed = HPT_EXTERNAL_FEEDS.find((f) => f.name.startsWith('Facebook'));
-    const liFeed = HPT_EXTERNAL_FEEDS.find((f) => f.name.startsWith('LinkedIn'));
-    const ttFeed = HPT_EXTERNAL_FEEDS.find((f) => f.name.startsWith('Threads'));
     expect(fbFeed?.url).toContain('-site:facebook.com/HPTVietnamCorp');
     expect(fbFeed?.url).toContain('-site:facebook.com/LifeAtHPT');
-    expect(liFeed?.url).toContain('-site:linkedin.com/posts/hpt-vietnam-corporation');
-    expect(ttFeed?.url).toContain('-site:tiktok.com/@hptvietnamcorp');
-    expect(ttFeed?.url).toContain('-site:threads.net/@hptvietnamcorp');
 
     // 2. Direct URLs of self-posts by HPT on all 5 surfaces MUST be rejected
     expect(
