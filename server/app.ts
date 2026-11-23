@@ -30,6 +30,7 @@ import type {
 } from '@shared/types';
 import type { CollectorScheduler } from './cache/scheduler';
 import { getRetainedMarketSnapshot, markMarketSnapshotRetained } from './collectors/markets-crypto';
+import { searchCountries } from './collectors/countries';
 import { summarizeSinglePolicyItemWithAi } from './collectors/vietnam-policy-legal';
 import { answerMonitorQuestion, generateAiSitrep } from './lib/groq-intel';
 import { lookupLiveIocOrCve } from './lib/ioc-scanner';
@@ -261,6 +262,19 @@ export function createApp(
     const sitrep = await generateAiSitrep(store, true, options.getLiveVessels);
     store.set('ai-sitrep', sitrep, 2 * 3_600_000, sitrep.bullets.length);
     return c.json(sitrep);
+  });
+
+  app.get('/api/countries', async (c) => {
+    const query = (c.req.query('q') ?? '').trim();
+    if (query.length < 2 || query.length > 80) return c.json({ error: 'Nhập tên quốc gia từ 2 đến 80 ký tự.' }, 400);
+    try {
+      return c.json({ countries: await searchCountries(query) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Không thể tra cứu quốc gia.';
+      if (message.startsWith('Chưa cấu hình') || message.startsWith('Đã đạt giới hạn')) return c.json({ error: message }, 503);
+      console.error('[countries] lookup failed');
+      return c.json({ error: 'Không thể lấy dữ liệu REST Countries; vui lòng thử lại sau.' }, 502);
+    }
   });
 
   app.post('/api/ai-ask', async (c) => {

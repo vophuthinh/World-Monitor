@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { describeEnsemble } from '../client/src/lib/ensemble-format';
 import { VietnamEnvSection } from '../client/src/components/right-panel/VietnamEnvSection';
+import { CountryLookupSection } from '../client/src/components/right-panel/CountryLookupSection';
 import type { VietnamEnvEnsemble, VietnamEnvLocation } from '../shared/types';
 
 const ens = (over: Partial<VietnamEnvEnsemble> = {}): VietnamEnvEnsemble => ({
@@ -86,5 +87,41 @@ it('shows the multi-model line on a location that has an ensemble, and nothing o
     expect(hanoi.textContent).not.toContain('mô hình');
   } finally {
     await cleanup();
+  }
+});
+
+it('shows marine and hourly data as model estimates', async () => {
+  const { container, cleanup } = await render([loc({
+    region: 'maritime', seaSurfaceTempC: 28, oceanCurrentKmh: 0.6, swellHeightM: 1.2,
+    hourlyForecast: [{ time: '2026-11-24T02:00', rainMm: 0, windKmh: 12 }],
+  })]);
+  try {
+    expect(container.textContent).toContain('Mặt biển 28°C');
+    expect(container.textContent).toContain('Dòng chảy 0.6 km/h');
+    expect(container.textContent).toContain('02:00 0mm/12km/h');
+    expect(container.textContent).toContain('dữ liệu mô hình tham khảo');
+  } finally { await cleanup(); }
+});
+
+it('reports country lookup failures instead of showing an empty success state', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'Chưa cấu hình RESTCOUNTRIES_API_KEY trên máy chủ.' }), { status: 503 })));
+  try {
+    await act(async () => root.render(<CountryLookupSection />));
+    const input = container.querySelector('input')!;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+    await act(async () => {
+      setter.call(input, 'Canada');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+    expect(container.querySelector('[role=alert]')?.textContent).toContain('Chưa cấu hình');
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+    vi.unstubAllGlobals();
   }
 });

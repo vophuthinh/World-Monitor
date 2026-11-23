@@ -545,6 +545,15 @@ export interface MarketSnapshot {
 
 export type AqiBand = 'good' | 'moderate' | 'sensitive' | 'unhealthy' | 'hazardous';
 
+export interface CountryReference {
+  name: string;
+  code: string;
+  capital?: string;
+  region?: string;
+  population?: number;
+  currencies: string[];
+}
+
 /** Spread of the next-24h forecast across several weather models (Open-Meteo multi-model). */
 export interface VietnamEnvEnsemble {
   models: number;
@@ -580,6 +589,11 @@ export interface VietnamEnvLocation {
   beaufortScale: number;
   waveHeightM?: number;
   wavePeriodS?: number;
+  seaSurfaceTempC?: number;
+  oceanCurrentKmh?: number;
+  oceanCurrentDirectionDeg?: number;
+  swellHeightM?: number;
+  hourlyForecast?: Array<{ time: string; rainMm: number | null; windKmh: number | null }>;
   weatherCode: number;
   weatherLabel: string;
   stormWarning: boolean;
@@ -601,6 +615,12 @@ export interface VietnamWeatherAlert {
 
 export interface VietnamEnvSnapshot {
   locations: VietnamEnvLocation[];
+  riverDischarge?: Array<{
+    city: string;
+    latitude: number;
+    longitude: number;
+    forecast: Array<{ date: string; dischargeM3s: number }>;
+  }>;
   alerts?: VietnamWeatherAlert[];
   maxSeaGustKmh: number;
   maxWaveHeightM?: number;

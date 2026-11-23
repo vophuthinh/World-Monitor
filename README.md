@@ -67,6 +67,8 @@ Chỉ tab đầu được tải khi mở trang; 5 tab còn lại nạp khi bạn
 - **Vị trí AIS:** vị trí Digitraffic quá 30 phút hoặc không rõ thời điểm không được hiển thị; AISStream yêu cầu thời gian gửi hợp lệ trong 25 phút. Thời gian gửi không đảm bảo là thời gian đo vị trí. Tin AIS tĩnh không làm mới vị trí; nội suy tàu chỉ dùng hướng chuyển động và tốc độ khả dụng. Nguồn Digitraffic lỗi được phản ánh trong trạng thái collector, kể cả khi còn dữ liệu lưu tạm.
 - **MapLibre:** `npm audit` có thể vẫn báo GHSA-jrc7-96c5-q579 cho v5.24.1 dù [ghi chú phát hành v5.24.1](https://github.com/maplibre/maplibre-gl-js/releases/tag/v5.24.1) xác nhận đã đưa bản sửa #8189 vào v5. Kiểm thử attribution bao gồm trường hợp các thuộc tính nguy hiểm liền nhau; cảnh báo phụ thuộc vẫn cần được theo dõi.
 - **Số liệu thời gian thực** (giá crypto Binance, xác suất Polymarket, vị trí tàu, luồng tin) đẩy xuống trình duyệt qua SSE tại `/api/stream`.
+- **Tra cứu quốc gia:** đặt `RESTCOUNTRIES_API_KEY` trong `.env` sau khi thu hồi khóa đã lộ. Tra cứu qua server, cache 24 giờ, giới hạn 30 lượt upstream / 24 giờ cho mỗi tiến trình (khởi động lại sẽ đặt lại giới hạn; quota gói miễn phí dùng chung toàn tài khoản). Không đưa khóa vào trình duyệt.
+- **Open-Meteo:** mục Live Intel có nhiệt độ mặt biển, dòng chảy, sóng lừng và dự báo mưa/gió theo giờ; lưu lượng sông là mô phỏng GloFAS tại ô lưới gần trung tâm Hà Nội và TP.HCM, chưa xác minh sông, không phải mực nước hay cảnh báo lũ. Dữ liệu là mô hình tham khảo, không dùng dẫn đường. Gói miễn phí chỉ dành cho phi thương mại và cần ghi nguồn theo [điều khoản Open-Meteo](https://open-meteo.com/en/terms).
 - **Lịch gắn nhãn "Ước tính"** không phải ngày công bố đã xác nhận. Hãy đối chiếu lịch chính thức.
 
 ## Kiến trúc

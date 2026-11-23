@@ -140,11 +140,38 @@ export function VietnamEnvSection({ vietnamEnv, onFlyToLocation, onForceRefresh,
                   </div>
                 )}
                 {loc.ensemble && <EnsembleLine ensemble={loc.ensemble} />}
+                {isSea && (loc.seaSurfaceTempC !== undefined || loc.oceanCurrentKmh !== undefined || loc.swellHeightM !== undefined) && (
+                  <div className="mt-1 text-[9px] text-slate-400">
+                    {loc.seaSurfaceTempC !== undefined && `Mặt biển ${loc.seaSurfaceTempC}°C · `}
+                    {loc.oceanCurrentKmh !== undefined && `Dòng chảy ${loc.oceanCurrentKmh} km/h${loc.oceanCurrentDirectionDeg !== undefined ? ` (${loc.oceanCurrentDirectionDeg}°)` : ''} · `}
+                    {loc.swellHeightM !== undefined && `Sóng lừng ${loc.swellHeightM} m`}
+                  </div>
+                )}
+                {loc.hourlyForecast && loc.hourlyForecast.length > 0 && (
+                  <div className="mt-1 text-[9px] text-slate-400">
+                    6 giờ tới: {loc.hourlyForecast.map((hour) =>
+                      `${hour.time.slice(11)} ${hour.rainMm === null ? '—' : `${hour.rainMm}mm`}/${hour.windKmh === null ? '—' : `${hour.windKmh}km/h`}`,
+                    ).join(' · ')}
+                  </div>
+                )}
               </button>
             );
           })}
       </div>
 
+      <p className="mt-1 text-[9px] text-slate-400">
+        Open-Meteo · tải lúc {new Date(vietnamEnv.updatedAt).toLocaleString('vi-VN')}: dữ liệu mô hình tham khảo, không dùng để dẫn đường hoặc thay cảnh báo chính thức.
+      </p>
+      {vietnamEnv.riverDischarge && vietnamEnv.riverDischarge.length > 0 && (
+        <div className="mt-2 rounded border border-slate-700 p-2 text-[10px] text-slate-300">
+          <strong>Lưu lượng mô phỏng gần TP.HCM / Hà Nội · Open-Meteo GloFAS</strong>
+          <p>Ô lưới gần tọa độ thành phố; chưa xác minh sông, không phải mực nước hoặc cảnh báo lũ.</p>
+          {vietnamEnv.riverDischarge.map((river) => (
+            <p key={river.city}>{river.city} ({river.latitude.toFixed(3)}, {river.longitude.toFixed(3)}): {river.forecast.map((day) => `${day.date}: ${day.dischargeM3s.toLocaleString('vi-VN')} m³/s`).join(' · ')}</p>
+          ))}
+        </div>
+      )}
+      {!vietnamEnv.riverDischarge?.length && <p className="mt-1 text-[9px] text-slate-400">Chưa có lưu lượng mô phỏng gần Hà Nội / TP.HCM.</p>}
       {vietnamEnv.alerts && vietnamEnv.alerts.length > 0 && (
         <div className="mt-2 rounded border border-sky-500/30 bg-[#0a1322] px-2.5 py-2">
           <div className="mb-1 flex items-center justify-between font-mono text-[9.5px]">

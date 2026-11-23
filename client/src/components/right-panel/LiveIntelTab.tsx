@@ -34,6 +34,7 @@ import { IntelFeedsSection } from './IntelFeedsSection';
 import { PolymarketSection } from './PolymarketSection';
 import { RegionalWarningsSection } from './RegionalWarningsSection';
 import { VietnamEnvSection } from './VietnamEnvSection';
+import { CountryLookupSection } from './CountryLookupSection';
 import type { FlashDirection } from '../../hooks/useMonitorData';
 
 export interface LiveIntelTabProps {
@@ -263,6 +264,7 @@ export const LiveIntelTab = memo(function LiveIntelTab({
       <TheaterPostureSection theaterPostures={theaterPostures} onFlyToLocation={onFlyToLocation} />
 
       {/* 1b. Vietnam Marine Weather, UV/Rain, AQI & NCHMF Storm Alerts */}
+      <CountryLookupSection />
       {vietnamEnv && vietnamEnv.locations.length > 0 && (
         <VietnamEnvSection
           vietnamEnv={vietnamEnv}

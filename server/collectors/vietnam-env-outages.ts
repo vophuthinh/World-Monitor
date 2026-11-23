@@ -32,6 +32,7 @@ const NCHMF_WEATHER_RSS_URL =
   'https://news.google.com/rss/search?q=(site:nchmf.gov.vn+OR+%22Trung+t%C3%A2m+D%E1%BB%B1+b%C3%A1o+Kh%C3%AD+t%C6%B0%E1%BB%A3ng+Th%E1%BB%A7y+v%C4%83n+Qu%E1%BB%91c+gia%22+OR+%22%C3%A1p+th%E1%BA%A5p+nhi%E1%BB%87t+%C4%91%E1%BB%9Bi%22+OR+%22b%C3%A3o+tr%C3%AAn+Bi%E1%BB%83n+%C4%90%C3%B4ng%22+OR+%22c%E1%BA%A3nh+b%C3%A1o+l%C5%A9+qu%C3%A9t%22+OR+%22kh%C3%B4ng+kh%C3%AD+l%E1%BA%A1nh+t%C4%83ng+c%C6%B0%E1%BB%9Dng%22)+when:7d&hl=vi&gl=VN&ceid=VN:vi';
 
 export interface OpenMeteoForecastEntry {
+  hourly?: { time?: string[]; precipitation?: Array<number | null>; wind_speed_10m?: Array<number | null> };
   current?: {
     temperature_2m?: number;
     relative_humidity_2m?: number;
@@ -62,7 +63,33 @@ export interface OpenMeteoMarineEntry {
     wave_height?: number;
     wave_direction?: number;
     wave_period?: number;
+    sea_surface_temperature?: number;
+    ocean_current_velocity?: number;
+    ocean_current_direction?: number;
+    swell_wave_height?: number;
   };
+}
+
+export function normalizeRiverDischarge(payload: unknown): NonNullable<VietnamEnvSnapshot['riverDischarge']> {
+  if (!Array.isArray(payload)) return [];
+  const cities = [
+    { city: 'TP.HCM', lat: 10.7769, lon: 106.7009 },
+    { city: 'Hà Nội', lat: 21.0285, lon: 105.8542 },
+  ];
+  return cities.flatMap(({ city, lat, lon }, index) => {
+    const row = payload[index] as { latitude?: unknown; longitude?: unknown; daily?: { time?: unknown; river_discharge?: unknown } } | undefined;
+    if (typeof row?.latitude !== 'number' || typeof row.longitude !== 'number' ||
+      !Number.isFinite(row.latitude) || !Number.isFinite(row.longitude) ||
+      Math.abs(row.latitude - lat) > 0.2 || Math.abs(row.longitude - lon) > 0.2 ||
+      !Array.isArray(row.daily?.time) || !Array.isArray(row.daily?.river_discharge)) return [];
+    const forecast = row.daily.time.flatMap((date, i) => {
+      const discharge = (row.daily!.river_discharge as unknown[])[i];
+      return typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) &&
+        typeof discharge === 'number' && Number.isFinite(discharge) && discharge >= 0
+        ? [{ date, dischargeM3s: discharge }] : [];
+    });
+    return forecast.length ? [{ city, latitude: row.latitude, longitude: row.longitude, forecast }] : [];
+  });
 }
 
 function degToCompassVi(deg?: number): string | undefined {
@@ -154,6 +181,7 @@ export function normalizeVietnamEnvLocations(
     let aqiBand: AqiBand | undefined;
     let waveHeightM: number | undefined;
     let wavePeriodS: number | undefined;
+    let marineDetails: Partial<VietnamEnvLocation> = {};
 
     if (st.region === 'mainland') {
       const aqiCur = aqis[mainlandIdx]?.current;
@@ -177,6 +205,14 @@ export function normalizeVietnamEnvLocations(
         const wp = Number(marineCur.wave_period);
         if (Number.isFinite(wh) && wh >= 0) waveHeightM = Number(wh.toFixed(2));
         if (Number.isFinite(wp) && wp > 0) wavePeriodS = Number(wp.toFixed(1));
+        const valid = (value: unknown, min: number, max: number) =>
+          typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max ? value : undefined;
+        marineDetails = {
+          seaSurfaceTempC: valid(marineCur.sea_surface_temperature, -5, 50),
+          oceanCurrentKmh: valid(marineCur.ocean_current_velocity, 0, 100),
+          oceanCurrentDirectionDeg: valid(marineCur.ocean_current_direction, 0, 360),
+          swellHeightM: valid(marineCur.swell_wave_height, 0, 100),
+        };
       }
     }
 
@@ -203,6 +239,7 @@ export function normalizeVietnamEnvLocations(
       beaufortScale,
       waveHeightM,
       wavePeriodS,
+      ...marineDetails,
       weatherCode,
       weatherLabel: classifyWeatherCodeVi(weatherCode),
       stormWarning,
@@ -297,11 +334,12 @@ export async function fetchVietnamEnvironment(): Promise<VietnamEnvSnapshot> {
   const sLats = seaStations.map((s) => s.lat).join(',');
   const sLons = seaStations.map((s) => s.lon).join(',');
 
-  const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,precipitation,uv_index,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max&forecast_days=2&wind_speed_unit=kmh&timezone=Asia%2FHo_Chi_Minh`;
+  const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,precipitation,uv_index,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code&hourly=precipitation,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max&forecast_days=2&wind_speed_unit=kmh&timezone=Asia%2FHo_Chi_Minh`;
   const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${mLats}&longitude=${mLons}&current=us_aqi,pm2_5`;
-  const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${sLats}&longitude=${sLons}&current=wave_height,wave_direction,wave_period`;
+  const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${sLats}&longitude=${sLons}&current=wave_height,wave_direction,wave_period,sea_surface_temperature,ocean_current_velocity,ocean_current_direction,swell_wave_height`;
+  const riverUrl = 'https://flood-api.open-meteo.com/v1/flood?latitude=10.7769,21.0285&longitude=106.7009,105.8542&daily=river_discharge&forecast_days=3&timezone=Asia%2FHo_Chi_Minh';
 
-  const [fcRaw, aqiRaw, marineRaw, nchmfRssText, ensembles] = await Promise.all([
+  const [fcRaw, aqiRaw, marineRaw, nchmfRssText, ensembles, riverRaw] = await Promise.all([
     fetchJsonWithTimeout<OpenMeteoForecastEntry[] | OpenMeteoForecastEntry>(forecastUrl, {
       timeoutMs: 8_500,
       retries: 1,
@@ -326,17 +364,32 @@ export async function fetchVietnamEnvironment(): Promise<VietnamEnvSnapshot> {
       .catch(() => ''),
     // Never throws: no multi-model data simply means no ensemble line in the UI.
     fetchMultiModelForecasts(VIETNAM_STATIONS, now),
+    fetchJsonWithTimeout<unknown>(riverUrl, { timeoutMs: 8_000, retries: 0 }).catch((error: unknown) => {
+      console.warn('[vietnam-env] Open-Meteo river forecast unavailable:', error instanceof Error ? error.message : 'unknown error');
+      return null;
+    }),
   ]);
 
   const fcArray = Array.isArray(fcRaw) ? fcRaw : [fcRaw];
   const aqiArray = Array.isArray(aqiRaw) ? aqiRaw : [aqiRaw];
   const marineArray = Array.isArray(marineRaw) ? marineRaw : [marineRaw];
 
+  const localHour = new Date(now + 7 * 3_600_000).toISOString().slice(0, 13);
   const locations = attachEnsembles(
     normalizeVietnamEnvLocations(fcArray, aqiArray, marineArray),
     VIETNAM_STATIONS.map((s) => s.id),
     ensembles,
-  );
+  ).map((location) => {
+    const hourly = fcArray[VIETNAM_STATIONS.findIndex((station) => station.id === location.id)]?.hourly;
+    const start = hourly?.time?.findIndex((time) => typeof time === 'string' && time.startsWith(localHour)) ?? -1;
+    if (!hourly?.time || start < 0) return location;
+    const valid = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null;
+    const hourlyForecast = hourly.time.slice(start, start + 6).map((time, index) => ({
+      time, rainMm: valid(hourly.precipitation?.[start + index]), windKmh: valid(hourly.wind_speed_10m?.[start + index]),
+    })).filter((hour) => hour.rainMm !== null || hour.windKmh !== null);
+    return hourlyForecast.length ? { ...location, hourlyForecast } : location;
+  });
+  const riverDischarge = normalizeRiverDischarge(riverRaw);
   if (locations.length === 0) {
     throw new Error('Open-Meteo Vietnam environment feed returned no stations');
   }
@@ -357,6 +410,7 @@ export async function fetchVietnamEnvironment(): Promise<VietnamEnvSnapshot> {
 
   return {
     locations,
+    riverDischarge,
     alerts,
     maxSeaGustKmh,
     maxWaveHeightM: maxWaveHeightM > 0 ? maxWaveHeightM : undefined,
