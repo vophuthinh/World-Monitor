@@ -46,6 +46,25 @@ const TIME_WINDOW_MS: Record<Exclude<TimeWindow, 'all'>, number> = {
   '7d': 7 * 86_400_000,
 };
 
+const EMPTY_POINTS: GeoPointFeature[] = [];
+const EMPTY_LINES: GeoLineFeature[] = [];
+const EMPTY_ZONES: VietnamArchipelagoZone[] = [];
+const EMPTY_SEA_LABELS: VietnamSeaLabel[] = [];
+const EMPTY_NEWS: NewsItem[] = [];
+const EMPTY_PREDICTIONS: PredictionItem[] = [];
+
+function filterTimeWindow<T>(items: readonly T[], timeWindow: TimeWindow, getTime: (item: T) => number): T[] {
+  const now = Date.now();
+  const maxAge = timeWindow === 'all' ? Number.POSITIVE_INFINITY : TIME_WINDOW_MS[timeWindow];
+  return items.filter((item) => {
+    const ts = getTime(item);
+    return ts <= 0 || now - ts <= maxAge;
+  });
+}
+
+const pointTime = (item: GeoPointFeature) => item.timestamp;
+const newsTime = (item: NewsItem) => item.publishedAt;
+
 // Clean default mode: 6 core situational awareness layers ON; secondary/dense layers 1-click toggleable
 const DEFAULT_ACTIVE_LAYERS: Record<MapLayerId, boolean> = {
   military: true,
@@ -69,6 +88,8 @@ export function useMonitorData() {
   const [data, setData] = useState<BootstrapResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [fastError, setFastError] = useState<string | null>(null);
+  const [refreshErrors, setRefreshErrors] = useState<Record<string, string>>({});
   const [refreshingIds, setRefreshingIds] = useState<Set<string>>(new Set());
 
   // Realtime SSE + WebSocket telemetry state
@@ -85,6 +106,7 @@ export function useMonitorData() {
 
   const [activeLayers, setActiveLayers] = useState<Record<MapLayerId, boolean>>(DEFAULT_ACTIVE_LAYERS);
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('24h');
+  const [windowTick, setWindowTick] = useState(0);
   const [radarOpacity, setRadarOpacity] = useState<number>(0.55);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedFeature, setSelectedFeature] = useState<InspectableFeature | null>(null);
@@ -97,6 +119,12 @@ export function useMonitorData() {
   const predFlashResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bootstrapDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bootstrapInFlightRef = useRef(false);
+
+  useEffect(() => {
+    if (timeWindow === 'all') return;
+    const timer = setInterval(() => setWindowTick((tick) => tick + 1), 60_000);
+    return () => clearInterval(timer);
+  }, [timeWindow]);
 
   const loadBootstrap = useCallback(async (silent = false) => {
     if (silent && bootstrapInFlightRef.current) return null;
@@ -114,7 +142,7 @@ export function useMonitorData() {
       setError(null);
       return json;
     } catch (err) {
-      if (mountedRef.current && !silent) {
+      if (mountedRef.current) {
         setError(err instanceof Error ? err.message : 'Không thể kết nối máy chủ API');
       }
       return null;
@@ -138,14 +166,17 @@ export function useMonitorData() {
   const loadLiveFast = useCallback(async () => {
     try {
       const resp = await fetch('/api/live-fast');
-      if (!resp.ok) return;
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const fast = (await resp.json()) as LiveFastResponse;
       if (!mountedRef.current) return;
+      setFastError(null);
       const now = Date.now();
       setMilitaryAnchorMs(now);
       setVesselsAnchorMs(now);
       setData((prev) => {
         if (!prev) return prev;
+        const marketsUnavailable = fast.health.some((h) => h.id === 'markets-crypto' && h.status === 'error');
+        const marketsRetained = fast.health.some((h) => h.id === 'markets-crypto' && (h.status === 'stale' || h.status === 'error'));
         return {
           ...prev,
           serverTime: fast.serverTime,
@@ -158,9 +189,13 @@ export function useMonitorData() {
           weatherRadar: fast.weatherRadar ?? prev.weatherRadar,
           markets: {
             ...prev.markets,
-            quotes: fast.quotes.length > 0 ? fast.quotes : prev.markets.quotes,
+            quotes: fast.quotes.length > 0 || marketsUnavailable ? fast.quotes : prev.markets.quotes,
             crypto: fast.crypto.length > 0 ? fast.crypto : prev.markets.crypto,
             fearGreed: fast.fearGreed ?? prev.markets.fearGreed,
+            fred: fast.fred,
+            vnMacroPulse: fast.vnMacroPulse,
+            expiredMacroNotices: fast.expiredMacroNotices,
+            vn30: marketsRetained ? prev.markets.vn30?.map((quote) => ({ ...quote, retained: true })) : prev.markets.vn30,
             updatedAt: fast.serverTime,
           },
           predictions:
@@ -169,8 +204,10 @@ export function useMonitorData() {
           health: fast.health,
         };
       });
-    } catch {
-      // Silent fallback poll miss
+    } catch (err) {
+      if (mountedRef.current) {
+        setFastError(err instanceof Error ? err.message : 'Không thể cập nhật dữ liệu nhanh');
+      }
     }
   }, []);
 
@@ -390,8 +427,23 @@ export function useMonitorData() {
     async (collectorId: CollectorId | 'polymarket-news') => {
       setRefreshingIds((prev) => new Set(prev).add(collectorId));
       try {
-        await fetch(`/api/refresh/${collectorId}`, { method: 'POST' });
+        const response = await fetch(`/api/refresh/${collectorId}`, { method: 'POST' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (mountedRef.current) {
+          setRefreshErrors((prev) => {
+            const next = { ...prev };
+            delete next[collectorId];
+            return next;
+          });
+        }
         await loadBootstrap(true);
+      } catch (err) {
+        if (mountedRef.current) {
+          setRefreshErrors((prev) => ({
+            ...prev,
+            [collectorId]: err instanceof Error ? err.message : 'Không thể làm mới',
+          }));
+        }
       } finally {
         if (mountedRef.current) {
           setRefreshingIds((prev) => {
@@ -489,56 +541,46 @@ export function useMonitorData() {
   const staticGeoRef = data?.staticGeo;
   const rawNewsRef = data?.news;
   const rawPredictionsRef = data?.predictions;
+  const cyberThreats = useMemo(() => filterTimeWindow(layersRef?.cyberThreats ?? EMPTY_POINTS, timeWindow, pointTime), [layersRef?.cyberThreats, timeWindow, windowTick]);
+  const gpsOutages = useMemo(() => filterTimeWindow(layersRef?.gpsOutages ?? EMPTY_POINTS, timeWindow, pointTime), [layersRef?.gpsOutages, timeWindow, windowTick]);
+  const earthquakes = useMemo(() => filterTimeWindow(layersRef?.earthquakes ?? EMPTY_POINTS, timeWindow, pointTime), [layersRef?.earthquakes, timeWindow, windowTick]);
+  const natural = useMemo(() => filterTimeWindow(layersRef?.natural ?? EMPTY_POINTS, timeWindow, pointTime), [layersRef?.natural, timeWindow, windowTick]);
+  const geopolitics = useMemo(() => filterTimeWindow(layersRef?.geopolitics ?? EMPTY_POINTS, timeWindow, pointTime), [layersRef?.geopolitics, timeWindow, windowTick]);
+  const news = useMemo(() => filterTimeWindow(rawNewsRef ?? EMPTY_NEWS, timeWindow, newsTime), [rawNewsRef, timeWindow, windowTick]);
 
   const filteredData = useMemo(() => {
     if (!layersRef || !staticGeoRef) {
       return {
-        military: [] as GeoPointFeature[],
-        vessels: [] as GeoPointFeature[],
-        cyberThreats: [] as GeoPointFeature[],
-        gpsOutages: [] as GeoPointFeature[],
-        earthquakes: [] as GeoPointFeature[],
-        natural: [] as GeoPointFeature[],
-        geopolitics: [] as GeoPointFeature[],
-        militaryBases: [] as GeoPointFeature[],
-        aiDatacenters: [] as GeoPointFeature[],
-        chokepoints: [] as GeoPointFeature[],
-        nuclear: [] as GeoPointFeature[],
-        financeCenters: [] as GeoPointFeature[],
-        cables: [] as GeoLineFeature[],
-        vietnamSovereignty: [] as GeoPointFeature[],
-        vietnamZones: [] as VietnamArchipelagoZone[],
-        vietnamSeaLabels: [] as VietnamSeaLabel[],
-        news: [] as NewsItem[],
-        predictions: [] as PredictionItem[],
+        military: EMPTY_POINTS, vessels: EMPTY_POINTS, cyberThreats: EMPTY_POINTS,
+        gpsOutages: EMPTY_POINTS, earthquakes: EMPTY_POINTS, natural: EMPTY_POINTS,
+        geopolitics: EMPTY_POINTS, militaryBases: EMPTY_POINTS, aiDatacenters: EMPTY_POINTS,
+        chokepoints: EMPTY_POINTS, nuclear: EMPTY_POINTS, financeCenters: EMPTY_POINTS,
+        cables: EMPTY_LINES, vietnamSovereignty: EMPTY_POINTS, vietnamZones: EMPTY_ZONES,
+        vietnamSeaLabels: EMPTY_SEA_LABELS, news: EMPTY_NEWS, predictions: EMPTY_PREDICTIONS,
       };
     }
 
-    const now = Date.now();
-    const maxAge = timeWindow === 'all' ? Number.POSITIVE_INFINITY : TIME_WINDOW_MS[timeWindow];
-    const withinWindow = (ts: number) => ts <= 0 || now - ts <= maxAge;
-
     return {
       military: layersRef.military,
-      vessels: layersRef.vessels ?? [],
-      cyberThreats: (layersRef.cyberThreats ?? []).filter((f) => withinWindow(f.timestamp)),
-      gpsOutages: (layersRef.gpsOutages ?? []).filter((f) => withinWindow(f.timestamp)),
-      earthquakes: layersRef.earthquakes.filter((f) => withinWindow(f.timestamp)),
-      natural: layersRef.natural.filter((f) => withinWindow(f.timestamp)),
-      geopolitics: layersRef.geopolitics.filter((f) => withinWindow(f.timestamp)),
-      militaryBases: staticGeoRef.militaryBases ?? [],
-      aiDatacenters: staticGeoRef.aiDatacenters ?? [],
+      vessels: layersRef.vessels ?? EMPTY_POINTS,
+      cyberThreats,
+      gpsOutages,
+      earthquakes,
+      natural,
+      geopolitics,
+      militaryBases: staticGeoRef.militaryBases ?? EMPTY_POINTS,
+      aiDatacenters: staticGeoRef.aiDatacenters ?? EMPTY_POINTS,
       chokepoints: staticGeoRef.chokepoints,
       nuclear: staticGeoRef.nuclear,
       financeCenters: staticGeoRef.financeCenters,
       cables: staticGeoRef.cables,
-      vietnamSovereignty: staticGeoRef.vietnamSovereignty ?? [],
-      vietnamZones: staticGeoRef.vietnamZones ?? [],
-      vietnamSeaLabels: staticGeoRef.vietnamSeaLabels ?? [],
-      news: (rawNewsRef ?? []).filter((n) => withinWindow(n.publishedAt)),
-      predictions: rawPredictionsRef ?? [],
+      vietnamSovereignty: staticGeoRef.vietnamSovereignty ?? EMPTY_POINTS,
+      vietnamZones: staticGeoRef.vietnamZones ?? EMPTY_ZONES,
+      vietnamSeaLabels: staticGeoRef.vietnamSeaLabels ?? EMPTY_SEA_LABELS,
+      news,
+      predictions: rawPredictionsRef ?? EMPTY_PREDICTIONS,
     };
-  }, [layersRef, staticGeoRef, rawNewsRef, rawPredictionsRef, timeWindow]);
+  }, [layersRef, staticGeoRef, rawPredictionsRef, cyberThreats, gpsOutages, earthquakes, natural, geopolitics, news]);
 
   const cyberArcs = useMemo(
     () => (activeLayers.cyberArcs ? buildCyberAttackArcs(filteredData.cyberThreats) : []),
@@ -748,6 +790,8 @@ export function useMonitorData() {
     layerCounts,
     loading,
     error,
+    fastError,
+    refreshErrors,
     refreshingIds,
     streamConnected,
     liveTickCount,

@@ -38,7 +38,7 @@ interface TopCommandBarProps {
   onToggleGlobe: () => void;
   basemap: BasemapTheme;
   onChangeBasemap: (theme: BasemapTheme) => void;
-  theaters: TheaterViewPreset[];
+  theaters: readonly TheaterViewPreset[];
   activeTheaterId: string;
   onSelectTheater: (preset: TheaterViewPreset) => void;
   timeWindow: TimeWindow;
@@ -319,7 +319,8 @@ export const TopCommandBar = memo(function TopCommandBar({
                 key={opt.id}
                 type="button"
                 onClick={() => onChangeTimeWindow(opt.id)}
-                className={`rounded px-1.5 py-0.5 font-mono text-[10.5px] font-medium transition ${
+                aria-pressed={timeWindow === opt.id}
+                className={`min-h-11 min-w-11 rounded px-1.5 py-0.5 font-mono text-xs font-medium transition sm:min-h-8 sm:min-w-8 ${
                   timeWindow === opt.id
                     ? 'bg-cyan-500/25 text-cyan-200'
                     : 'text-slate-400 hover:text-slate-200'

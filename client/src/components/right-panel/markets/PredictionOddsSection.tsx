@@ -13,10 +13,13 @@ export function PredictionOddsSection({ topMacroGeopoliticsPredictions, translat
       <div className="flex items-center justify-between">
         <h2 className="flex items-center gap-1.5 font-mono text-[11px] font-semibold tracking-wider text-slate-300">
           <ChartBar size={13} className="text-cyan-400" />
-          <span>CHỈ BÁO XÁC SUẤT VĨ MÔ &amp; ĐỊA CHÍNH TRỊ (TOP 5)</span>
+          <span>KỲ VỌNG HÀM Ý THỊ TRƯỜNG · VĨ MÔ &amp; ĐỊA CHÍNH TRỊ</span>
         </h2>
         <span className="font-mono text-[9.5px] text-slate-500">Polymarket</span>
       </div>
+      <p className="mt-0.5 text-[10px] text-slate-500">
+        Xác suất quy đổi từ giá hợp đồng trên Polymarket, không phải dự báo do hệ thống tự xây.
+      </p>
 
       <div className="mt-1.5 divide-y divide-slate-800/80 rounded border border-slate-800/95 bg-[#0d1524]">
         {topMacroGeopoliticsPredictions.map((item) => {

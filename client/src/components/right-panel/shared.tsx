@@ -165,13 +165,20 @@ export function MiniSparkline({ values, positive }: { values?: number[]; positiv
 }
 
 export function RegimeHistoryTimelineChart({ history }: { history: readonly RegimeHistoryPoint[] }) {
-  if (history.length < 2) return null;
+  if (history.length < 2) {
+    return (
+      <p className="mt-2 text-[10px] text-slate-400">
+        Chưa đủ 2 ngày ghi nhận thực để hiển thị lịch sử.
+      </p>
+    );
+  }
   const w = 310;
   const h = 54;
   const padX = 4;
   const padY = 6;
   const compassVals = history.map((p) => p.compassScore);
-  const macroVals = history.map((p) => p.vnMacroScore);
+  const hasFullVnMacro = history.every((p) => typeof p.vnMacroScore === 'number');
+  const macroVals = hasFullVnMacro ? history.map((p) => p.vnMacroScore as number) : [];
   const allVals = [...compassVals, ...macroVals];
   const minVal = Math.max(10, Math.min(...allVals) - 5);
   const maxVal = Math.min(98, Math.max(...allVals) + 5);
@@ -189,12 +196,23 @@ export function RegimeHistoryTimelineChart({ history }: { history: readonly Regi
   const first = history[0];
   const latest = history[history.length - 1];
   const deltaCompass = latest.compassScore - first.compassScore;
+  const reconstructedCount = history.filter((p) => p.reconstructed).length;
+  const observedCount = history.length - reconstructedCount;
 
   return (
     <div className="mt-2 rounded border border-slate-800/90 bg-[#08101d] p-2 font-mono">
       <div className="mb-1 flex flex-wrap items-center justify-between gap-1 text-[9px]">
-        <span className="font-bold text-emerald-300">
-          NHẬT KÝ LỊCH SỬ CHUYỂN PHA ({history.length} PHIÊN)
+        <span className="flex flex-wrap items-center gap-1 font-bold text-emerald-300">
+          <span>
+            {reconstructedCount > 0
+              ? `ƯỚC TÍNH DAO ĐỘNG NGẮN HẠN (${observedCount} ngày ghi thực · ${reconstructedCount} phiên ước tính)`
+              : `NHẬT KÝ ĐIỂM GHI NHẬN HÀNG NGÀY (${observedCount} NGÀY)`}
+          </span>
+          {reconstructedCount > 0 && (
+            <span className="rounded border border-amber-500/45 bg-amber-500/15 px-1 py-0.1 text-[8px] font-bold text-amber-200">
+              KHÔNG DÙNG BACKTEST
+            </span>
+          )}
         </span>
         <span
           className={`font-semibold tabular-nums ${
@@ -215,15 +233,17 @@ export function RegimeHistoryTimelineChart({ history }: { history: readonly Regi
           strokeDasharray="2 3"
           strokeWidth="1"
         />
-        <polyline
-          fill="none"
-          stroke="#38bdf8"
-          strokeOpacity="0.65"
-          strokeWidth="1.25"
-          strokeDasharray="3 2"
-          strokeLinecap="round"
-          points={toPoints(macroVals)}
-        />
+        {hasFullVnMacro && (
+          <polyline
+            fill="none"
+            stroke="#38bdf8"
+            strokeOpacity="0.65"
+            strokeWidth="1.25"
+            strokeDasharray="3 2"
+            strokeLinecap="round"
+            points={toPoints(macroVals)}
+          />
+        )}
         <polyline
           fill="none"
           stroke="#10b981"
@@ -235,8 +255,10 @@ export function RegimeHistoryTimelineChart({ history }: { history: readonly Regi
       </svg>
       <div className="mt-0.5 flex items-center justify-between text-[8.5px] text-slate-400 tabular-nums">
         <span className="flex items-center gap-2">
-          <span className="text-emerald-300">━ Điểm La bàn ({latest.compassScore})</span>
-          <span className="text-sky-300">┄ Vĩ mô VN ({latest.vnMacroScore})</span>
+          <span className="text-emerald-300">━ Điểm Rủi ro ({latest.compassScore})</span>
+          {latest.vnMacroScore !== undefined && (
+            <span className="text-sky-300">┄ Vĩ mô VN ({latest.vnMacroScore})</span>
+          )}
         </span>
         {latest.vnIndexPrice && (
           <span className="text-slate-300">
@@ -244,6 +266,11 @@ export function RegimeHistoryTimelineChart({ history }: { history: readonly Regi
           </span>
         )}
       </div>
+      <p className="mt-1 text-[8.5px] leading-snug text-slate-500">
+        {reconstructedCount > 0
+          ? 'Các phiên ước tính dựng lại từ giá đóng cửa chỉ số và giữ cố định số vĩ mô hiện hành; không phải lịch sử vĩ mô thực.'
+          : 'Ghi nhận điểm tổng hợp mỗi ngày khi ứng dụng chạy; không thay thế chuỗi dữ liệu kinh tế gốc theo kỳ thống kê.'}
+      </p>
     </div>
   );
 }

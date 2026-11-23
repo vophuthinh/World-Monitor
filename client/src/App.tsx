@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowsClockwise, SidebarSimple, WarningDiamond } from '@phosphor-icons/react';
+import { THEATER_PRESETS } from '@shared/registries/theaters';
 import type { BasemapTheme, TheaterViewPreset } from '@shared/types';
 import { FeatureInspector } from './components/FeatureInspector';
 import { LayerControlDock } from './components/LayerControlDock';
@@ -18,6 +19,8 @@ export function App() {
     layerCounts,
     loading,
     error,
+    fastError,
+    refreshErrors,
     refreshingIds,
     streamConnected,
     liveTickCount,
@@ -54,6 +57,7 @@ export function App() {
   const [basemap, setBasemap] = useState<BasemapTheme>('dark-matter');
   const [activeTheaterId, setActiveTheaterId] = useState<string>('east-sea-vn');
   const [mobileIntelOpen, setMobileIntelOpen] = useState<boolean>(false);
+  const mobileIntelButtonRef = useRef<HTMLButtonElement>(null);
   const [desktopIntelOpen, setDesktopIntelOpen] = useState<boolean>(true);
   const [liveTvOpen, setLiveTvOpen] = useState<boolean>(false);
   const [windyOpen, setWindyOpen] = useState<boolean>(false);
@@ -69,15 +73,13 @@ export function App() {
     radarFrameIndex >= 0 && radarFrameIndex < radarFrames.length
       ? radarFrameIndex
       : defaultRadarIdx;
-  const activeRadarSnapshot =
-    data?.weatherRadar && radarFrames[resolvedRadarIdx]
-      ? {
-          ...data.weatherRadar,
-          path: radarFrames[resolvedRadarIdx].path,
-          tileUrlTemplate: radarFrames[resolvedRadarIdx].tileUrlTemplate,
-          frameTime: radarFrames[resolvedRadarIdx].time,
-        }
-      : (data?.weatherRadar ?? null);
+  const activeRadarSnapshot = useMemo(() => {
+    const radar = data?.weatherRadar;
+    const frame = radar?.pastFrames[resolvedRadarIdx];
+    return radar && frame
+      ? { ...radar, path: frame.path, tileUrlTemplate: frame.tileUrlTemplate, frameTime: frame.time }
+      : (radar ?? null);
+  }, [data?.weatherRadar, resolvedRadarIdx]);
 
   useEffect(() => {
     if (!radarPlaying || radarFrames.length <= 1) return;
@@ -93,6 +95,10 @@ export function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (mobileIntelOpen) {
+          setMobileIntelOpen(false);
+          mobileIntelButtonRef.current?.focus();
+        }
         setSelectedFeature(null);
         return;
       }
@@ -113,7 +119,7 @@ export function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [setSelectedFeature]);
+  }, [mobileIntelOpen, setSelectedFeature]);
 
   const handleSelectTheater = (preset: TheaterViewPreset) => {
     setActiveTheaterId(preset.id);
@@ -139,7 +145,7 @@ export function App() {
         onToggleGlobe={() => setIsGlobe((v) => !v)}
         basemap={basemap}
         onChangeBasemap={setBasemap}
-        theaters={data?.theaters ?? []}
+        theaters={data?.theaters ?? THEATER_PRESETS}
         activeTheaterId={activeTheaterId}
         onSelectTheater={handleSelectTheater}
         timeWindow={timeWindow}
@@ -182,6 +188,16 @@ export function App() {
           </button>
         </div>
       )}
+      {fastError && (
+        <div role="alert" className="border-b border-amber-500/40 bg-amber-950/75 px-4 py-1.5 text-xs text-amber-200">
+          Không cập nhật được dữ liệu nhanh: {fastError}. Đang hiển thị dữ liệu trước đó.
+        </div>
+      )}
+      {Object.entries(refreshErrors).map(([id, message]) => (
+        <div role="alert" key={id} className="border-b border-rose-500/40 bg-rose-950/75 px-4 py-1.5 text-xs text-rose-200">
+          Làm mới {id} thất bại: {message}. Hãy thử lại.
+        </div>
+      ))}
 
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
         {/* Map Canvas Viewport */}
@@ -282,9 +298,12 @@ export function App() {
 
           {/* Mobile/Tablet Right Panel Toggle Button */}
           <button
+            ref={mobileIntelButtonRef}
             type="button"
             onClick={() => setMobileIntelOpen((v) => !v)}
-            className="absolute right-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-md border border-cyan-500/45 bg-[#090f1a]/95 px-2.5 py-1.5 text-xs font-semibold text-cyan-200 shadow-lg lg:hidden"
+            aria-expanded={mobileIntelOpen}
+            aria-controls="mobile-intel-panel"
+            className="absolute right-3 top-3 z-20 inline-flex min-h-11 items-center gap-1.5 rounded-md border border-cyan-500/45 bg-[#090f1a]/95 px-2.5 py-1.5 text-xs font-semibold text-cyan-200 shadow-lg lg:hidden"
           >
             <SidebarSimple size={15} />
             <span>{mobileIntelOpen ? 'Đóng Intel' : 'Bảng Intel'}</span>
@@ -335,8 +354,12 @@ export function App() {
 
         {/* Mobile Slide-Over Right Intelligence Drawer */}
         {mobileIntelOpen && (
-          <div className="absolute inset-y-0 right-0 z-30 w-full max-w-[400px] shadow-2xl lg:hidden">
+          <div id="mobile-intel-panel" className="absolute inset-y-0 right-0 z-30 w-full max-w-[400px] shadow-2xl lg:hidden">
             <RightIntelPanel
+              onClose={() => {
+                setMobileIntelOpen(false);
+                mobileIntelButtonRef.current?.focus();
+              }}
               markets={
                 data?.markets ?? {
                   quotes: [],

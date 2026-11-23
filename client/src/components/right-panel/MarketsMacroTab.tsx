@@ -1,9 +1,14 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import {
   buildMarketCatalystCalendar,
   evaluateChokepointMarketImpacts,
 } from '@shared/catalysts-and-chokepoints';
-import { evaluateInvestmentCompass, evaluateMacroHealth } from '@shared/macro-health';
+import {
+  collectExpiredMacroNotices,
+  evaluateInvestmentCompass,
+  evaluateMacroHealth,
+} from '@shared/macro-health';
+import { collectObservationWarnings } from '@shared/macro/observation-freshness';
 import type {
   CollectorId,
   GeoPointFeature,
@@ -12,7 +17,7 @@ import type {
   RegimeHistoryPoint,
 } from '@shared/types';
 import { InvestmentCompassSection } from './InvestmentCompassSection';
-import { MacroHealthSection } from './MacroHealthSection';
+import { ExpiredMacroNotices, MacroHealthSection } from './MacroHealthSection';
 import { CatalystCalendarSection } from './markets/CatalystCalendarSection';
 import { ChokepointImpactSection } from './markets/ChokepointImpactSection';
 import { VnGoldSection } from './markets/VnGoldSection';
@@ -56,6 +61,12 @@ const MarketsMacroTab = memo(function MarketsMacroTab({
   translateVi,
 }: MarketsMacroTabProps) {
   const [macroRegion, setMacroRegion] = useState<'VN' | 'US'>('VN');
+  const [calendarNow, setCalendarNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCalendarNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const fxQuotes = useMemo(() => markets.quotes.filter((q) => q.group === 'fx'), [markets.quotes]);
   const indexAndCommodityQuotes = useMemo(
@@ -95,7 +106,12 @@ const MarketsMacroTab = memo(function MarketsMacroTab({
   const macroHealth = useMemo(
     () => evaluateMacroHealth(markets, predictions),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [markets.updatedAt, markets.fred, markets.macro, markets.vnMacroPulse, usdVndPrice, vniQuoteRef, predictions],
+    [markets.updatedAt, markets.fred, markets.macro, markets.vnMacroPulse, markets.expiredMacroNotices, usdVndPrice, vniQuoteRef, predictions],
+  );
+  const expiredNotices = useMemo(
+    () => collectExpiredMacroNotices(markets),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [markets.updatedAt, markets.fred, markets.vnMacroPulse, markets.expiredMacroNotices, usdVndPrice, vniQuoteRef],
   );
   const investmentCompass = useMemo(
     () => evaluateInvestmentCompass(markets, predictions),
@@ -123,9 +139,15 @@ const MarketsMacroTab = memo(function MarketsMacroTab({
       ? macroHealth.vn ?? macroHealth.us
       : macroHealth.us ?? macroHealth.vn;
 
+  const observationWarnings = useMemo(
+    () => collectObservationWarnings(markets, calendarNow),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [markets.fred, markets.vnMacroPulse, markets.macro, calendarNow],
+  );
+
   const catalystCalendar = useMemo(
-    () => buildMarketCatalystCalendar(Date.now(), investmentCompass?.polymarketFedSummary),
-    [investmentCompass?.polymarketFedSummary],
+    () => buildMarketCatalystCalendar(calendarNow, investmentCompass?.polymarketFedSummary),
+    [calendarNow, investmentCompass?.polymarketFedSummary],
   );
 
   const chokepointImpacts = useMemo(
@@ -160,10 +182,31 @@ const MarketsMacroTab = memo(function MarketsMacroTab({
 
   return (
     <div className="flex-1 space-y-4 overflow-y-auto p-3">
-      {/* Upcoming Macro & VN30 Derivatives Catalyst Countdown Calendar */}
-      <CatalystCalendarSection catalystCalendar={catalystCalendar} />
-
       {/* Macroeconomic Health & Regime Diagnosis Radar */}
+      <p className="mt-1 text-xs text-slate-300">
+        Dữ liệu giữ lại quá 7 ngày từ lần lấy thành công không được dùng để chấm điểm.
+      </p>
+      {(['vn', 'us'] as const).map((region) => observationWarnings[region].length > 0 && (
+        <details key={region} className="rounded border border-amber-500/45 bg-amber-950/35 px-2 py-1.5 text-xs text-amber-200">
+          <summary className="cursor-pointer">
+            ⚠ {region === 'vn' ? 'Việt Nam' : 'Mỹ'}: kỳ quan sát có thể cũ hoặc chưa rõ ({observationWarnings[region].length} chỉ báo)
+          </summary>
+          <p>Ngưỡng cảnh báo tham khảo theo tần suất, không tự loại khỏi điểm; các quy tắc lọc khác vẫn áp dụng.</p>
+          <ul>{observationWarnings[region].map((warning) => <li key={warning}>• {warning}</li>)}</ul>
+        </details>
+      ))}
+      {!macroHealth.vn && expiredNotices.vn.length > 0 && (
+        <div className="rounded border border-rose-500/45 bg-rose-950/35 px-2.5 py-1.5 font-mono text-xs text-rose-200">
+          ⚠️ Chưa đủ dữ liệu để chấm điểm vĩ mô Việt Nam.
+          <ExpiredMacroNotices notices={expiredNotices.vn} />
+        </div>
+      )}
+      {!macroHealth.us && expiredNotices.us.length > 0 && (
+        <div className="rounded border border-rose-500/45 bg-rose-950/35 px-2.5 py-1.5 font-mono text-xs text-rose-200">
+          ⚠️ Chưa đủ dữ liệu để chấm điểm vĩ mô Mỹ.
+          <ExpiredMacroNotices notices={expiredNotices.us} />
+        </div>
+      )}
       {activeMacroReport && (
         <MacroHealthSection
           activeMacroReport={activeMacroReport}
@@ -173,6 +216,9 @@ const MarketsMacroTab = memo(function MarketsMacroTab({
           refreshingIds={refreshingIds}
         />
       )}
+
+      {/* Upcoming Macro & VN30 Derivatives Catalyst Countdown Calendar */}
+      <CatalystCalendarSection catalystCalendar={catalystCalendar} />
 
       {/* Forward-Looking Investment Compass & Leading Indicators */}
       {investmentCompass && (

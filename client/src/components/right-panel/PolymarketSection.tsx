@@ -41,6 +41,9 @@ export function PolymarketSection({ top5HotPolymarket, predictionFlashes, stream
           )}
         </div>
       </div>
+      <p className="mt-0.5 text-[10px] text-slate-500">
+        Kỳ vọng hàm ý từ dòng tiền giao dịch trên Polymarket, không phải dự báo của hệ thống.
+      </p>
 
       {top5HotPolymarket.length === 0 ? (
         <div className="mt-1.5 rounded border border-slate-800/95 bg-[#0d1524] py-4 text-center text-xs text-slate-400">

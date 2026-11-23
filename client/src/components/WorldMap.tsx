@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import type { GeoJSONSource } from 'maplibre-gl';
 import {
@@ -104,7 +104,15 @@ export const WorldMap = memo(function WorldMap({
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const appliedRadarPathRef = useRef<string | null>(null);
   const appliedDataRef = useRef<Record<string, unknown>>({});
+  const movingDataRef = useRef<Partial<Record<'military' | 'vessels', {
+    input: GeoPointFeature[];
+    anchor: number;
+    enabled: boolean;
+    points: GeoPointFeature[];
+  }>>>({});
   const currentBasemapRef = useRef<BasemapTheme>(basemap);
+  const archipelagoAnchors = useMemo(() => vietnamSovereignty.filter((f) => f.category === 'archipelago'), [vietnamSovereignty]);
+  const individualIslands = useMemo(() => vietnamSovereignty.filter((f) => f.category !== 'archipelago'), [vietnamSovereignty]);
 
   const pointLookupRef = useRef<Map<string, GeoPointFeature>>(new Map());
   const cableLookupRef = useRef<Map<string, GeoLineFeature>>(new Map());
@@ -132,6 +140,8 @@ export const WorldMap = memo(function WorldMap({
     financeCenters,
     cables,
     vietnamSovereignty,
+    archipelagoAnchors,
+    individualIslands,
     vietnamZones,
     vietnamSeaLabels,
   });
@@ -160,6 +170,8 @@ export const WorldMap = memo(function WorldMap({
     financeCenters,
     cables,
     vietnamSovereignty,
+    archipelagoAnchors,
+    individualIslands,
     vietnamZones,
     vietnamSeaLabels,
   };
@@ -211,7 +223,8 @@ export const WorldMap = memo(function WorldMap({
     const isLight = state.basemap !== 'dark-matter';
 
     try {
-      map.setProjection({ type: state.isGlobe ? 'globe' : 'mercator' });
+      const projection = state.isGlobe ? 'globe' : 'mercator';
+      if (map.getProjection()?.type !== projection) map.setProjection({ type: projection });
     } catch {
       // Safe fallback
     }
@@ -386,11 +399,18 @@ export const WorldMap = memo(function WorldMap({
       return false;
     };
 
-    // 3b. Vietnam Sovereignty Archipelago Anchors & Individual Islands (Hoàng Sa, Trường Sa, DK1, Lý Sơn, Côn Đảo, Phú Quốc...)
-    const archipelagoAnchors = state.vietnamSovereignty.filter((f) => f.category === 'archipelago');
-    const individualIslands = state.vietnamSovereignty.filter((f) => f.category !== 'archipelago');
+    const movingPoints = (id: 'military' | 'vessels', input: GeoPointFeature[], anchor: number, maxAge: number) => {
+      const cached = movingDataRef.current[id];
+      if (map.getSource(`${id}-src`) && cached && cached.input === input && cached.anchor === anchor && cached.enabled === state.deadReckoning) {
+        return cached.points;
+      }
+      const points = state.deadReckoning ? advanceDeadReckoning(input, Date.now(), maxAge, anchor) : input;
+      movingDataRef.current[id] = { input, anchor, enabled: state.deadReckoning, points };
+      return points;
+    };
 
-    if (upsertPointSource('vn-islands-src', individualIslands)) {
+    // 3b. Vietnam Sovereignty Archipelago Anchors & Individual Islands (Hoàng Sa, Trường Sa, DK1, Lý Sơn, Côn Đảo, Phú Quốc...)
+    if (upsertPointSource('vn-islands-src', state.individualIslands)) {
       map.addLayer({
         id: 'vn-islands-circle',
         type: 'circle',
@@ -423,7 +443,7 @@ export const WorldMap = memo(function WorldMap({
       });
     }
 
-    if (upsertPointSource('vn-archipelago-src', archipelagoAnchors)) {
+    if (upsertPointSource('vn-archipelago-src', state.archipelagoAnchors)) {
       map.addLayer({
         id: 'vn-archipelago-symbol',
         type: 'symbol',
@@ -861,9 +881,7 @@ export const WorldMap = memo(function WorldMap({
     if (map.getLayer('earthquakes-circle')) map.setLayoutProperty('earthquakes-circle', 'visibility', eqVis);
 
     // 10. Maritime AIS Live Vessels
-    const initialVessels = state.deadReckoning
-      ? advanceDeadReckoning(state.vessels, Date.now(), 30, state.vesselsAnchorMs)
-      : state.vessels;
+    const initialVessels = movingPoints('vessels', state.vessels, state.vesselsAnchorMs, 30);
     if (upsertPointSource('vessels-src', initialVessels)) {
       map.addLayer({
         id: 'vessels-layer',
@@ -894,9 +912,7 @@ export const WorldMap = memo(function WorldMap({
     }
 
     // 11. Military Aircraft (Topmost directional tactical layer)
-    const initialMilitary = state.deadReckoning
-      ? advanceDeadReckoning(state.military, Date.now(), 22, state.militaryAnchorMs)
-      : state.military;
+    const initialMilitary = movingPoints('military', state.military, state.militaryAnchorMs, 22);
     if (upsertPointSource('military-src', initialMilitary)) {
       map.addLayer({
         id: 'military-layer',
@@ -1100,9 +1116,22 @@ export const WorldMap = memo(function WorldMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    if (map.isStyleLoaded()) {
+    const sync = () => {
+      if (map.isMoving()) {
+        map.once('moveend', sync);
+        return;
+      }
+      if (!map.isStyleLoaded()) {
+        map.once('idle', sync);
+        return;
+      }
       ensureLayersAndData(map);
-    }
+    };
+    sync();
+    return () => {
+      map.off('moveend', sync);
+      map.off('idle', sync);
+    };
   }, [
     isGlobe,
     basemap,
@@ -1114,6 +1143,8 @@ export const WorldMap = memo(function WorldMap({
     cyberThreats,
     cyberArcs,
     gpsOutages,
+    militaryAnchorMs,
+    vesselsAnchorMs,
     deadReckoning,
     earthquakes,
     natural,

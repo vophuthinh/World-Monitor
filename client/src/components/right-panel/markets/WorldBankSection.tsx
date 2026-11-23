@@ -4,11 +4,17 @@ import type { MarketSnapshot } from '@shared/types';
 export function WorldBankSection({ markets }: {
   markets: MarketSnapshot;
 }) {
+  const anyRetained = markets.macro.some((r) => r.retained);
   return (
     <section>
-      <h2 className="font-mono text-[11px] font-semibold tracking-wider text-slate-300">
-        VĨ MÔ 8 NỀN KINH TẾ (WORLD BANK OPEN DATA)
-      </h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="font-mono text-[11px] font-semibold tracking-wider text-slate-300">
+          VĨ MÔ 8 NỀN KINH TẾ · SỐ LIỆU NĂM (WORLD BANK)
+        </h2>
+        <span className={`font-mono text-[9px] ${anyRetained ? 'text-amber-300' : 'text-slate-500'}`}>
+          {anyRetained ? '⟳ Giữ từ cache' : 'Chu kỳ năm'}
+        </span>
+      </div>
       <div className="mt-1.5 overflow-x-auto rounded border border-slate-800/95 bg-[#0d1524]">
         <table className="w-full border-collapse text-left text-xs">
           <thead>
@@ -53,18 +59,32 @@ export function WorldBankSection({ markets }: {
                         : 'text-slate-100'
                   }`}
                 >
-                  {row.gdpGrowthPct !== null ? `${row.gdpGrowthPct.toFixed(1)}%` : '—'}
+                  <div>{row.gdpGrowthPct !== null ? `${row.gdpGrowthPct.toFixed(1)}%` : '—'}</div>
+                  {row.gdpGrowthYear && (
+                    <div className="text-[8.5px] font-normal text-slate-500">{row.gdpGrowthYear}</div>
+                  )}
                 </td>
                 <td className="px-1.5 py-1.5 text-right text-amber-300">
-                  {row.cpiInflationPct !== null ? `${row.cpiInflationPct.toFixed(1)}%` : '—'}
+                  <div>{row.cpiInflationPct !== null ? `${row.cpiInflationPct.toFixed(1)}%` : '—'}</div>
+                  {row.cpiYear && (
+                    <div className="text-[8.5px] font-normal text-slate-500">{row.cpiYear}</div>
+                  )}
                 </td>
                 <td className="px-1.5 py-1.5 text-right text-slate-300">
-                  {row.unemploymentPct !== null && row.unemploymentPct !== undefined
-                    ? `${row.unemploymentPct.toFixed(1)}%`
-                    : '—'}
+                  <div>
+                    {row.unemploymentPct !== null && row.unemploymentPct !== undefined
+                      ? `${row.unemploymentPct.toFixed(1)}%`
+                      : '—'}
+                  </div>
+                  {row.unemploymentYear && (
+                    <div className="text-[8.5px] font-normal text-slate-500">{row.unemploymentYear}</div>
+                  )}
                 </td>
                 <td className="px-2.5 py-1.5 text-right text-slate-300">
-                  {formatCompactUsd(row.gdpCurrentUsd)}
+                  <div>{formatCompactUsd(row.gdpCurrentUsd)}</div>
+                  {row.gdpCurrentYear && (
+                    <div className="text-[8.5px] font-normal text-slate-500">{row.gdpCurrentYear}</div>
+                  )}
                 </td>
               </tr>
             ))}

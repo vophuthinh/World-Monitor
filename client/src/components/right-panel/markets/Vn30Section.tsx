@@ -27,6 +27,10 @@ export function Vn30Section({ markets }: {
                   <span className="truncate text-[9.5px] text-slate-400">{st.sector}</span>
                 </div>
                 <MiniSparkline values={st.sparkline} positive={up} />
+                <div className="text-[10px] text-slate-400">
+                  Lấy: {st.updatedAt > 0 ? new Date(st.updatedAt).toLocaleString('vi-VN') : 'không rõ'}
+                  {st.retained && <span className="text-amber-300"> · Giữ lại</span>}
+                </div>
               </div>
               <div className="shrink-0 text-right font-mono tabular-nums">
                 <div className="text-xs font-semibold text-slate-100">

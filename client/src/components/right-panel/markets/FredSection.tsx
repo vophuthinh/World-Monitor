@@ -5,18 +5,24 @@ export function FredSection({ markets }: {
   markets: MarketSnapshot;
 }) {
   if (!(markets.fred && markets.fred.length > 0)) return null;
+  const displayed = markets.fred.filter(
+    (fm) => fm.pillar === 'market' || fm.id === 'FEDFUNDS' || fm.id === 'T10Y2Y',
+  );
+  const anyRetained = displayed.some((fm) => fm.retained);
   return (
     <section>
       <div className="flex items-center justify-between">
         <h2 className="font-mono text-[11px] font-semibold tracking-wider text-sky-300">
-          LÃI SUẤT FED · LỢI SUẤT TRÁI PHIẾU MỸ &amp; VIX (FRED LIVE)
+          LÃI SUẤT FED · LỢI SUẤT TRÁI PHIẾU MỸ &amp; VIX (FRED)
         </h2>
-        <span className="font-mono text-[9.5px] text-slate-500">St. Louis Fed</span>
+        <span
+          className={`font-mono text-[9.5px] ${anyRetained ? 'text-amber-300' : 'text-slate-500'}`}
+        >
+          {anyRetained ? 'St. Louis Fed · Có số giữ lại' : 'St. Louis Fed'}
+        </span>
       </div>
       <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-        {markets.fred
-          .filter((fm) => fm.pillar === 'market' || fm.id === 'FEDFUNDS' || fm.id === 'T10Y2Y')
-          .map((fm) => {
+        {displayed.map((fm) => {
             const up = fm.change >= 0;
             return (
               <div
@@ -24,7 +30,9 @@ export function FredSection({ markets }: {
                 className={`rounded border px-2.5 py-2 ${
                   fm.alertBadge
                     ? 'border-rose-500/45 bg-rose-950/25'
-                    : 'border-slate-800/95 bg-[#0d1524]'
+                    : fm.retained
+                      ? 'border-amber-500/35 bg-[#0d1524]'
+                      : 'border-slate-800/95 bg-[#0d1524]'
                 }`}
               >
                 <div className="flex items-center justify-between gap-1">
@@ -37,6 +45,19 @@ export function FredSection({ markets }: {
                   </span>
                 </div>
                 <div className="mt-0.5 truncate text-[10px] text-slate-400">{fm.subtitle}</div>
+                <div className="mt-0.5 flex items-center justify-between font-mono text-[8.5px] text-slate-500">
+                  <span>Kỳ: {fm.date}</span>
+                  {fm.retained ? (
+                    <span
+                      title="Chuỗi này không cập nhật được ở lần quét gần nhất; đang hiển thị số giữ lại từ cache"
+                      className="rounded border border-amber-500/45 bg-amber-500/15 px-1 text-amber-200"
+                    >
+                      ⟳ Giữ lại
+                    </span>
+                  ) : (
+                    <span className="text-emerald-400/80">Lấy thành công</span>
+                  )}
+                </div>
                 <div className="mt-1 flex items-center justify-between gap-1">
                   <MiniSparkline values={fm.sparkline} positive={up} />
                   <span
