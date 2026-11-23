@@ -1,0 +1,301 @@
+<?xml version="1.0" encoding="UTF-8"?>
+    <?xml-stylesheet type="text/xsl" href="/cap/nowcast-rss-style.xsl"?>
+    <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+        <channel>
+            <title>BMKG Weather Alerts</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/rss.xml</link>
+            <description>Weather Alerts from BMKG (Indonesia Agency for Meteorology, Climatology, and Geophysics)</description>
+            <atom:link href="https://www.bmkg.go.id/alerts/nowcast/en/rss.xml" rel="self" type="application/rss+xml"/>
+            <language>en</language>
+            <copyright>public domain</copyright>
+            <pubDate>Mon, 23 Nov 2026 17:31:37 +0000</pubDate>
+            <lastBuildDate>Mon, 23 Nov 2026 17:31:37 +0000</lastBuildDate>
+            <docs>http://blogs.law.harvard.edu/tech/rss</docs>
+            
+        <item>
+            <title>Thunderstorm Tonight in Kalimantan Tengah</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CKG20261123011_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 24 November 2026, 00:20 WIB in parts of Kalimantan Tengah especially in: BUKIT RAYA, MARIKIT, SERUYAN HULU, SULING TAMBUN, TELUK SAMPIT.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 03:30 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.62.011</guid>
+            <pubDate>Tue, 24 Nov 2026 00:10:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Thunderstorm Tonight in Kalimantan Timur</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CKT20261123006_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 24 November 2026, 01:20 WITA in parts of Kalimantan Timur especially in: BATU AMPAR, BONTANG UTARA, BUSANG, KENOHAN, LAHAM, LINGGANG BIGUNG, LONG HUBUNG, LONG IRAM, LONG MESANGAT, MOOK MANAAR BULATN, MUARA ANCALONG, MUARA PAHU, MUARA WIS, TELEN, TELUK PANDAN, TERING.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 03:30 WITA.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.64.006</guid>
+            <pubDate>Tue, 24 Nov 2026 01:08:00 +0800</pubDate>
+        </item>
+
+        <item>
+            <title>Thunderstorm Tonight in Sulawesi Selatan</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CSL20261123007_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 24 November 2026, 01:30 WITA in parts of Sulawesi Selatan especially in: BOLA, BONE BONE, BURAU, CENRANA, DUA BOCCOE, GILIRENG, KEERA, LAROMPONG SELATAN, MAJAULENG, MALANGKE, PENRANG, PITUMPANUA, SAJOANGING, TAKKALALLA, TANA LILI.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 04:00 WITA.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.73.007</guid>
+            <pubDate>Tue, 24 Nov 2026 01:00:00 +0800</pubDate>
+        </item>
+
+        <item>
+            <title>Thunderstorm Tonight in Sumatera Selatan</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CSS20261123009_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 24 November 2026, 00:30 WIB in parts of Sumatera Selatan especially in: ABAB, BABAT TOMAN, JAYALOKA, LAIS, LUBUK LINGGAU BARAT I, LUBUK LINGGAU UTARA I, MUARA BELITI, MUARA KELINGI, MUARA LAKITAN, PASEMAH AIR KERUH, PENUKAL, RANTAU BAYUR, SALING, SANGA DESA, SELANGIT, STL ULU TERAWAS, SUKA KARYA, TEBING TINGGI, TIANG PUMPUNG KEPUNGUT, TUAH NEGERI, ULU MUSI.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 03:30 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.16.009</guid>
+            <pubDate>Tue, 24 Nov 2026 00:00:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Thunderstorm Tonight in Riau</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CRU20261123007_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 24 November 2026, 00:10 WIB in parts of Riau especially in: BANDAR SEI KIJANG, BANGKINANG, BANTAN, BENGKALIS, KABUN, KAMPAR, KAMPAR KIRI, KAMPAR KIRI HILIR, KAMPAR KIRI HULU, KAMPAR KIRI TENGAH, KAMPAR TIMUR, KAMPAR UTARA, KEPENUHAN, KEPENUHAN HULU, KOTO GASIB, KUOK, LUBUK DALAM, PAGARAN TAPAH DARUSSALAM, PENDALIAN IV KOTO, PERHENTIAN RAJA, ROKAN IV KOTO, RUMBAI, RUMBIO JAYA, RUPAT, SALO, SENTAJO RAYA, SIAK HULU, TAMBANG, TAMBUSAI UTARA, TAMPAN, TANDUN, TAPUNG, TAPUNG HULU, TENAYAN RAYA, TUALANG, XIII KOTO KAMPAR.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 03:00 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.14.007</guid>
+            <pubDate>Tue, 24 Nov 2026 00:00:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Thunderstorm Tonight in Jawa Timur</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CJT20261123011_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 24 November 2026, 00:30 WIB in parts of Jawa Timur especially in: DAMPIT, DONGKO, GEDANGAN, KALIBARU, KEBONAGUNG, MUNJUNGAN, NGADIROJO, PANGGUL, PONCOKUSUMO, SILO, SUDIMORO, SUMBERMANJING WETAN, TIRTOYUDO, TULAKAN.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 03:30 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.35.011</guid>
+            <pubDate>Tue, 24 Nov 2026 00:00:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Thunderstorm Tonight in Sumatera Barat</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CSB20261123008_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 23 November 2026, 23:50 WIB in parts of Sumatera Barat especially in: BATIPUH, DANAU KEMBAR, IV NAGARI BAYANG UTARA, KOTO PARIK GADANG DIATEH, PAGAI UTARA, SANGIR BALAI JANGGO, SANGIR BATANG HARI, SIBERUT BARAT, SIBERUT BARAT DAYA, SIKAKAP.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 01:50 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.13.008</guid>
+            <pubDate>Mon, 23 Nov 2026 23:40:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Thunderstorm Tonight in Bali</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CBL20261123005_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 24 November 2026, 00:48 WITA in parts of Bali especially in: ABIANSEMAL, MENGWI, UBUD.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 02:30 WITA.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.51.005</guid>
+            <pubDate>Tue, 24 Nov 2026 00:40:00 +0800</pubDate>
+        </item>
+
+        <item>
+            <title>Thunderstorm Tonight in Bengkulu</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CBK20261123005_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 23 November 2026, 23:40 WIB in parts of Bengkulu especially in: AIR PADANG, BATIK NAU, BINDURIANG, KETAHUN, KOTA ARGA MAKMUR, KOTA PADANG, MUARA KEMUMU, PADANG JAYA, PADANG ULAK TANDING, PINANG RAYA, SELUMA UTARA, SINDANG BELITI ILIR, SINDANG BELITI ULU, SINDANG DATARAN, SINDANG KELINGI, TALANG EMPAT, ULU TALO.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 02:00 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.17.005</guid>
+            <pubDate>Mon, 23 Nov 2026 23:30:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Thunderstorm Tonight in Kalimantan Tengah</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CKG20261123010_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 23 November 2026, 23:30 WIB in parts of Kalimantan Tengah especially in: BUKIT RAYA, SERUYAN HULU.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 01:00 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.62.010</guid>
+            <pubDate>Mon, 23 Nov 2026 23:20:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Thunderstorm Tonight in Jakarta</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CJK20261123007_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 23 November 2026, 23:00 WIB in parts of Jakarta especially in: CIBODAS, CILINCING, KARAWACI, KOJA, PERIUK, PINANG, SEPATAN TIMUR, TANJUNGSARI.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 02:00 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.31.007</guid>
+            <pubDate>Mon, 23 Nov 2026 22:50:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Thunderstorm Tonight in Banten</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CBT20261123004_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 23 November 2026, 22:55 WIB in parts of Banten especially in: BOJONGMANIK, CIBEBER, CIGEMLONG, CIHARA, CIJAKU, CILELES, CIRINTEN, GUNUNGKENCANA, LEUWIDAMAR, MALINGPING, SOBANG.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 01:00 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.36.004</guid>
+            <pubDate>Mon, 23 Nov 2026 22:45:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Thunderstorm Tonight in Sumatera Utara</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CSU20261123005_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 23 November 2026, 23:00 WIB in parts of Sumatera Utara especially in: BAKTIRAJA, BAWOLATO, DOLOK SANGGUL, GOMO, IDANOTAE, LAHUSA, LINTONG NIHUTA, PAGINDAR, SIDUA'ORI, SITELU TALI URANG JEHE, SITIO-TIO, SOGAE'ADU, SOMAMBAWA, SORKAM, SORKAM BARAT, TAPIAN NAULI, ULU IDANOTAE.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 02:00 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.12.005</guid>
+            <pubDate>Mon, 23 Nov 2026 22:30:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Thunderstorm Tonight in Jambi</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CJI20261123005_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 23 November 2026, 23:00 WIB in parts of Jambi especially in: AIR HANGAT, AIR HANGAT TIMUR, BATANG MERANGIN, BATHIN II PELAYANG, BATHIN III ULU, DANAU KERINCI, JUJUHAN, KELILING DANAU, LIMBUR LUBUK MENGKUANG, MUARA SIAU, MUARA TABIR, PANGKALAN JAMBU, PELEPAT, PELEPAT ILIR, RANTAU PANDAN, SITINJAU LAUT, SIULAK MUKAI, TABIR BARAT, TABIR ILIR, TANAH TUMBUH.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 01:00 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.15.005</guid>
+            <pubDate>Mon, 23 Nov 2026 22:30:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Thunderstorm Tonight in Jawa Barat</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CJB20261123006_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 23 November 2026, 22:35 WIB in parts of Jawa Barat especially in: BANTARGADUNG, BOJONGPICUNG, HAURWANGI, TEGALWARU, WARUNG KIARA.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 00:30 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.32.006</guid>
+            <pubDate>Mon, 23 Nov 2026 22:25:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Thunderstorm Tonight in Kalimantan Utara</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CKU20261123005_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 23 November 2026, 23:14 WITA in parts of Kalimantan Utara especially in: BUNYU, LUMBIS, MALINAU BARAT, MALINAU KOTA, MALINAU SELATAN, MALINAU SELATAN HILIR, MALINAU SELATAN HULU, MURUK RIAN, PESO, SESAYAP HILIR.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 02:00 WITA.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.65.005</guid>
+            <pubDate>Mon, 23 Nov 2026 23:02:00 +0800</pubDate>
+        </item>
+
+        <item>
+            <title>Thunderstorm Tonight in Sulawesi Tenggara</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CST20261123005_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 23 November 2026, 23:30 WITA in parts of Sulawesi Tenggara especially in: ANDOWIA, ANGATA, BASALA, BENUA, DANGIA, LADONGI, LALEMBUU, LAMBANDIA, LAMBUYA, LANGGIKIMA, LANTARI JAYA, LASOLO, LASOLO KEPULAUAN, LEMBO, LOEA, MOLAWE, POLI POLIA, PURIALA, ROUTA, TINANGGEA, TIRAWUTA, TONGAUNA, UEESI, UNAAHA, WOLO, WONGGEDUKU, WUNDULAKO.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 02:30 WITA.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.74.005</guid>
+            <pubDate>Mon, 23 Nov 2026 23:00:00 +0800</pubDate>
+        </item>
+
+        <item>
+            <title>Thunderstorm Tonight in Riau</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CRU20261123006_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 23 November 2026, 21:50 WIB in parts of Riau especially in: BANGKINANG KOTA, GUNUNG SAHILAN, KAMPAR, KAMPAR KIRI, KAMPAR KIRI HILIR, KAMPAR KIRI HULU, KAMPAR KIRI TENGAH, KAMPAR TIMUR, KUANTAN HILIR, LANGGAM, LOGAS TANAH DARAT, PANGEAN, PERHENTIAN RAJA, SINGINGI, TAPUNG, TAPUNG HILIR, UKUI.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 01:00 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.14.006</guid>
+            <pubDate>Mon, 23 Nov 2026 21:40:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Thunderstorm Tonight in Papua</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CPU20261123008_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 23 November 2026, 23:45 WIT in parts of Papua especially in: BONGGO, INGGERUS, KIRIHI, OUDATE, PANTAI TIMUR, PANTAI TIMUR BAGIAN BARAT, SARMI, SARMI TIMUR, TOR ATAS.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 02:45 WIT.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.91.008</guid>
+            <pubDate>Mon, 23 Nov 2026 23:35:00 +0900</pubDate>
+        </item>
+
+        <item>
+            <title>Thunderstorm Tonight in Sumatera Selatan</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CSS20261123008_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 23 November 2026, 22:30 WIB in parts of Sumatera Selatan especially in: BTS. ULU, JAYALOKA, MUARA PINANG, PENDOPO, SALING, SUKA KARYA, TIANG PUMPUNG KEPUNGUT, TULUNG SELAPAN.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 00:30 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.16.008</guid>
+            <pubDate>Mon, 23 Nov 2026 21:30:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Thunderstorm Tonight in Jawa Timur</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CJT20261123010_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 23 November 2026, 22:00 WIB in parts of Jawa Timur especially in: BRONDONG, PACIRAN, SOLOKURO.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 01:00 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.35.010</guid>
+            <pubDate>Mon, 23 Nov 2026 21:30:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Thunderstorm Tonight in Aceh</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/en/CAH20261123003_alert.xml</link>
+            <description>Thunderstorms and heavy rainfall are forecasted to occur starting from 23 November 2026, 21:10 WIB in parts of Aceh especially in: BABAH ROT, BABUL MAKMUR, BABUL RAHMAH, BABUSSALAM, BADAR, BAMBEL, BINTANG, BLANG PIDIE, BLANGPEGAYON, BUKIT TUSAM, DABUN GELANG, DANAU PARIS, DARUL HASANAH, DARUL MAKMUR, DELENG POKHKISEN, GUNUNG MERIAH, JAYA, KETAMBE, KLUET TENGAH, KOTA BAHARU, KOTA COT GLIE, KOTA JANTHO, KUALA BARU, KUALA BATEE, KUTAPANJANG, LABUHAN HAJI BARAT, LAWE ALAS, LAWE BULAN, LAWE SIGALA-GALA, LAWE SUMUR, LEMBAH SABIL, LEUSER, LINGE, MANGGENG, PENANGGALAN, PINING, PULAU BANYAK, PULAU BANYAK BARAT, PUTERI BETUNG, RIKIT GAIB, SEMADAM, SERBAJADI, SETIA, SIMPANG KANAN, SIMPANG KIRI, SINGKIL, SINGKIL UTARA, SINGKOHOR, SULTAN DAULAT, SURO MAKMUR, SUSOH, TAMIANG HULU, TANGAN-TANGAN, TANOH ALAS, TENGGULUN, TRUMON TENGAH, TRUMON TIMUR.
+ These conditions may lead to reduced visibility, strong winds, and localized flooding.
+ The public is strongly advised to remain vigilant during this period, limit outdoor activities, and take all necessary precautions to ensure safety.
+ Conditions are expected to gradually improve by 24 November 2026, 01:10 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.23.17.11.003</guid>
+            <pubDate>Mon, 23 Nov 2026 21:00:00 +0700</pubDate>
+        </item>
+        </channel>
+    </rss>

@@ -331,6 +331,7 @@ export function App() {
               techCyber={data?.techCyber}
               policyLegal={data?.policyLegal}
               vietnamEnv={data?.vietnamEnv}
+              regionalWarnings={data?.regionalWarnings}
               hptIntel={data?.hptIntel}
               hptSourceStale={data?.health.some((source) => source.id === 'hpt-intel' && (source.status === 'stale' || source.status === 'error'))}
               aiSitrep={data?.aiSitrep}
@@ -378,6 +379,7 @@ export function App() {
               techCyber={data?.techCyber}
               policyLegal={data?.policyLegal}
               vietnamEnv={data?.vietnamEnv}
+              regionalWarnings={data?.regionalWarnings}
               hptIntel={data?.hptIntel}
               hptSourceStale={data?.health.some((source) => source.id === 'hpt-intel' && (source.status === 'stale' || source.status === 'error'))}
               aiSitrep={data?.aiSitrep}
