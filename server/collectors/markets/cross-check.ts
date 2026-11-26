@@ -1,4 +1,4 @@
-import type { DataCrossCheck, DataCrossCheckSide, HptFundamentals, MarketQuote } from '@shared/types';
+import type { DataCrossCheck, DataCrossCheckSide, MarketQuote } from '@shared/types';
 import { DEFAULT_BROWSER_UA, fetchJsonWithTimeout } from '../../lib/http';
 
 const STALE_REFERENCE_MS = 400 * 86_400_000;
@@ -23,7 +23,7 @@ interface VndRatioPayload {
   data?: Array<{ ratioCode?: string; reportDate?: string; value?: number }>;
 }
 
-async function fetchVndRatios(code: string): Promise<Map<string, DataCrossCheckSide>> {
+export async function fetchVndRatios(code: string): Promise<Map<string, DataCrossCheckSide>> {
   const payload = await fetchJsonWithTimeout<VndRatioPayload>(
     `https://api-finfo.vndirect.com.vn/v4/ratios/latest?filter=ratioCode:PRICE_TO_EARNINGS,PRICE_TO_BOOK,MARKETCAP&where=code:${code}&order=reportDate`,
     { timeoutMs: 6_000, retries: 0, userAgent: DEFAULT_BROWSER_UA },
@@ -69,17 +69,4 @@ export async function crossCheckMarketQuotes(quotes: readonly MarketQuote[], now
     checks.push(compareSources('usd-vnd', 'Tỷ giá USD/VND', { value: fx.price, source: 'ER-API' }, { value: rate, source: 'Yahoo' }, 1, now));
   }
   return present(checks);
-}
-
-export async function crossCheckHptFundamentals(fundamentals: HptFundamentals, now = Date.now()): Promise<DataCrossCheck[]> {
-  const ratios = await fetchVndRatios('HPT');
-  const cap = ratios.get('MARKETCAP');
-  const rows: Array<[string, string, number | undefined, DataCrossCheckSide | undefined]> = [
-    ['hpt-pe', 'P/E HPT', fundamentals.peRatio, ratios.get('PRICE_TO_EARNINGS')],
-    ['hpt-pb', 'P/B HPT', fundamentals.pbRatio, ratios.get('PRICE_TO_BOOK')],
-    ['hpt-cap', 'Vốn hóa HPT (tỷ)', fundamentals.marketCapBillionVnd,
-      cap && { ...cap, value: Number((cap.value / 1e9).toFixed(1)) }],
-  ];
-  return present(rows.map(([id, label, value, other]) =>
-    value && other ? compareSources(id, label, { value, source: 'Simplize' }, other, 10, now) : null));
 }

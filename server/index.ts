@@ -42,6 +42,7 @@ import { generateAiSitrep } from './lib/groq-intel';
 import { RegimeHistoryLedger } from './lib/regime-ledger';
 import { TelegramAlertEngine } from './lib/telegram-alerter';
 import { BinanceRealtimeStream } from './realtime/binance-stream';
+import { VnLiveStream } from './realtime/vn-live-stream';
 import { RealtimeHub } from './realtime/hub';
 import { UnifiedNewsStreamService } from './realtime/news-stream';
 import { PolymarketRealtimeStream } from './realtime/polymarket-stream';
@@ -308,12 +309,14 @@ export function buildProductionRuntime(cacheDir = CACHE_DIR) {
   });
 
   const binanceStream = new BinanceRealtimeStream(hub, store);
+  const vnLiveStream = new VnLiveStream(hub, store);
 
   return {
     store,
     hub,
     scheduler,
     binanceStream,
+    vnLiveStream,
     polymarketStream,
     vesselManager,
     newsStream,
@@ -328,6 +331,7 @@ async function main(): Promise<void> {
     hub,
     scheduler,
     binanceStream,
+    vnLiveStream,
     polymarketStream,
     vesselManager,
     newsStream,
@@ -341,6 +345,7 @@ async function main(): Promise<void> {
   }, 7_500);
   if (typeof warmupSitrepTimer.unref === 'function') warmupSitrepTimer.unref();
   binanceStream.start();
+  vnLiveStream.start();
   polymarketStream.start();
   vesselManager.start();
   newsStream.start();
@@ -374,6 +379,7 @@ async function main(): Promise<void> {
 
   const shutdown = () => {
     binanceStream.stop();
+    vnLiveStream.stop();
     polymarketStream.stop();
     vesselManager.stop();
     newsStream.stop();

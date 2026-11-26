@@ -1,4 +1,3 @@
-import { CrossCheckNotice } from './CrossCheckNotice';
 import { memo, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import {
   ArrowsClockwise,
@@ -15,6 +14,8 @@ import type {
 } from '@shared/types';
 import { MiniSparkline, formatRelativeTime, renderInlineMarkdown } from './shared';
 import { safeHref } from '../../lib/safe-href';
+
+const viDate = (iso: string) => iso.split('-').reverse().join('/');
 
 export interface HptCorporateTabProps {
   hptIntel?: HptCompanyIntelSnapshot;
@@ -209,8 +210,14 @@ const HptCorporateTab = memo(function HptCorporateTab({
 
           {hptIntel?.stock?.fundamentals && (
             <div>
-              <p className="text-[11px] text-slate-400">P/E, P/B, vốn hóa, YTD: nguồn Simplize.</p>
-              <CrossCheckNotice checks={hptIntel.stock.crossChecks} />
+              <p className="text-[11px] text-slate-400">
+                P/B, vốn hóa: VNDirect{hptIntel.stock.fundamentals.valuationAsOf ? ` ngày ${viDate(hptIntel.stock.fundamentals.valuationAsOf)}` : ' (chưa lấy được)'}. YTD: Simplize.
+              </p>
+              {hptIntel.stock.fundamentals.peRatio === undefined && (
+                <p className="text-[11px] text-amber-200">
+                  P/E: chưa có số cập nhật{hptIntel.stock.fundamentals.peAsOf ? ` (VNDirect tính lần cuối ${viDate(hptIntel.stock.fundamentals.peAsOf)})` : ''}.
+                </p>
+              )}
             </div>
           )}
 

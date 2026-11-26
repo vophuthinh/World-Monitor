@@ -1,3 +1,4 @@
+import { applyVnTick } from '@shared/vn-live';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { buildCyberAttackArcs } from '@shared/cyber-arcs';
 import type {
@@ -13,6 +14,7 @@ import type {
   NewsItem,
   PredictionItem,
   RealtimeServerEvent,
+  VnLiveTick,
   TimeWindow,
   VietnamArchipelagoZone,
   VietnamSeaLabel,
@@ -78,6 +80,15 @@ function updatePaxgQuote(quotes: BootstrapResponse['markets']['quotes'], tick: L
   return quotes.map((item, i) => i === index ? quote : item);
 }
 
+function applyVnTickToData(data: BootstrapResponse, tick: VnLiveTick): BootstrapResponse {
+  const stock = data.hptIntel?.stock;
+  const hptIntel = data.hptIntel && stock && tick.hpt
+    ? { ...data.hptIntel, stock: { ...stock, priceThousandVnd: tick.hpt.priceThousandVnd, changePercent: tick.hpt.changePercent,
+        volume: tick.hpt.volume ?? stock.volume, priceKind: 'trade' as const, updatedAt: tick.ts } }
+    : data.hptIntel;
+  return { ...data, markets: applyVnTick(data.markets, tick), hptIntel };
+}
+
 function replayRealtimeEvents(data: BootstrapResponse, events: readonly RealtimeServerEvent[], newsSince = data.serverTime): BootstrapResponse {
   let current = data;
   for (const event of events) {
@@ -107,6 +118,9 @@ function replayRealtimeEvents(data: BootstrapResponse, events: readonly Realtime
         current = { ...current, news: [...news.values()].sort((a, b) => b.publishedAt - a.publishedAt).slice(0, 160), newsStreamStats: event.stats };
         break;
       }
+      case 'vn_tick':
+        current = applyVnTickToData(current, event.tick);
+        break;
       case 'price_tick': {
         const ticks = new Map(event.ticks.map((tick) => [tick.symbol, tick]));
         const crypto = current.markets.crypto.map((coin) => {
@@ -402,6 +416,8 @@ export function useMonitorData() {
             setData((prev) =>
               prev ? { ...prev, aisStreamConfigured: ev.aisStreamConfigured } : prev,
             );
+          } else if (ev.type === 'vn_tick') {
+            setData((prev) => (prev ? applyVnTickToData(prev, ev.tick) : prev));
           } else if (ev.type === 'price_tick') {
             applyPriceTicks(ev.ticks, ev.ts);
           } else if (ev.type === 'military_update') {

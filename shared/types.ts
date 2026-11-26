@@ -213,6 +213,8 @@ export interface MarketQuote {
   valuationFetchedAt?: number;
   retained?: boolean;
   observedAt?: number;
+  /** Set while an intraday exchange feed is updating the price. */
+  liveAt?: number;
   updatedAt: number;
   source: string;
 }
@@ -250,6 +252,7 @@ export interface Vn30StockQuote {
   ma200?: number;
   rsi14?: number;
   observedAt?: number;
+  liveAt?: number;
   updatedAt: number;
   retained?: boolean;
 }
@@ -683,6 +686,10 @@ export interface HptFundamentals {
   peRatio?: number;
   pbRatio?: number;
   marketCapBillionVnd?: number;
+  /** Date VNDirect computed market cap and P/B for. */
+  valuationAsOf?: string;
+  /** Date of the last P/E VNDirect published; peRatio is omitted when it is old. */
+  peAsOf?: string;
   freeFloatPct?: number;
   dividendYieldPct?: number;
   ytdChangePct?: number;
@@ -705,7 +712,6 @@ export interface HptStockSnapshot {
   lowThousandVnd?: number;
   sparkline: number[];
   fundamentals?: HptFundamentals;
-  crossChecks?: DataCrossCheck[];
   hqLat: number;
   hqLon: number;
   updatedAt: number;
@@ -1049,6 +1055,22 @@ export interface LiveFastResponse {
   health: SourceHealth[];
 }
 
+export interface VnLiveStockTick {
+  symbol: string;
+  priceThousandVnd: number;
+  changePercent: number;
+  volume: number | null;
+}
+
+export interface VnLiveTick {
+  ts: number;
+  /** Vietnam trading date, YYYY-MM-DD. */
+  sessionDate: string;
+  index?: { price: number; changePercent: number };
+  stocks: VnLiveStockTick[];
+  hpt?: VnLiveStockTick;
+}
+
 export interface LivePriceTick {
   symbol: string; // e.g. 'BTC', 'ETH', 'SOL', 'PAXG'
   price: number;
@@ -1072,6 +1094,11 @@ export type RealtimeServerEvent =
       type: 'connected';
       serverTime: number;
       aisStreamConfigured: boolean;
+    }
+  | {
+      type: 'vn_tick';
+      tick: VnLiveTick;
+      ts: number;
     }
   | {
       type: 'price_tick';

@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import type { HptCompanyIntelSnapshot, HptCompanyItem, HptStockSnapshot } from '@shared/types';
+import type { DataCrossCheckSide, HptCompanyIntelSnapshot, HptCompanyItem, HptFundamentals, HptStockSnapshot } from '@shared/types';
 import { DEFAULT_BROWSER_UA, fetchJsonWithTimeout, fetchTextWithTimeout } from '../lib/http';
-import { crossCheckHptFundamentals } from './markets/cross-check';
+import { fetchVndRatios } from './markets/cross-check';
 import { maybeEnrichHptWithGroqSentiment } from './hpt/ai';
 import { BAOMOI_HPT_SEARCH_URL, CAFEF_HPT_EVENTS_URL, CAFEF_HPT_NEWS_URL, DEFAULT_HPT_TELEGRAM_CHANNELS, HPT_EXTERNAL_FEEDS, HPT_FALSE_POSITIVE_NOISE_RE, HPT_HQ_LAT, HPT_HQ_LON, HPT_RECRUITMENT_DOMAIN_RE, HPT_RECRUITMENT_NOISE_RE, HPT_STATIC_DIRECTORY_URL_RE, HPT_TAX_CODE, REDDIT_HPT_SEARCH_URL, SIMPLIZE_HPT_SUMMARY_URL, areSameHptStory, isHptSelfSocialPost } from './hpt/config';
 import { GoogleCseSearchPayload, MetaGraphPostsPayload, RedditSearchPayload, SearxngSearchPayload, SerperSearchPayload, SimplizeSummaryPayload, enrichTopDisclosuresWithPdfLinks, normalizeSimplizeHptSummary, parseBaoMoiHptSearchHtml, parseCafeFHptDisclosuresHtml, parseGoogleCseHptSearchJson, parseHptExternalRss, parseMetaPageMentionsJson, parseRedditHptSearchJson, parseSearxngHptSearchJson, parseSerperHptSearchJson, parseTelegramPublicChannelHtml } from './hpt/sources';
@@ -10,6 +10,34 @@ import { GoogleCseSearchPayload, MetaGraphPostsPayload, RedditSearchPayload, Sea
 export * from './hpt/config';
 export * from './hpt/sources';
 export * from './hpt/ai';
+
+/**
+ * Simplize's HPT valuation is frozen at end-2023 (old price, old share count), so market cap, P/B and
+ * P/E come from VNDirect only. A figure we cannot date or that is over 400 days old is not shown.
+ */
+export function applyHptValuation(
+  base: HptFundamentals,
+  ratios: ReadonlyMap<string, DataCrossCheckSide>,
+  now = Date.now(),
+): HptFundamentals {
+  const { peRatio: _pe, pbRatio: _pb, marketCapBillionVnd: _cap, ...rest } = base;
+  const fresh = (key: string) => {
+    const side = ratios.get(key);
+    const asOf = side?.asOf ? Date.parse(side.asOf) : Number.NaN;
+    return side && side.value > 0 && now - asOf <= 400 * 86_400_000 ? side : undefined;
+  };
+  const cap = fresh('MARKETCAP');
+  const pb = fresh('PRICE_TO_BOOK');
+  const pe = fresh('PRICE_TO_EARNINGS');
+  const peAsOf = ratios.get('PRICE_TO_EARNINGS')?.asOf;
+  return {
+    ...rest,
+    ...(cap ? { marketCapBillionVnd: Number((cap.value / 1e9).toFixed(1)), valuationAsOf: cap.asOf } : {}),
+    ...(pb ? { pbRatio: Number(pb.value.toFixed(2)) } : {}),
+    ...(pe ? { peRatio: Number(pe.value.toFixed(2)) } : {}),
+    ...(peAsOf ? { peAsOf } : {}),
+  };
+}
 
 async function fetchHptUpcomStockAndFundamentals(now: number): Promise<HptStockSnapshot | null> {
   const toSec = Math.floor(now / 1000);
@@ -30,10 +58,10 @@ async function fetchHptUpcomStockAndFundamentals(now: number): Promise<HptStockS
     }),
   ]);
 
-  const fundamentals =
+  const simplize =
     simpRes.status === 'fulfilled' ? normalizeSimplizeHptSummary(simpRes.value) : { taxCode: HPT_TAX_CODE as '0301447436' };
-
-  const crossChecks = fundamentals ? await crossCheckHptFundamentals(fundamentals, now).catch(() => []) : [];
+  const ratios = await fetchVndRatios('HPT').catch(() => new Map<string, DataCrossCheckSide>());
+  const fundamentals = simplize ? applyHptValuation(simplize, ratios, now) : simplize;
 
   if (dchartRes.status === 'fulfilled') {
     const dchart = dchartRes.value;
@@ -58,7 +86,6 @@ async function fetchHptUpcomStockAndFundamentals(now: number): Promise<HptStockS
         lowThousandVnd: lows.length > 0 ? Number(Number(lows[lows.length - 1]).toFixed(2)) : undefined,
         sparkline: closes.slice(-20).map((c) => Number(c.toFixed(2))),
         fundamentals,
-        crossChecks,
         hqLat: HPT_HQ_LAT,
         hqLon: HPT_HQ_LON,
         updatedAt: now,
@@ -75,7 +102,6 @@ async function fetchHptUpcomStockAndFundamentals(now: number): Promise<HptStockS
       priceKind: 'reference',
       sparkline: [fundamentals.refThousandVnd],
       fundamentals,
-      crossChecks,
       hqLat: HPT_HQ_LAT,
       hqLon: HPT_HQ_LON,
       updatedAt: now,

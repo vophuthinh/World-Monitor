@@ -42,13 +42,16 @@ export function Vn30Section({ markets }: {
   markets: MarketSnapshot;
 }) {
   if (!(markets.vn30 && markets.vn30.length > 0)) return null;
+  // Live label only while ticks are recent (the feed stops after the close).
+  const latest = Math.max(0, ...markets.vn30.map((s) => s.liveAt ?? 0));
+  const liveAt = Date.now() - latest < 60_000 ? latest : 0;
   return (
     <section>
       <div className="flex items-center justify-between">
         <h2 className="font-mono text-[11px] font-semibold tracking-wider text-emerald-300">
           RỔ VN30 (HOSE · NGHÌN ₫)
         </h2>
-        <span className="font-mono text-[11px] text-slate-500">Sparkline 10 phiên</span>
+        <span className="font-mono text-[11px] text-slate-500">{liveAt > 0 ? `● Trong phiên · ${new Date(liveAt).toLocaleTimeString('vi-VN')} (SSI)` : 'Sparkline 10 phiên'}</span>
       </div>
       <div className="mt-1.5 grid grid-cols-2 gap-1.5">{markets.vn30.slice(0, 10).map(renderCard)}</div>
       {markets.vn30.length > 10 && (
