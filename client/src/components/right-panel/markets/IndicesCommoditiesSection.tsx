@@ -35,14 +35,14 @@ export function IndicesCommoditiesSection({ indexAndCommodityQuotes, priceFlashe
                   <span className="font-mono text-xs font-semibold text-slate-100">
                     {q.symbol}
                   </span>
-                  <span className="rounded bg-slate-800 px-1 py-0.2 font-mono text-[9.5px] uppercase text-slate-400">
+                  <span className="rounded bg-slate-800 px-1 py-0.2 font-mono text-[11px] uppercase text-slate-400">
                     {q.group}
                   </span>
-                  {q.retained && <span className="text-[9px] text-amber-300">dữ liệu cũ</span>}
+                  {q.retained && <span className="text-[11px] text-amber-300">dữ liệu cũ</span>}
                 </div>
-                <div className="truncate text-[10.5px] text-slate-400">{q.name}</div>
+                <div className="truncate text-[11px] text-slate-400">{q.name}</div>
                 {(q.source === 'Yahoo Finance Chart v8' || q.source === 'HOSE / VNDirect Feed' || q.source === 'HOSE / Stooq Feed') && (
-                  <div className="text-[10px] text-slate-400">
+                  <div className="text-[11px] text-slate-400">
                     {q.symbol === 'VN-Index' ? 'Phiên' : 'Giá lúc'}: {q.observedAt
                       ? q.symbol === 'VN-Index' ? new Date(q.observedAt).toLocaleDateString('vi-VN', { timeZone: 'UTC' }) : new Date(q.observedAt).toLocaleString('vi-VN')
                       : 'không rõ'}
@@ -57,7 +57,7 @@ export function IndicesCommoditiesSection({ indexAndCommodityQuotes, priceFlashe
                     {q.price.toLocaleString('en-US', { maximumFractionDigits: 2 })}
                   </div>
                   <div
-                    className={`inline-flex items-center gap-0.5 text-[10.5px] ${
+                    className={`inline-flex items-center gap-0.5 text-[11px] ${
                       q.changePercent24h == null ? 'text-slate-400' : up ? 'text-emerald-400' : 'text-rose-400'
                     }`}
                   >

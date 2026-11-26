@@ -11,14 +11,14 @@ export function WorldBankSection({ markets }: {
         <h2 className="font-mono text-[11px] font-semibold tracking-wider text-slate-300">
           VĨ MÔ 8 NỀN KINH TẾ · SỐ LIỆU NĂM (WORLD BANK)
         </h2>
-        <span className={`font-mono text-[9px] ${anyRetained ? 'text-amber-300' : 'text-slate-500'}`}>
+        <span className={`font-mono text-[11px] ${anyRetained ? 'text-amber-300' : 'text-slate-500'}`}>
           {anyRetained ? '⟳ Giữ từ cache' : 'Chu kỳ năm'}
         </span>
       </div>
       <div className="mt-1.5 overflow-x-auto rounded border border-slate-800/95 bg-[#0d1524]">
         <table className="w-full border-collapse text-left text-xs">
           <thead>
-            <tr className="border-b border-slate-800 font-mono text-[10px] text-slate-400">
+            <tr className="border-b border-slate-800 font-mono text-[11px] text-slate-400">
               <th className="px-2.5 py-1.5">QUỐC GIA</th>
               <th className="px-1.5 py-1.5 text-right">GDP %</th>
               <th className="px-1.5 py-1.5 text-right">CPI %</th>
@@ -35,13 +35,13 @@ export function WorldBankSection({ markets }: {
                 <td className="px-2.5 py-1.5 font-sans">
                   <div>
                     <span className="font-semibold">{row.countryName}</span>
-                    <span className="ml-1 font-mono text-[9.5px] text-slate-400">
+                    <span className="ml-1 font-mono text-[11px] text-slate-400">
                       {row.countryCode}
                     </span>
                   </div>
                   {row.manufacturingGrowthPct !== null &&
                     row.manufacturingGrowthPct !== undefined && (
-                      <div className="font-mono text-[9px] text-slate-400">
+                      <div className="font-mono text-[11px] text-slate-400">
                         Chế tạo: {row.manufacturingGrowthPct >= 0 ? '+' : ''}
                         {row.manufacturingGrowthPct.toFixed(1)}%
                         {row.fdiPctGdp !== null && row.fdiPctGdp !== undefined
@@ -61,13 +61,13 @@ export function WorldBankSection({ markets }: {
                 >
                   <div>{row.gdpGrowthPct !== null ? `${row.gdpGrowthPct.toFixed(1)}%` : '—'}</div>
                   {row.gdpGrowthYear && (
-                    <div className="text-[8.5px] font-normal text-slate-500">{row.gdpGrowthYear}</div>
+                    <div className="text-[11px] font-normal text-slate-500">{row.gdpGrowthYear}</div>
                   )}
                 </td>
                 <td className="px-1.5 py-1.5 text-right text-amber-300">
                   <div>{row.cpiInflationPct !== null ? `${row.cpiInflationPct.toFixed(1)}%` : '—'}</div>
                   {row.cpiYear && (
-                    <div className="text-[8.5px] font-normal text-slate-500">{row.cpiYear}</div>
+                    <div className="text-[11px] font-normal text-slate-500">{row.cpiYear}</div>
                   )}
                 </td>
                 <td className="px-1.5 py-1.5 text-right text-slate-300">
@@ -77,13 +77,13 @@ export function WorldBankSection({ markets }: {
                       : '—'}
                   </div>
                   {row.unemploymentYear && (
-                    <div className="text-[8.5px] font-normal text-slate-500">{row.unemploymentYear}</div>
+                    <div className="text-[11px] font-normal text-slate-500">{row.unemploymentYear}</div>
                   )}
                 </td>
                 <td className="px-2.5 py-1.5 text-right text-slate-300">
                   <div>{formatCompactUsd(row.gdpCurrentUsd)}</div>
                   {row.gdpCurrentYear && (
-                    <div className="text-[8.5px] font-normal text-slate-500">{row.gdpCurrentYear}</div>
+                    <div className="text-[11px] font-normal text-slate-500">{row.gdpCurrentYear}</div>
                   )}
                 </td>
               </tr>

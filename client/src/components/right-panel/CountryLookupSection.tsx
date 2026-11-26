@@ -26,7 +26,7 @@ export function CountryLookupSection() {
 
   return (
     <section className="rounded border border-slate-800 bg-[#0d1524] p-2.5">
-      <h2 className="font-mono text-[10.5px] font-semibold tracking-wider text-slate-200">TRA CỨU QUỐC GIA · REST COUNTRIES</h2>
+      <h2 className="font-mono text-[11px] font-semibold tracking-wider text-slate-200">TRA CỨU QUỐC GIA · REST COUNTRIES</h2>
       <form onSubmit={search} className="mt-2 flex gap-2">
         <label className="sr-only" htmlFor="country-search">Tên quốc gia</label>
         <input id="country-search" value={query} onChange={(event) => setQuery(event.target.value)} minLength={2} maxLength={80}

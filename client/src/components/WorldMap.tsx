@@ -1121,7 +1121,7 @@ export const WorldMap = memo(function WorldMap({
           .setHTML(
             `<div style="font-size:12px;font-weight:600;color:#f8fafc;line-height:1.3;">${title.replace(/</g, '&lt;')}</div>` +
               (subtitle
-                ? `<div style="font-size:10.5px;color:#94a3b8;margin-top:2px;line-height:1.35;">${subtitle.slice(0, 110).replace(/</g, '&lt;')}</div>`
+                ? `<div style="font-size: 11px;color:#94a3b8;margin-top:2px;line-height:1.35;">${subtitle.slice(0, 110).replace(/</g, '&lt;')}</div>`
                 : ''),
           )
           .addTo(map);

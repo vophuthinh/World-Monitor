@@ -116,7 +116,7 @@ const PolicyLegalTab = memo(function PolicyLegalTab({
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="space-y-2 border-b border-slate-800/90 p-2.5">
-        <div className="flex items-center justify-between gap-2 rounded border border-amber-500/30 bg-[#0d1524] px-2.5 py-1.5 font-mono text-[9.5px]">
+        <div className="flex items-center justify-between gap-2 rounded border border-amber-500/30 bg-[#0d1524] px-2.5 py-1.5 font-mono text-[11px]">
           <div className="flex min-w-0 items-center gap-1.5">
             <span className="inline-flex shrink-0 items-center gap-1 font-semibold text-amber-300">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
@@ -178,7 +178,7 @@ const PolicyLegalTab = memo(function PolicyLegalTab({
                 setLegalFilter(cat.id);
                 if (cat.id === 'all') setLegalPillar(null);
               }}
-              className={`rounded px-2 py-1 text-[10.5px] font-medium transition ${
+              className={`rounded px-2 py-1 text-[11px] font-medium transition ${
                 legalFilter === cat.id
                   ? cat.id === 'most'
                     ? 'border border-violet-400/55 bg-violet-500/20 text-violet-200'
@@ -191,7 +191,7 @@ const PolicyLegalTab = memo(function PolicyLegalTab({
           ))}
         </div>
 
-        <div className="flex flex-wrap items-center gap-1 font-mono text-[9.5px]">
+        <div className="flex flex-wrap items-center gap-1 font-mono text-[11px]">
           <span className="text-slate-500">Bộ tứ NQ:</span>
           {(
             [
@@ -271,7 +271,7 @@ const PolicyLegalTab = memo(function PolicyLegalTab({
                   key={doc.id}
                   className="perf-card px-3 py-2.5 transition hover:bg-slate-900/65"
                 >
-                  <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
+                  <div className="flex items-center justify-between gap-2 font-mono text-[11px]">
                     <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                       <span className={`shrink-0 rounded px-1.5 py-0.2 font-bold ${legalBadgeStyle(doc)}`}>
                         {doc.typeBadge}
@@ -286,7 +286,7 @@ const PolicyLegalTab = memo(function PolicyLegalTab({
                           BỘ KH&amp;CN
                         </span>
                       )}
-                      <span className="truncate text-[9.5px] text-slate-400">{doc.source}</span>
+                      <span className="truncate text-[11px] text-slate-400">{doc.source}</span>
                     </div>
                     <span className="shrink-0 text-slate-500 tabular-nums">
                       {doc.issuedDate ?? formatRelativeTime(doc.publishedAt)}
@@ -303,8 +303,8 @@ const PolicyLegalTab = memo(function PolicyLegalTab({
                   </a>
 
                   {aiBullets && aiBullets.length > 0 && (
-                    <div className="mt-1.5 rounded border border-emerald-500/35 bg-[#091622] px-2.5 py-1.5 text-[10.5px] leading-snug text-slate-200">
-                      <div className="mb-1 flex items-center gap-1 font-mono text-[9px] font-bold tracking-wider text-emerald-300">
+                    <div className="mt-1.5 rounded border border-emerald-500/35 bg-[#091622] px-2.5 py-1.5 text-[11px] leading-snug text-slate-200">
+                      <div className="mb-1 flex items-center gap-1 font-mono text-[11px] font-bold tracking-wider text-emerald-300">
                         <Sparkle size={10} weight="fill" />
                         <span>AI TÓM TẮT 3 Ý TRỌNG TÂM</span>
                       </div>
@@ -320,7 +320,7 @@ const PolicyLegalTab = memo(function PolicyLegalTab({
                   )}
 
                   <div className="mt-2 flex items-center justify-between gap-2">
-                    <span className="truncate rounded bg-slate-800/80 px-1.5 py-0.5 font-mono text-[9.5px] text-slate-300">
+                    <span className="truncate rounded bg-slate-800/80 px-1.5 py-0.5 font-mono text-[11px] text-slate-300">
                       {doc.sector}
                     </span>
                     <div className="flex shrink-0 items-center gap-1.5">
@@ -329,7 +329,7 @@ const PolicyLegalTab = memo(function PolicyLegalTab({
                           type="button"
                           disabled={isSummarizing}
                           onClick={() => void requestPolicyAiSummary(doc)}
-                          className="inline-flex items-center gap-1 rounded border border-emerald-500/45 bg-emerald-500/15 px-2 py-0.5 font-mono text-[9.5px] font-semibold text-emerald-200 transition hover:bg-emerald-500/25 disabled:opacity-50"
+                          className="inline-flex items-center gap-1 rounded border border-emerald-500/45 bg-emerald-500/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-emerald-200 transition hover:bg-emerald-500/25 disabled:opacity-50"
                         >
                           <Sparkle size={10} weight="fill" />
                           <span>{isSummarizing ? 'Đang tóm tắt...' : 'AI Tóm tắt 3 ý'}</span>
@@ -340,7 +340,7 @@ const PolicyLegalTab = memo(function PolicyLegalTab({
                           href={safeHref(doc.pdfUrl)}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1 rounded border border-rose-500/45 bg-rose-600/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-rose-200 transition hover:bg-rose-600/35"
+                          className="inline-flex items-center gap-1 rounded border border-rose-500/45 bg-rose-600/20 px-2 py-0.5 font-mono text-[11px] font-semibold text-rose-200 transition hover:bg-rose-600/35"
                         >
                           <FilePdf size={12} weight="fill" />
                           PDF Dấu đỏ
@@ -350,7 +350,7 @@ const PolicyLegalTab = memo(function PolicyLegalTab({
                         href={safeHref(doc.url)}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-0.5 text-[10.5px] text-slate-400 hover:text-slate-200"
+                        className="inline-flex items-center gap-0.5 text-[11px] text-slate-400 hover:text-slate-200"
                       >
                         Toàn văn <ArrowSquareOut size={11} />
                       </a>
@@ -364,7 +364,7 @@ const PolicyLegalTab = memo(function PolicyLegalTab({
                 <button
                   type="button"
                   onClick={() => setVisibleLimit((v) => v + 40)}
-                  className="rounded border border-slate-700 bg-slate-900 px-3 py-1 font-mono text-[10.5px] text-slate-300 transition hover:border-amber-400 hover:text-amber-200"
+                  className="rounded border border-slate-700 bg-slate-900 px-3 py-1 font-mono text-[11px] text-slate-300 transition hover:border-amber-400 hover:text-amber-200"
                 >
                   Xem thêm ({filteredPolicy.length - visibleLimit} văn bản còn lại)
                 </button>

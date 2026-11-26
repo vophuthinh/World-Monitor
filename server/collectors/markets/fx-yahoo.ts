@@ -63,6 +63,7 @@ export interface YahooChartPayload {
     result?: Array<{
       meta?: {
         regularMarketPrice?: number;
+        gmtoffset?: number;
         regularMarketTime?: number;
         previousClose?: number;
         chartPreviousClose?: number;
@@ -143,16 +144,23 @@ export function normalizeYahooChartQuote(
   const price = Number(result.meta?.regularMarketPrice ?? closes[closes.length - 1]);
   if (!Number.isFinite(price) || price <= 0) return null;
 
+  const rawCloses = result.indicators?.quote?.[0]?.close ?? [];
+  const lastCloseIndex = rawCloses.findLastIndex((value) => typeof value === 'number' && Number.isFinite(value) && value > 0);
+  // While today's daily bar is still empty (seen on Nikkei / Hang Seng), the latest close IS the
+  // previous session; stepping back one more would report a two-day move as today's.
+  const exchangeDay = (t: number | undefined) =>
+    t === undefined ? undefined : Math.floor((t + (result.meta?.gmtoffset ?? 0)) / 86_400);
+  const lastBarDay = exchangeDay(result.timestamp?.[lastCloseIndex] ?? undefined);
+  const quoteDay = exchangeDay(result.meta?.regularMarketPrice != null ? (result.meta.regularMarketTime ?? undefined) : undefined);
+  const latestBarIsEarlier = lastBarDay !== undefined && quoteDay !== undefined && lastBarDay < quoteDay;
   const prev = Number(
     result.meta?.previousClose ??
-      (closes.length >= 2 ? closes[closes.length - 2] : undefined) ??
+      (latestBarIsEarlier ? closes[closes.length - 1] : closes.length >= 2 ? closes[closes.length - 2] : undefined) ??
       result.meta?.chartPreviousClose,
   );
   const changePct =
     Number.isFinite(prev) && prev > 0 ? ((price - prev) / prev) * 100 : null;
   const tech = computeTechnicalIndicators(closes);
-  const rawCloses = result.indicators?.quote?.[0]?.close ?? [];
-  const lastCloseIndex = rawCloses.findLastIndex((value) => typeof value === 'number' && Number.isFinite(value) && value > 0);
   const marketTime = result.meta?.regularMarketPrice != null
     ? result.meta.regularMarketTime
     : result.timestamp?.[lastCloseIndex];

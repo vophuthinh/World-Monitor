@@ -1,3 +1,4 @@
+import { parseFeedDate } from '../lib/feed-date';
 import type { GeoPointFeature, SeverityLevel } from '@shared/types';
 import { NAMED_APP_UA, fetchJsonWithTimeout, fetchTextWithTimeout } from '../lib/http';
 
@@ -434,7 +435,7 @@ export function parseNoaaNhcCycloneRss(xml: string, now = Date.now()): GeoPointF
     const pressure = block.match(/<nhc:pressure>([^<]+)<\/nhc:pressure>/i)?.[1]?.trim() ?? '';
     const link = block.match(/<link>([^<]+)<\/link>/i)?.[1]?.trim() || 'https://www.nhc.noaa.gov/';
     const pubDate = block.match(/<pubDate>([^<]+)<\/pubDate>/i)?.[1]?.trim();
-    const ts = pubDate ? Date.parse(pubDate) : now;
+    const ts = pubDate ? parseFeedDate(pubDate) : now;
 
     out.push({
       id: `nhc:${name.toLowerCase().replace(/\s+/g, '-')}`,

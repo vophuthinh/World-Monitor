@@ -1,3 +1,4 @@
+import { parseFeedDate } from '../lib/feed-date';
 import { XMLParser } from 'fast-xml-parser';
 import { detectMitreTechniques } from '@shared/intelligence';
 import type {
@@ -199,7 +200,7 @@ export function parseTechFeedXml(
     if (!title || !url || !url.startsWith('http')) continue;
 
     const rawDate = cleanNodeText(entry?.pubDate ?? entry?.published ?? entry?.updated);
-    const parsedTs = rawDate ? Date.parse(rawDate) : Number.NaN;
+    const parsedTs = rawDate ? parseFeedDate(rawDate) : Number.NaN;
     const publishedAt = Number.isFinite(parsedTs) ? parsedTs : fallbackNow;
 
     const cveMatch = /\b(CVE-\d{4}-\d{4,7})\b/i.exec(title);

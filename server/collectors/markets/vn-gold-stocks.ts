@@ -202,6 +202,25 @@ export function normalizeVn30DchartQuote(
   };
 }
 
+export interface VndStockPriceRow {
+  code?: string;
+  date?: string;
+  close?: number;
+}
+
+/** The chart series is dividend/split adjusted; show the traded close of the same session beside it. */
+export function applyActualCloses(
+  quotes: readonly Vn30StockQuote[],
+  rows: readonly VndStockPriceRow[],
+): Vn30StockQuote[] {
+  return quotes.map((quote) => {
+    if (quote.observedAt === undefined) return quote;
+    const session = new Date(quote.observedAt).toISOString().slice(0, 10);
+    const close = rows.find((row) => row.code === quote.symbol && row.date === session)?.close;
+    return typeof close === 'number' && close > 0 ? { ...quote, closeThousandVnd: close } : quote;
+  });
+}
+
 export async function fetchVn30Leaders(now: number): Promise<Vn30StockQuote[]> {
   const toSec = Math.floor(now / 1000);
   const fromSec = toSec - 350 * 86_400;
@@ -225,6 +244,15 @@ export async function fetchVn30Leaders(now: number): Promise<Vn30StockQuote[]> {
       out.push(r.value);
     }
   }
-  return out;
+  try {
+    const codes = out.map((q) => q.symbol).join(',');
+    const prices = await fetchJsonWithTimeout<{ data?: VndStockPriceRow[] }>(
+      `https://api-finfo.vndirect.com.vn/v4/stock_prices?q=code:${codes}&sort=date:desc&size=${out.length * 2}`,
+      { timeoutMs: 6_500, retries: 0, userAgent: DEFAULT_BROWSER_UA },
+    );
+    return applyActualCloses(out, prices?.data ?? []);
+  } catch {
+    return out; // adjusted prices are still correct for every stock without a pending corporate action
+  }
 }
 

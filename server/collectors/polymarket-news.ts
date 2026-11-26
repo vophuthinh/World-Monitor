@@ -1,3 +1,4 @@
+import { parseFeedDate } from '../lib/feed-date';
 import { XMLParser } from 'fast-xml-parser';
 import { selectTopHotPolymarket } from '@shared/intelligence';
 import type { NewsCategory, NewsItem, PredictionCategory, PredictionItem } from '@shared/types';
@@ -193,6 +194,8 @@ export function normalizePolymarketEvents(events: RawPolymarketEvent[]): Predict
         : `title:${title.toLowerCase()}`;
 
     const selected = selectBestOpenSubMarket(ev.markets);
+    // 0% / 100% is an already-decided question: no market expectation left to show.
+    if (selected.yesPercent <= 0 || selected.yesPercent >= 100) continue;
     const rawVol24 = Number(ev.volume24hr ?? selected.market?.volume24hr ?? 0);
     const volume24hUsd = Number.isFinite(rawVol24) && rawVol24 > 0 ? Math.round(rawVol24) : undefined;
     const rawVolTotal = Number(ev.volume ?? ev.volume24hr ?? selected.market?.volume ?? 0);
@@ -317,8 +320,12 @@ const GEO_GAZETTEER: readonly GeoKeywordRule[] = [
   { pattern: /\b(india|ấn độ|new delhi|mumbai)\b/i, name: 'Ấn Độ', lat: 20.59, lon: 78.96 },
 ];
 
+// A match report is not an event at a place worth plotting.
+const SPORTS_HEADLINE_RE =
+  /(?<!\p{L})(?:U1[5-9]|U2[0-3]|HCV|HCB|HCĐ|V-?League|World Cup|SEA Games|bóng đá|bóng chuyền|taekwondo|karate|cầu thủ|trận đấu|vòng đấu|bàn thắng|huy chương|football|soccer|premier league)(?!\p{L})/iu;
+
 export function matchGeoLocation(text: string): { name: string; lat: number; lon: number } | null {
-  if (!text) return null;
+  if (!text || SPORTS_HEADLINE_RE.test(text)) return null;
   for (const rule of GEO_GAZETTEER) {
     if (rule.pattern.test(text)) {
       return { name: rule.name, lat: rule.lat, lon: rule.lon };
@@ -452,7 +459,7 @@ export function parseRssFeedXml(
     if (!title || !url || !url.startsWith('http')) continue;
 
     const rawDate = cleanText(entry?.pubDate ?? entry?.published ?? entry?.updated);
-    const parsedTs = rawDate ? Date.parse(rawDate) : Number.NaN;
+    const parsedTs = rawDate ? parseFeedDate(rawDate) : Number.NaN;
     const publishedAt = Number.isFinite(parsedTs) ? parsedTs : fallbackNow;
 
     const loc = matchGeoLocation(title);

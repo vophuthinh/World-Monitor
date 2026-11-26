@@ -15,9 +15,9 @@ export function PredictionOddsSection({ topMacroGeopoliticsPredictions, translat
           <ChartBar size={13} className="text-cyan-400" />
           <span>KỲ VỌNG HÀM Ý THỊ TRƯỜNG · VĨ MÔ &amp; ĐỊA CHÍNH TRỊ</span>
         </h2>
-        <span className="font-mono text-[9.5px] text-slate-500">Polymarket</span>
+        <span className="font-mono text-[11px] text-slate-500">Polymarket</span>
       </div>
-      <p className="mt-0.5 text-[10px] text-slate-500">
+      <p className="mt-0.5 text-[11px] text-slate-500">
         Xác suất quy đổi từ giá hợp đồng trên Polymarket, không phải dự báo do hệ thống tự xây.
       </p>
 
@@ -38,7 +38,7 @@ export function PredictionOddsSection({ topMacroGeopoliticsPredictions, translat
                     {label}
                   </span>
                   {item.outcomeLabel && (
-                    <span className="ml-1.5 inline-block rounded border border-cyan-500/35 bg-cyan-500/12 px-1 py-0.2 font-mono text-[9px] text-cyan-200">
+                    <span className="ml-1.5 inline-block rounded border border-cyan-500/35 bg-cyan-500/12 px-1 py-0.2 font-mono text-[11px] text-cyan-200">
                       {item.outcomeLabel}
                     </span>
                   )}
@@ -54,7 +54,7 @@ export function PredictionOddsSection({ topMacroGeopoliticsPredictions, translat
                     style={{ width: `${Math.max(2, Math.min(98, item.yesPercent))}%` }}
                   />
                 </div>
-                <span className="shrink-0 font-mono text-[9.5px] text-slate-400 tabular-nums">
+                <span className="shrink-0 font-mono text-[11px] text-slate-400 tabular-nums">
                   Vol {formatCompactUsd(item.volumeUsd)}
                 </span>
               </div>

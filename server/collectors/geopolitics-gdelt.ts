@@ -151,6 +151,15 @@ function humanizeSlugFromUrl(url: string): string | null {
   }
 }
 
+const ARMED_ACTOR_TYPES = new Set(['MIL', 'REB', 'INS', 'SEP', 'UAF', 'SPY']);
+
+/** CAMEO 18-20 also covers street crime; military labels need an armed actor or two different states. */
+function isMilitaryEvent(cols: string[]): boolean {
+  const [country1, country2] = [cols[7]?.trim(), cols[17]?.trim()];
+  return ARMED_ACTOR_TYPES.has(cols[12]?.trim()) || ARMED_ACTOR_TYPES.has(cols[22]?.trim()) ||
+    Boolean(country1 && country2 && country1 !== country2);
+}
+
 export function parseGdeltExportTsv(tsv: string, now = Date.now()): GeoPointFeature[] {
   const lines = tsv.split(/\r?\n/);
   const byCoord = new Map<string, GeoPointFeature & { mentions: number }>();
@@ -163,6 +172,7 @@ export function parseGdeltExportTsv(tsv: string, now = Date.now()): GeoPointFeat
     const rootCode = cols[28]?.trim() ?? '';
     const cameo = CAMEO_ROOT_LABELS[rootCode];
     if (!cameo) continue;
+    if (cameo.category === 'conflict' && !isMilitaryEvent(cols)) continue;
 
     const lat = Number(cols[56]);
     const lon = Number(cols[57]);

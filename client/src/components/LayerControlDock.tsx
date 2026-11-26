@@ -134,7 +134,7 @@ export const LayerControlDock = memo(function LayerControlDock({
           <button
             type="button"
             onClick={() => onSetAllLayers(enabledCount < totalCount)}
-            className="rounded px-1.5 py-0.5 font-mono text-[10px] text-slate-400 transition hover:bg-slate-800 hover:text-cyan-300"
+            className="rounded px-1.5 py-0.5 font-mono text-[11px] text-slate-400 transition hover:bg-slate-800 hover:text-cyan-300"
           >
             {enabledCount < totalCount ? 'Tất cả' : 'Ẩn hết'}
           </button>
@@ -150,7 +150,7 @@ export const LayerControlDock = memo(function LayerControlDock({
       </div>
 
       {onApplyPreset && (
-        <div className="mt-2 grid grid-cols-4 gap-1 border-b border-slate-800/80 pb-2 font-mono text-[9.5px]">
+        <div className="mt-2 grid grid-cols-4 gap-1 whitespace-nowrap border-b border-slate-800/80 pb-2 font-mono text-[11px] tracking-tight">
           <button
             type="button"
             onClick={() => onApplyPreset('clean')}
@@ -211,7 +211,7 @@ export const LayerControlDock = memo(function LayerControlDock({
                 <span className="truncate">{label}</span>
               </span>
               <span
-                className={`ml-1.5 rounded px-1.5 py-0.2 font-mono text-[10px] tabular-nums ${
+                className={`ml-1.5 rounded px-1.5 py-0.2 font-mono text-[11px] tabular-nums ${
                   active ? 'bg-slate-900/90 text-slate-300' : 'text-slate-600'
                 }`}
               >
@@ -224,12 +224,12 @@ export const LayerControlDock = memo(function LayerControlDock({
 
       {activeLayers.vessels &&
         (aisStreamConfigured ? (
-          <div className="mt-1.5 flex items-center justify-between rounded border border-emerald-500/35 bg-emerald-950/35 px-2 py-1 font-mono text-[9.5px] text-emerald-300">
+          <div className="mt-1.5 flex items-center justify-between rounded border border-emerald-500/35 bg-emerald-950/35 px-2 py-1 font-mono text-[11px] text-emerald-300">
             <span>AISStream Biển Đông / Malacca</span>
             <span className="font-semibold text-emerald-200">LIVE WS</span>
           </div>
         ) : (
-          <div className="mt-1.5 rounded border border-emerald-500/25 bg-emerald-950/30 px-2 py-1 font-mono text-[9.5px] text-emerald-300/90">
+          <div className="mt-1.5 rounded border border-emerald-500/25 bg-emerald-950/30 px-2 py-1 font-mono text-[11px] text-emerald-300/90">
             Open AIS đang bật · Thêm <code className="text-emerald-200">AISSTREAM_API_KEY</code> vào{' '}
             <code className="text-emerald-200">.env</code> để mở thêm AIS Biển Đông/Hormuz.
           </div>
@@ -238,7 +238,7 @@ export const LayerControlDock = memo(function LayerControlDock({
       {activeLayers.weatherRadar && (
         <div className="mt-2 space-y-2 rounded border border-slate-800/80 bg-[#0d1524] px-2.5 py-2">
           <div>
-            <div className="flex items-center justify-between font-mono text-[10px] text-slate-400">
+            <div className="flex items-center justify-between font-mono text-[11px] text-slate-400">
               <span>ĐỘ ĐẬM RADAR MƯA</span>
               <span className="text-cyan-300 tabular-nums">{Math.round(radarOpacity * 100)}%</span>
             </div>
@@ -255,7 +255,7 @@ export const LayerControlDock = memo(function LayerControlDock({
 
           {radarFrames.length > 1 && onChangeRadarFrame && onToggleRadarPlay && (
             <div className="border-t border-slate-800/80 pt-1.5">
-              <div className="flex items-center justify-between gap-1 font-mono text-[9.5px]">
+              <div className="flex items-center justify-between gap-1 font-mono text-[11px]">
                 <button
                   type="button"
                   onClick={onToggleRadarPlay}
@@ -276,7 +276,7 @@ export const LayerControlDock = memo(function LayerControlDock({
                       })
                     : ''}
                   {radarFrames[radarFrameIndex]?.isForecast ? (
-                    <span className="ml-1 rounded bg-amber-500/20 px-1 py-0.1 text-[8.5px] font-bold text-amber-300">
+                    <span className="ml-1 rounded bg-amber-500/20 px-1 py-0.1 text-[11px] font-bold text-amber-300">
                       DỰ BÁO
                     </span>
                   ) : null}
@@ -298,7 +298,7 @@ export const LayerControlDock = memo(function LayerControlDock({
             <button
               type="button"
               onClick={onToggleWindy}
-              className={`flex w-full items-center justify-center gap-1.5 rounded border py-1 font-mono text-[10px] font-semibold transition ${
+              className={`flex w-full items-center justify-center gap-1.5 rounded border py-1 font-mono text-[11px] font-semibold transition ${
                 windyOpen
                   ? 'border-sky-400/65 bg-sky-500/25 text-sky-100'
                   : 'border-sky-500/35 bg-sky-500/12 text-sky-200 hover:bg-sky-500/22'
@@ -313,12 +313,12 @@ export const LayerControlDock = memo(function LayerControlDock({
 
       {activeLayers.military && (
         <div className="mt-2 border-t border-slate-800/90 pt-2">
-          <div className="font-mono text-[9.5px] uppercase tracking-wider text-slate-500">
+          <div className="font-mono text-[11px] uppercase tracking-wider text-slate-500">
             PHÂN NHÓM QUÂN SỰ &amp; HÀNG HẢI
           </div>
           <div className="mt-1 grid grid-cols-2 gap-x-2 gap-y-1">
             {MILITARY_ROLE_LEGEND.map((item) => (
-              <div key={item.label} className="flex items-center gap-1.5 text-[10.5px] text-slate-300">
+              <div key={item.label} className="flex items-center gap-1.5 text-[11px] text-slate-300">
                 <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: item.color }} />
                 <span className="truncate">{item.label}</span>
               </div>

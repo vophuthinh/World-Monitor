@@ -221,7 +221,7 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now(), 
         .slice(0, 8)
         .map(
           (s) =>
-            `${s.symbol} ${s.priceThousandVnd.toFixed(2)}k (${s.changePercent == null ? 'biến động không rõ' : `${s.changePercent >= 0 ? '+' : ''}${s.changePercent.toFixed(2)}%`})`,
+            `${s.symbol} ${(s.closeThousandVnd ?? s.priceThousandVnd).toFixed(2)}k (${s.changePercent == null ? 'biến động không rõ' : `${s.changePercent >= 0 ? '+' : ''}${s.changePercent.toFixed(2)}%`})`,
         )
         .join(', ');
       lines.push(`[CỔ PHIẾU VN30] ${vn30Summary}`);

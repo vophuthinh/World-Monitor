@@ -153,7 +153,7 @@ const TechCyberTab = memo(function TechCyberTab({
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="space-y-2 border-b border-slate-800/90 p-2.5">
         <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-slate-800/90 bg-[#0d1524] px-2 py-1.5">
-          <div className="flex flex-wrap items-center gap-1.5 font-mono text-[9.5px]">
+          <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
             {(techCyber?.infraStatus ?? []).map((st) => {
               const dotClass =
                 st.level === 'operational'
@@ -189,7 +189,7 @@ const TechCyberTab = memo(function TechCyberTab({
           <button
             type="button"
             onClick={onToggleTranslateVi}
-            className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[10px] font-semibold transition ${
+            className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[11px] font-semibold transition ${
               translateVi
                 ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
                 : 'border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200'
@@ -221,7 +221,7 @@ const TechCyberTab = memo(function TechCyberTab({
                 setTechFilter(cat.id);
                 if (cat.id === 'all') setMitreFilter(null);
               }}
-              className={`rounded px-2 py-1 text-[10.5px] font-medium transition ${
+              className={`rounded px-2 py-1 text-[11px] font-medium transition ${
                 techFilter === cat.id
                   ? 'border border-violet-500/45 bg-violet-500/20 text-violet-200'
                   : 'border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
@@ -233,7 +233,7 @@ const TechCyberTab = memo(function TechCyberTab({
         </div>
 
         {mitreFilter && (
-          <div className="flex items-center justify-between rounded border border-rose-500/45 bg-rose-500/15 px-2.5 py-1 font-mono text-[10px] text-rose-200">
+          <div className="flex items-center justify-between rounded border border-rose-500/45 bg-rose-500/15 px-2.5 py-1 font-mono text-[11px] text-rose-200">
             <span>
               Đang lọc theo kỹ thuật MITRE ATT&amp;CK: <strong>{mitreFilter}</strong>
             </span>
@@ -270,7 +270,7 @@ const TechCyberTab = memo(function TechCyberTab({
 
         {techFilter === 'all' && !mitreFilter && !techQuery.trim() && ghTrendingDaily.length > 0 && (
           <div className="bg-[#0b1322]/90 px-3 py-2.5">
-            <div className="mb-1.5 flex items-center justify-between font-mono text-[10px]">
+            <div className="mb-1.5 flex items-center justify-between font-mono text-[11px]">
               <span className="inline-flex items-center gap-1 font-bold text-amber-300">
                 <Fire size={12} weight="fill" className="text-orange-400" />
                 GITHUB TRENDING HÔM NAY
@@ -278,7 +278,7 @@ const TechCyberTab = memo(function TechCyberTab({
               <button
                 type="button"
                 onClick={() => setTechFilter('github_release')}
-                className="rounded border border-emerald-500/40 bg-emerald-500/12 px-2 py-0.5 text-[9.5px] font-semibold text-emerald-300 transition hover:bg-emerald-500/25"
+                className="rounded border border-emerald-500/40 bg-emerald-500/12 px-2 py-0.5 text-[11px] font-semibold text-emerald-300 transition hover:bg-emerald-500/25"
               >
                 Xem tất cả {ghTrendingDaily.length} repo →
               </button>
@@ -293,13 +293,13 @@ const TechCyberTab = memo(function TechCyberTab({
                   className="flex items-center justify-between gap-2 rounded border border-slate-800/90 bg-[#090f1b] px-2 py-1.5 transition hover:border-emerald-500/45"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 font-mono text-[10.5px]">
-                      <span className="shrink-0 rounded bg-amber-500/20 px-1 py-0.2 text-[9px] font-bold text-amber-300">
+                    <div className="flex items-center gap-1.5 font-mono text-[11px]">
+                      <span className="shrink-0 rounded bg-amber-500/20 px-1 py-0.2 text-[11px] font-bold text-amber-300">
                         #{repo.rank}
                       </span>
                       <span className="truncate font-semibold text-cyan-200">{repo.fullName}</span>
                       {repo.language && (
-                        <span className="inline-flex shrink-0 items-center gap-1 text-[9.5px] text-slate-400">
+                        <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-slate-400">
                           <span
                             className="h-2 w-2 rounded-full"
                             style={{ backgroundColor: repo.languageColor || '#38bdf8' }}
@@ -309,12 +309,12 @@ const TechCyberTab = memo(function TechCyberTab({
                       )}
                     </div>
                     {repo.description && (
-                      <p className="mt-0.5 line-clamp-1 text-[10.5px] text-slate-400">
+                      <p className="mt-0.5 line-clamp-1 text-[11px] text-slate-400">
                         {translateVi ? repo.descriptionVi || repo.description : repo.description}
                       </p>
                     )}
                   </div>
-                  <span className="shrink-0 rounded border border-emerald-500/40 bg-emerald-500/15 px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-emerald-300 tabular-nums">
+                  <span className="shrink-0 rounded border border-emerald-500/40 bg-emerald-500/15 px-1.5 py-0.5 font-mono text-[11px] font-bold text-emerald-300 tabular-nums">
                     +{repo.periodStars.toLocaleString('en-US')} ★
                   </span>
                 </a>
@@ -346,7 +346,7 @@ const TechCyberTab = memo(function TechCyberTab({
                   key={item.id}
                   className="perf-card px-3 py-2.5 transition hover:bg-slate-900/65"
                 >
-                  <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
+                  <div className="flex items-center justify-between gap-2 font-mono text-[11px]">
                     <div className="flex min-w-0 items-center gap-1.5">
                       <span className={`truncate rounded px-1.5 py-0.2 font-semibold ${techBadgeStyle(item)}`}>
                         {item.source}
@@ -359,7 +359,7 @@ const TechCyberTab = memo(function TechCyberTab({
                             void runIocScan(item.cveId!);
                           }}
                           title="Bấm để tra cứu điểm CVSS & chi tiết trên NIST NVD"
-                          className="inline-flex shrink-0 items-center gap-0.5 rounded border border-rose-500/45 bg-rose-500/20 px-1.5 py-0.2 text-[9px] font-bold text-rose-200 hover:bg-rose-500/35"
+                          className="inline-flex shrink-0 items-center gap-0.5 rounded border border-rose-500/45 bg-rose-500/20 px-1.5 py-0.2 text-[11px] font-bold text-rose-200 hover:bg-rose-500/35"
                         >
                           <ShieldWarning size={10} weight="fill" />
                           {item.cveId}
@@ -367,7 +367,7 @@ const TechCyberTab = memo(function TechCyberTab({
                         </button>
                       )}
                       {translateVi && isTranslated && (
-                        <span className="shrink-0 rounded bg-emerald-500/15 px-1 py-0.2 text-[9px] text-emerald-300">
+                        <span className="shrink-0 rounded bg-emerald-500/15 px-1 py-0.2 text-[11px] text-emerald-300">
                           VI
                         </span>
                       )}
@@ -378,7 +378,7 @@ const TechCyberTab = memo(function TechCyberTab({
                   </div>
 
                   {item.mitreTtps && item.mitreTtps.length > 0 && (
-                    <div className="mt-1 flex flex-wrap gap-1 font-mono text-[8.5px]">
+                    <div className="mt-1 flex flex-wrap gap-1 font-mono text-[11px]">
                       {item.mitreTtps.map((ttp) => (
                         <button
                           key={ttp.id}
@@ -408,7 +408,7 @@ const TechCyberTab = memo(function TechCyberTab({
                   </a>
 
                   {translateVi && isTranslated && (
-                    <p className="mt-0.5 line-clamp-1 text-[10.5px] text-slate-500" title={item.title}>
+                    <p className="mt-0.5 line-clamp-1 text-[11px] text-slate-500" title={item.title}>
                       Gốc: {item.title}
                     </p>
                   )}
@@ -418,7 +418,7 @@ const TechCyberTab = memo(function TechCyberTab({
                       <button
                         type="button"
                         onClick={() => onFlyToLocation(item.matchedLat!, item.matchedLon!, 5.5)}
-                        className="inline-flex items-center gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 font-mono text-[10px] font-medium text-cyan-300 transition hover:bg-cyan-500/20 active:scale-[0.98]"
+                        className="inline-flex items-center gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 font-mono text-[11px] font-medium text-cyan-300 transition hover:bg-cyan-500/20 active:scale-[0.98]"
                       >
                         <Crosshair size={11} />
                         Bay tới: {item.matchedLocation}
@@ -430,7 +430,7 @@ const TechCyberTab = memo(function TechCyberTab({
                       href={safeHref(item.url)}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-0.5 text-[10.5px] text-slate-400 hover:text-slate-200"
+                      className="inline-flex items-center gap-0.5 text-[11px] text-slate-400 hover:text-slate-200"
                     >
                       Mở nguồn <ArrowSquareOut size={11} />
                     </a>
@@ -443,7 +443,7 @@ const TechCyberTab = memo(function TechCyberTab({
                 <button
                   type="button"
                   onClick={() => setVisibleLimit((v) => v + 40)}
-                  className="rounded border border-slate-700 bg-slate-900 px-3 py-1 font-mono text-[10.5px] text-slate-300 transition hover:border-violet-400 hover:text-violet-200"
+                  className="rounded border border-slate-700 bg-slate-900 px-3 py-1 font-mono text-[11px] text-slate-300 transition hover:border-violet-400 hover:text-violet-200"
                 >
                   Xem thêm ({filteredTech.length - visibleLimit} tin còn lại)
                 </button>

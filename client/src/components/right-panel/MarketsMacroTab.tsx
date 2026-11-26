@@ -16,6 +16,7 @@ import type {
   PredictionItem,
   RegimeHistoryPoint,
 } from '@shared/types';
+import { CrossCheckNotice } from './CrossCheckNotice';
 import { InvestmentCompassSection } from './InvestmentCompassSection';
 import { ExpiredMacroNotices, MacroHealthSection } from './MacroHealthSection';
 import { CatalystCalendarSection } from './markets/CatalystCalendarSection';
@@ -191,6 +192,7 @@ const MarketsMacroTab = memo(function MarketsMacroTab({
       <p className="mt-1 text-xs text-slate-300">
         Dữ liệu giữ lại quá 7 ngày từ lần lấy thành công không được dùng để chấm điểm.
       </p>
+      <CrossCheckNotice checks={markets.crossChecks} />
       {(['vn', 'us'] as const).map((region) => observationWarnings[region].length > 0 && (
         <details key={region} className="rounded border border-amber-500/45 bg-amber-950/35 px-2 py-1.5 text-xs text-amber-200">
           <summary className="cursor-pointer">

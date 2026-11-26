@@ -9,6 +9,8 @@ import type {
 } from '@shared/types';
 
 const MAX_HISTORY_DAYS = 90;
+/** Bump whenever macro / compass scoring changes. 2 = November 2026 revision. */
+export const SCORING_VERSION = 2;
 
 function formatVnDate(tsMs: number): string {
   const vnMs = tsMs + 7 * 3_600_000;
@@ -87,6 +89,7 @@ export class RegimeHistoryLedger {
       stance: compass.stance,
       equitiesWeightPct: eqSlice,
       reconstructed: false,
+      scoringVersion: SCORING_VERSION,
       observedAt: nowMs,
     };
 

@@ -152,7 +152,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
           type="button"
           onClick={() => setActiveTab('intel')}
           aria-pressed={activeTab === 'intel'}
-          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-xs font-semibold transition lg:flex-1 lg:px-1 lg:text-[10.5px] xl:text-[11px] ${
+          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-xs font-semibold transition lg:flex-1 lg:px-1 lg:text-[11px] xl:text-[11px] ${
             activeTab === 'intel'
               ? 'border-fuchsia-400 bg-fuchsia-500/12 text-fuchsia-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -165,7 +165,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
           type="button"
           onClick={() => setActiveTab('techCyber')}
           aria-pressed={activeTab === 'techCyber'}
-          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-xs font-semibold transition lg:flex-1 lg:px-1 lg:text-[10.5px] xl:text-[11px] ${
+          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-xs font-semibold transition lg:flex-1 lg:px-1 lg:text-[11px] xl:text-[11px] ${
             activeTab === 'techCyber'
               ? 'border-violet-400 bg-violet-500/12 text-violet-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -178,7 +178,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
           type="button"
           onClick={() => setActiveTab('news')}
           aria-pressed={activeTab === 'news'}
-          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-xs font-semibold transition lg:flex-1 lg:px-1 lg:text-[10.5px] xl:text-[11px] ${
+          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-xs font-semibold transition lg:flex-1 lg:px-1 lg:text-[11px] xl:text-[11px] ${
             activeTab === 'news'
               ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -191,7 +191,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
           type="button"
           onClick={() => setActiveTab('policy')}
           aria-pressed={activeTab === 'policy'}
-          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-xs font-semibold transition lg:flex-1 lg:px-1 lg:text-[10.5px] xl:text-[11px] ${
+          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-xs font-semibold transition lg:flex-1 lg:px-1 lg:text-[11px] xl:text-[11px] ${
             activeTab === 'policy'
               ? 'border-amber-400 bg-amber-500/12 text-amber-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -204,7 +204,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
           type="button"
           onClick={() => setActiveTab('markets')}
           aria-pressed={activeTab === 'markets'}
-          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-xs font-semibold transition lg:flex-1 lg:px-1 lg:text-[10.5px] xl:text-[11px] ${
+          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-xs font-semibold transition lg:flex-1 lg:px-1 lg:text-[11px] xl:text-[11px] ${
             activeTab === 'markets'
               ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -217,7 +217,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
           type="button"
           onClick={() => setActiveTab('hpt')}
           aria-pressed={activeTab === 'hpt'}
-          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-xs font-semibold transition lg:flex-1 lg:px-1 lg:text-[10.5px] xl:text-[11px] ${
+          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-xs font-semibold transition lg:flex-1 lg:px-1 lg:text-[11px] xl:text-[11px] ${
             activeTab === 'hpt'
               ? 'border-emerald-400 bg-emerald-500/12 text-emerald-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'

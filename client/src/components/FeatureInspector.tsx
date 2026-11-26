@@ -83,11 +83,11 @@ export function FeatureInspector({ selected, onClose, onFlyTo }: FeatureInspecto
         <div className="flex items-start justify-between gap-2 border-b border-slate-800/90 pb-2.5">
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="inline-flex items-center gap-1 rounded border border-cyan-500/30 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-cyan-300">
+              <span className="inline-flex items-center gap-1 rounded border border-cyan-500/30 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-cyan-300">
                 <ShareNetwork size={12} weight="bold" />
                 {LAYER_LABELS.cables}
               </span>
-              <span className={`rounded border px-1.5 py-0.5 font-mono text-[10px] font-semibold ${sev.className}`}>
+              <span className={`rounded border px-1.5 py-0.5 font-mono text-[11px] font-semibold ${sev.className}`}>
                 {cable.vietnamConnected ? 'KẾT NỐI VN' : sev.label}
               </span>
             </div>
@@ -106,17 +106,17 @@ export function FeatureInspector({ selected, onClose, onFlyTo }: FeatureInspecto
         <div className="mt-2.5 space-y-2 text-xs">
           <div className="grid grid-cols-2 gap-2 rounded border border-slate-800/80 bg-[#0d1524] p-2 font-mono">
             <div>
-              <div className="text-[10px] text-slate-400">NĂM VẬN HÀNH</div>
+              <div className="text-[11px] text-slate-400">NĂM VẬN HÀNH</div>
               <div className="mt-0.5 font-semibold text-slate-100 tabular-nums">{cable.rfsYear ?? '—'}</div>
             </div>
             <div>
-              <div className="text-[10px] text-slate-400">TRẠM CẬP BỜ</div>
+              <div className="text-[11px] text-slate-400">TRẠM CẬP BỜ</div>
               <div className="mt-0.5 font-semibold text-slate-100 tabular-nums">{cable.landingPoints.length} trạm</div>
             </div>
           </div>
 
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-wider text-slate-400">CÁC ĐIỂM CẬP BỜ CHÍNH</div>
+            <div className="font-mono text-[11px] uppercase tracking-wider text-slate-400">CÁC ĐIỂM CẬP BỜ CHÍNH</div>
             <div className="mt-1 flex flex-wrap gap-1">
               {cable.landingPoints.map((lp) => (
                 <button
@@ -136,14 +136,14 @@ export function FeatureInspector({ selected, onClose, onFlyTo }: FeatureInspecto
           </div>
 
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-wider text-slate-400">ĐƠN VỊ SỞ HỮU / KHAI THÁC</div>
+            <div className="font-mono text-[11px] uppercase tracking-wider text-slate-400">ĐƠN VỊ SỞ HỮU / KHAI THÁC</div>
             <p className="mt-0.5 text-[11px] leading-relaxed text-slate-300">{cable.owners.join(', ')}</p>
           </div>
         </div>
 
         {anchor && (
           <div className="mt-3 flex items-center justify-between border-t border-slate-800/90 pt-2.5">
-            <span className="font-mono text-[10px] text-slate-400">{cable.source}</span>
+            <span className="font-mono text-[11px] text-slate-400">{cable.source}</span>
             <button
               type="button"
               onClick={() => onFlyTo(anchor.lat, anchor.lon, 5.2)}
@@ -167,12 +167,12 @@ export function FeatureInspector({ selected, onClose, onFlyTo }: FeatureInspecto
       <div className="flex items-start justify-between gap-2 border-b border-slate-800/90 pb-2.5">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="inline-flex items-center gap-1 rounded border border-slate-700 bg-slate-800/90 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-200">
+            <span className="inline-flex items-center gap-1 rounded border border-slate-700 bg-slate-800/90 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-slate-200">
               <GlobeHemisphereEast size={12} />
               {LAYER_LABELS[pt.layer] ?? pt.layer.toUpperCase()}
             </span>
             <span
-              className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[10px] font-semibold ${
+              className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[11px] font-semibold ${
                 pt.layer === 'sovereignty'
                   ? 'border-amber-400/50 bg-red-600/25 text-amber-200'
                   : sev.className
@@ -211,7 +211,7 @@ export function FeatureInspector({ selected, onClose, onFlyTo }: FeatureInspecto
         <dl className="mt-2.5 grid max-h-48 grid-cols-2 gap-1.5 overflow-y-auto pr-0.5">
           {entries.map(([k, v]) => (
             <div key={k} className="rounded border border-slate-800/70 bg-slate-900/65 px-2 py-1.5">
-              <dt className="truncate font-mono text-[9.5px] text-slate-400">{formatMetaLabel(k)}</dt>
+              <dt className="truncate font-mono text-[11px] text-slate-400">{formatMetaLabel(k)}</dt>
               <dd className="mt-0.5 break-words font-mono text-[11px] font-medium text-slate-100 tabular-nums">
                 {formatMetaValue(v)}
               </dd>
@@ -221,7 +221,7 @@ export function FeatureInspector({ selected, onClose, onFlyTo }: FeatureInspecto
       )}
 
       <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-800/90 pt-2.5">
-        <span className="truncate font-mono text-[10px] text-slate-400" title={pt.source}>
+        <span className="truncate font-mono text-[11px] text-slate-400" title={pt.source}>
           {pt.source}
         </span>
         <div className="flex shrink-0 items-center gap-1.5">

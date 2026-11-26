@@ -1,3 +1,4 @@
+import { parseFeedDate } from '../lib/feed-date';
 import { XMLParser } from 'fast-xml-parser';
 import { attachEnsembles, fetchMultiModelForecasts } from './forecast-ensemble';
 import type {
@@ -299,7 +300,7 @@ export function parseNchmfWeatherRss(xml: string, fallbackNow = Date.now()): Vie
       }
 
       const rawPub = String(entry?.pubDate ?? '');
-      const parsedTs = rawPub ? Date.parse(rawPub) : Number.NaN;
+      const parsedTs = rawPub ? parseFeedDate(rawPub) : Number.NaN;
       const publishedAt = Number.isFinite(parsedTs) ? parsedTs : fallbackNow;
 
       out.push({
@@ -605,7 +606,7 @@ async function fetchCloudflareOutagePosts(now: number): Promise<GeoPointFeature[
     for (const entry of items.slice(0, 4)) {
       const title = String(entry?.title ?? '').trim();
       const link = String(entry?.link ?? '').trim();
-      const pubTs = Date.parse(String(entry?.pubDate ?? ''));
+      const pubTs = parseFeedDate(String(entry?.pubDate ?? ''));
       if (!title || !link) continue;
       // Only include outage reports from the last 45 days so map stays fresh
       if (Number.isFinite(pubTs) && now - pubTs > 45 * 86_400_000) continue;

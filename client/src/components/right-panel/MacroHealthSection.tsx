@@ -108,7 +108,7 @@ export function MacroHealthSection({
               <div className="font-mono text-xs text-slate-300">{activeMacroReport.subtitle}</div>
               <div className="mt-1 flex flex-wrap items-center gap-1.5">
                 <span
-                  className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[10px] font-bold ${
+                  className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[11px] font-bold ${
                     !activeMacroReport.regime
                       ? 'border-slate-500/40 bg-slate-500/10 text-slate-300'
                       : activeMacroReport.regime === 'soft_landing'
@@ -125,7 +125,7 @@ export function MacroHealthSection({
                 {activeMacroReport.recessionProb12m !== undefined && (
                   <span
                     title="Tín hiệu xác suất suy thoái 12 tháng riêng theo công thức NY Fed (độ dốc lợi suất 10Y–3M), không phải dự báo GDP/CPI của hệ thống"
-                    className={`inline-flex items-center rounded border px-1.5 py-0.5 font-mono text-[9.5px] font-semibold tabular-nums ${
+                    className={`inline-flex items-center rounded border px-1.5 py-0.5 font-mono text-[11px] font-semibold tabular-nums ${
                       activeMacroReport.recessionProb12m >= 40
                         ? 'border-rose-500/45 bg-rose-500/15 text-rose-200'
                         : activeMacroReport.recessionProb12m >= 28
@@ -143,7 +143,7 @@ export function MacroHealthSection({
                 {activeMacroReport.compositeScore}
                 <span className="text-[11px] font-normal text-slate-400">/100</span>
               </div>
-              <div className="mt-0.5 text-[9px] text-slate-400">ĐIỂM CHẾ ĐỘ VĨ MÔ</div>
+              <div className="mt-0.5 text-[11px] text-slate-400">ĐIỂM CHẾ ĐỘ VĨ MÔ</div>
             </div>
           </div>
 
@@ -207,7 +207,7 @@ export function MacroHealthSection({
                     >
                       <div className="flex items-center justify-between">
                         <span>{q.short}</span>
-                        {isCurrent && <span className="text-[10px]">● HIỆN TẠI</span>}
+                        {isCurrent && <span className="text-[11px]">● HIỆN TẠI</span>}
                       </div>
                       <div className={`text-[11px] ${isCurrent ? 'opacity-95' : 'text-slate-400'}`}>
                         {q.desc}

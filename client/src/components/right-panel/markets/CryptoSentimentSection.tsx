@@ -21,7 +21,7 @@ export function CryptoSentimentSection({ markets, priceFlashes, volatileCrypto }
           <span>TIỀN SỐ</span>
         </h2>
         {markets.fearGreed && (
-          <span className="inline-flex items-center gap-1 font-mono text-[10.5px] text-cyan-300 tabular-nums">
+          <span className="inline-flex items-center gap-1 font-mono text-[11px] text-cyan-300 tabular-nums">
             <Gauge size={13} />
             F&amp;G: {markets.fearGreed.value}/100 ({markets.fearGreed.classification}){sentimentIsStale ? ' · dữ liệu cũ' : ''}
           </span>
@@ -67,7 +67,7 @@ export function CryptoSentimentSection({ markets, priceFlashes, volatileCrypto }
                   {coin.symbol}
                 </span>
                 <span className="ml-1.5 text-[11px] text-slate-400">{coin.name}</span>
-                {coin.retained && <span className="ml-1 text-[10px] text-amber-300">dữ liệu cũ</span>}
+                {coin.retained && <span className="ml-1 text-[11px] text-amber-300">dữ liệu cũ</span>}
               </div>
               <div className="text-right font-mono tabular-nums">
                 <div
@@ -84,7 +84,7 @@ export function CryptoSentimentSection({ markets, priceFlashes, volatileCrypto }
                     maximumFractionDigits: coin.priceUsd >= 10 ? 2 : 4,
                   })}
                 </div>
-                <div className="text-[10px]">
+                <div className="text-[11px]">
                   <span className={coin.changePercent24h === null ? 'text-slate-400' : up ? 'text-emerald-400' : 'text-rose-400'}>
                     {coin.changePercent24h === null ? 'không rõ' : `${up ? '+' : ''}${coin.changePercent24h.toFixed(2)}%`}
                   </span>

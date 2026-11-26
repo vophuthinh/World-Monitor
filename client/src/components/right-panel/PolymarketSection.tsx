@@ -15,16 +15,16 @@ export function PolymarketSection({ top5HotPolymarket, predictionFlashes, stream
   return (
     <section>
       <div className="flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-1.5 font-mono text-[10.5px] font-semibold tracking-wider text-slate-200">
+        <h2 className="flex items-center gap-1.5 font-mono text-[11px] font-semibold tracking-wider text-slate-200">
           <Fire size={13} className="text-amber-400" weight="fill" />
           <span>POLYMARKET · TOP 5 HOT NHẤT</span>
-          <span className="inline-flex items-center gap-1 rounded border border-emerald-500/40 bg-emerald-500/15 px-1.5 py-0.2 font-mono text-[8.5px] font-bold text-emerald-300">
+          <span className="inline-flex items-center gap-1 rounded border border-emerald-500/40 bg-emerald-500/15 px-1.5 py-0.2 font-mono text-[11px] font-bold text-emerald-300">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
             {streamConnected ? 'LIVE WS' : '45S LIVE'}
           </span>
         </h2>
 
-        <div className="flex items-center gap-1.5 font-mono text-[9.5px] text-slate-400">
+        <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-400">
           <span>24h Vol</span>
           {onForceRefresh && (
             <button
@@ -41,7 +41,7 @@ export function PolymarketSection({ top5HotPolymarket, predictionFlashes, stream
           )}
         </div>
       </div>
-      <p className="mt-0.5 text-[10px] text-slate-500">
+      <p className="mt-0.5 text-[11px] text-slate-500">
         Kỳ vọng hàm ý từ dòng tiền giao dịch trên Polymarket, không phải dự báo của hệ thống.
       </p>
 
@@ -73,7 +73,7 @@ export function PolymarketSection({ top5HotPolymarket, predictionFlashes, stream
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span
-                        className={`inline-flex shrink-0 items-center rounded px-1.5 py-0.2 font-mono text-[9px] font-bold ${
+                        className={`inline-flex shrink-0 items-center rounded px-1.5 py-0.2 font-mono text-[11px] font-bold ${
                           idx === 0
                             ? 'border border-amber-400/50 bg-amber-500/20 text-amber-200'
                             : idx < 3
@@ -84,7 +84,7 @@ export function PolymarketSection({ top5HotPolymarket, predictionFlashes, stream
                         #{idx + 1} HOT
                       </span>
                       {item.outcomeLabel && (
-                        <span className="truncate rounded border border-fuchsia-500/35 bg-fuchsia-500/15 px-1.5 py-0.2 font-mono text-[9px] font-semibold text-fuchsia-200">
+                        <span className="truncate rounded border border-fuchsia-500/35 bg-fuchsia-500/15 px-1.5 py-0.2 font-mono text-[11px] font-semibold text-fuchsia-200">
                           {item.outcomeLabel}
                         </span>
                       )}
@@ -108,7 +108,7 @@ export function PolymarketSection({ top5HotPolymarket, predictionFlashes, stream
                     </div>
                     {item.change24hPct !== undefined && (
                       <div
-                        className={`text-[9px] font-semibold ${
+                        className={`text-[11px] font-semibold ${
                           item.change24hPct >= 0 ? 'text-emerald-400' : 'text-rose-400'
                         }`}
                       >
@@ -126,10 +126,10 @@ export function PolymarketSection({ top5HotPolymarket, predictionFlashes, stream
                       style={{ width: `${Math.max(3, Math.min(98, item.yesPercent))}%` }}
                     />
                   </div>
-                  <span className="shrink-0 font-mono text-[9.5px] font-semibold text-amber-300 tabular-nums">
+                  <span className="shrink-0 font-mono text-[11px] font-semibold text-amber-300 tabular-nums">
                     24h {formatCompactUsd(vol24)}
                   </span>
-                  <span className="shrink-0 font-mono text-[9px] text-slate-500 tabular-nums">
+                  <span className="shrink-0 font-mono text-[11px] text-slate-500 tabular-nums">
                     Tổng {formatCompactUsd(item.volumeUsd)}
                   </span>
                 </div>

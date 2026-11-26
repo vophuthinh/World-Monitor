@@ -20,7 +20,7 @@ export function InvestmentCompassSection({
             <Target size={14} weight="fill" className="text-emerald-400" />
             <span>KHẨU VỊ RỦI RO &amp; TÍN HIỆU THỊ TRƯỜNG</span>
           </h2>
-          <span className="shrink-0 rounded border border-emerald-500/45 bg-emerald-500/15 px-1.5 py-0.5 font-mono text-[10px] font-bold text-emerald-200 tabular-nums">
+          <span className="shrink-0 rounded border border-emerald-500/45 bg-emerald-500/15 px-1.5 py-0.5 font-mono text-[11px] font-bold text-emerald-200 tabular-nums">
             Khẩu vị rủi ro: {investmentCompass.riskAppetiteScore}/100
           </span>
         </div>
@@ -28,7 +28,7 @@ export function InvestmentCompassSection({
         <div className="mt-2 rounded border border-slate-800/95 bg-[#070d17] p-2.5">
           <div className="flex flex-wrap items-center justify-between gap-1.5">
             <span
-              className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[10px] font-bold ${
+              className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[11px] font-bold ${
                 investmentCompass.stance === 'risk_on' ||
                 investmentCompass.stance === 'selective_growth'
                   ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-200'
@@ -40,14 +40,14 @@ export function InvestmentCompassSection({
               {investmentCompass.stanceLabel}
             </span>
             {investmentCompass.netLiquidityBillions !== undefined && (
-              <span className="rounded border border-cyan-500/40 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[9.5px] font-semibold text-cyan-200 tabular-nums">
+              <span className="rounded border border-cyan-500/40 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-cyan-200 tabular-nums">
                 Fed Liq: ${(investmentCompass.netLiquidityBillions / 1000).toFixed(2)}T
               </span>
             )}
           </div>
           {investmentCompass.dualConfirmationLabel && (
             <div
-              className={`mt-1.5 rounded border px-2 py-1 font-mono text-[9.5px] font-semibold ${
+              className={`mt-1.5 rounded border px-2 py-1 font-mono text-[11px] font-semibold ${
                 investmentCompass.dualConfirmation === 'confirmed_bull'
                   ? 'border-emerald-500/40 bg-emerald-950/30 text-emerald-300'
                   : investmentCompass.dualConfirmation === 'confirmed_bear'
@@ -59,21 +59,21 @@ export function InvestmentCompassSection({
             </div>
           )}
           {investmentCompass.marketConfirmations && (
-            <ul className="mt-1 space-y-0.5 font-mono text-[9.5px] text-slate-300">
+            <ul className="mt-1 space-y-0.5 font-mono text-[11px] text-slate-300">
               {investmentCompass.marketConfirmations.map((m) => (
                 <li key={m.market}>• {m.label}</li>
               ))}
             </ul>
           )}
           {investmentCompass.capitulationSignal && investmentCompass.capitulationLabel && (
-            <div className="mt-1 rounded border border-cyan-500/45 bg-cyan-950/35 px-2 py-1 font-mono text-[9.5px] font-semibold text-cyan-200">
+            <div className="mt-1 rounded border border-cyan-500/45 bg-cyan-950/35 px-2 py-1 font-mono text-[11px] font-semibold text-cyan-200">
               🎯 {investmentCompass.capitulationLabel}
             </div>
           )}
           <p className="mt-1.5 text-[11px] leading-snug text-slate-300">
             {investmentCompass.summary}
           </p>
-          <p className="mt-1 font-mono text-[9.5px] leading-snug text-slate-500">
+          <p className="mt-1 font-mono text-[11px] leading-snug text-slate-500">
             Điểm số và tỷ trọng tính theo quy tắc trọng số cố định để quan sát trạng thái thị trường; chưa qua kiểm định hiệu quả (backtest) và không phải khuyến nghị đầu tư.
           </p>
 
@@ -81,7 +81,7 @@ export function InvestmentCompassSection({
 
           {investmentCompass.factorPillars && investmentCompass.factorPillars.length > 0 && (
             <div className="mt-2 rounded border border-slate-800/90 bg-[#0a1220] p-2 font-mono">
-              <div className="mb-1 flex flex-wrap items-center justify-between gap-1 text-[9px]">
+              <div className="mb-1 flex flex-wrap items-center justify-between gap-1 text-[11px]">
                 <span className="font-bold text-sky-300">ĐIỂM 5 NHÂN TỐ TRẠNG THÁI &amp; RỦI RO</span>
                 <span className="text-slate-400">
                   {missingPillarCount > 0
@@ -102,7 +102,7 @@ export function InvestmentCompassSection({
                           ? 'Chưa có chỉ báo đầu vào khả dụng cho nhân tố này; hệ thống giữ mức trung tính 52 khi tính điểm tổng'
                           : `${fp.label}: ${fp.score}/100 (trọng số ${fp.weightPct}%)`
                       }
-                      className="grid grid-cols-[1fr_72px_42px] items-center gap-1.5 text-[9px]"
+                      className="grid grid-cols-[1fr_72px_42px] items-center gap-1.5 text-[11px]"
                     >
                       <span className={`truncate ${noData ? 'text-slate-500' : 'text-slate-300'}`}>
                         {fp.label} <span className="text-slate-500">({fp.weightPct}%)</span>
@@ -139,7 +139,7 @@ export function InvestmentCompassSection({
 
           {investmentCompass.allocations.length > 0 && (
             <div className="mt-2 rounded border border-slate-800/90 bg-[#0b1322] p-2">
-              <div className="mb-1.5 flex items-center justify-between font-mono text-[9.5px]">
+              <div className="mb-1.5 flex items-center justify-between font-mono text-[11px]">
                 <span className="font-bold text-emerald-300">
                   TỶ TRỌNG MÔ PHỎNG THEO QUY TẮC TRẠNG THÁI
                 </span>
@@ -170,11 +170,11 @@ export function InvestmentCompassSection({
                           className="h-2 w-2 shrink-0 rounded-full"
                           style={{ backgroundColor: slice.colorHex }}
                         />
-                        <span className="truncate text-[10px] font-semibold text-slate-200">
+                        <span className="truncate text-[11px] font-semibold text-slate-200">
                           {slice.label}
                         </span>
                       </div>
-                      <div className="truncate pl-3 text-[9px] text-slate-400" title={slice.note}>
+                      <div className="truncate pl-3 text-[11px] text-slate-400" title={slice.note}>
                         {slice.note}
                       </div>
                     </div>
@@ -187,12 +187,12 @@ export function InvestmentCompassSection({
             </div>
           )}
 
-          <div className="mt-2 space-y-1.5 text-[10.5px] leading-snug">
+          <div className="mt-2 space-y-1.5 text-[11px] leading-snug">
             <div className="rounded border border-emerald-500/35 bg-emerald-950/25 px-2 py-1.5">
-              <div className="flex flex-wrap items-center justify-between gap-1 font-mono text-[9.5px] font-bold text-emerald-300">
+              <div className="flex flex-wrap items-center justify-between gap-1 font-mono text-[11px] font-bold text-emerald-300">
                 <span>🟢 NHÓM THUẬN PHA &amp; KÊNH ÍT BIẾN ĐỘNG</span>
                 {investmentCompass.sectorRotation && (
-                  <span className="text-[8.5px] font-normal text-emerald-200/80">
+                  <span className="text-[11px] font-normal text-emerald-200/80">
                     {investmentCompass.sectorRotation.phaseTitle.split('(')[0].trim()}
                   </span>
                 )}
@@ -206,7 +206,7 @@ export function InvestmentCompassSection({
 
             {investmentCompass.watchAssets.length > 0 && (
               <div className="rounded border border-amber-500/35 bg-amber-950/20 px-2 py-1.5">
-                <div className="font-mono text-[9.5px] font-bold text-amber-300">
+                <div className="font-mono text-[11px] font-bold text-amber-300">
                   🟡 NHÓM THEO DÕI ĐIỀU KIỆN XU HƯỚNG
                 </div>
                 <ul className="mt-0.5 space-y-0.5 text-slate-200">
@@ -219,7 +219,7 @@ export function InvestmentCompassSection({
 
             {investmentCompass.avoidAssets.length > 0 && (
               <div className="rounded border border-rose-500/35 bg-rose-950/25 px-2 py-1.5">
-                <div className="font-mono text-[9.5px] font-bold text-rose-300">
+                <div className="font-mono text-[11px] font-bold text-rose-300">
                   🔴 NHÓM NHẠY CẢM RỦI RO / CHÊNH LỆCH CAO
                 </div>
                 <ul className="mt-0.5 space-y-0.5 text-slate-200">
@@ -240,20 +240,20 @@ export function InvestmentCompassSection({
             >
               <div>
                 <div className="flex items-center justify-between gap-1">
-                  <span className="truncate text-[10px] font-medium text-slate-300">
+                  <span className="leading-tight text-[11px] font-medium text-slate-300">
                     {sig.label}
                   </span>
                   <span className="shrink-0 font-mono text-[11px] font-bold text-cyan-200 tabular-nums">
                     {sig.valueDisplay}
                   </span>
                 </div>
-                <div className="mt-0.5 line-clamp-1 text-[9.5px] text-slate-400" title={sig.subtext}>
+                <div className="mt-0.5 line-clamp-1 text-[11px] text-slate-400" title={sig.subtext}>
                   {sig.subtext}
                 </div>
               </div>
               <div className="mt-1">
                 <span
-                  className={`inline-block rounded border px-1.5 py-0.1 font-mono text-[8.5px] font-bold ${
+                  className={`inline-block rounded border px-1.5 py-0.1 font-mono text-[11px] font-bold ${
                     sig.tone === 'bullish'
                       ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
                       : sig.tone === 'bearish'

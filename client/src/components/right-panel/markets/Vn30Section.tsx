@@ -11,23 +11,23 @@ function renderCard(st: Vn30StockQuote) {
       <div className="min-w-0">
         <div className="flex items-center gap-1.5">
           <span className="font-mono text-xs font-bold text-slate-100">{st.symbol}</span>
-          <span className="truncate text-[9.5px] text-slate-400">{st.sector}</span>
+          <span className="truncate text-[11px] text-slate-400">{st.sector}</span>
         </div>
         <MiniSparkline values={st.sparkline} positive={up} />
-        <div className="text-[10px] text-slate-400">
+        <div className="text-[11px] text-slate-400">
           Lấy: {st.updatedAt > 0 ? new Date(st.updatedAt).toLocaleString('vi-VN') : 'không rõ'}
           {st.retained && <span className="text-amber-300"> · Giữ lại</span>}
         </div>
-        <div className="text-[10px] text-slate-400">
+        <div className="text-[11px] text-slate-400">
           Phiên: {st.observedAt ? new Date(st.observedAt).toLocaleDateString('vi-VN', { timeZone: 'UTC' }) : 'không rõ'}
         </div>
       </div>
       <div className="shrink-0 text-right font-mono tabular-nums">
         <div className="text-xs font-semibold text-slate-100">
-          {st.priceThousandVnd.toFixed(2)}
+          {(st.closeThousandVnd ?? st.priceThousandVnd).toFixed(2)}
         </div>
         <div
-          className={`text-[10px] font-semibold ${
+          className={`text-[11px] font-semibold ${
             st.changePercent == null ? 'text-slate-400' : up ? 'text-emerald-400' : 'text-rose-400'
           }`}
         >
@@ -48,7 +48,7 @@ export function Vn30Section({ markets }: {
         <h2 className="font-mono text-[11px] font-semibold tracking-wider text-emerald-300">
           RỔ VN30 (HOSE · NGHÌN ₫)
         </h2>
-        <span className="font-mono text-[9.5px] text-slate-500">Sparkline 10 phiên</span>
+        <span className="font-mono text-[11px] text-slate-500">Sparkline 10 phiên</span>
       </div>
       <div className="mt-1.5 grid grid-cols-2 gap-1.5">{markets.vn30.slice(0, 10).map(renderCard)}</div>
       {markets.vn30.length > 10 && (

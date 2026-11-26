@@ -239,7 +239,10 @@ export interface Vn30StockQuote {
   symbol: string;
   name: string;
   sector: string;
+  /** Dividend/split adjusted (same basis as ma50 / ma200). */
   priceThousandVnd: number;
+  /** Traded close of the observed session; shown to users when available. */
+  closeThousandVnd?: number;
   changePercent: number | null;
   volume: number | null;
   sparkline: number[];
@@ -512,7 +515,25 @@ export interface InvestmentCompassReport {
   signals: LeadingCompassSignal[];
 }
 
+export interface DataCrossCheckSide {
+  value: number;
+  source: string;
+  /** ISO date the source computed the figure for, when it says so. */
+  asOf?: string;
+}
+
+export interface DataCrossCheck {
+  id: string;
+  label: string;
+  primary: DataCrossCheckSide;
+  secondary: DataCrossCheckSide;
+  diffPct: number;
+  mismatch: boolean;
+  stale?: boolean;
+}
+
 export interface MarketSnapshot {
+  crossChecks?: DataCrossCheck[];
   quotes: MarketQuote[];
   crypto: CryptoQuote[];
   fearGreed: FearGreedSnapshot | null;
@@ -684,6 +705,7 @@ export interface HptStockSnapshot {
   lowThousandVnd?: number;
   sparkline: number[];
   fundamentals?: HptFundamentals;
+  crossChecks?: DataCrossCheck[];
   hqLat: number;
   hqLon: number;
   updatedAt: number;
@@ -936,6 +958,8 @@ export interface RegimeHistoryPoint {
   quadrant?: MacroQuadrant;
   stance: InvestmentStance;
   equitiesWeightPct: number;
+  /** Scoring formula revision; rows from different revisions are not comparable. */
+  scoringVersion?: number;
   reconstructed?: boolean;
   observedAt?: number;
 }

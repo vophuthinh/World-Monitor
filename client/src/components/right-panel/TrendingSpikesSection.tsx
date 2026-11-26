@@ -9,7 +9,7 @@ export function TrendingSpikesSection({ trendingSpikes, onJumpToNews, onJumpToTe
   if (!(trendingSpikes.length > 0)) return null;
   return (
     <section>
-      <h2 className="flex items-center gap-1 font-mono text-[10.5px] font-semibold tracking-wider text-slate-300">
+      <h2 className="flex items-center gap-1 font-mono text-[11px] font-semibold tracking-wider text-slate-300">
         <Fire size={12} className="text-amber-400" weight="fill" />
         <span>TRENDING THREAT &amp; KEYWORD SPIKES</span>
       </h2>
@@ -26,7 +26,7 @@ export function TrendingSpikesSection({ trendingSpikes, onJumpToNews, onJumpToTe
                 onJumpToNews(keyword);
               }
             }}
-            className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[10px] transition hover:brightness-125 ${
+            className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[11px] transition hover:brightness-125 ${
               sp.kind === 'cve'
                 ? 'border-rose-500/45 bg-rose-500/15 text-rose-200'
                 : sp.kind === 'tech_ai'

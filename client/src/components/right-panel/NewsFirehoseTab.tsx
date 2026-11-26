@@ -84,7 +84,7 @@ const NewsFirehoseTab = memo(function NewsFirehoseTab({
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="space-y-2 border-b border-slate-800/90 p-2.5">
         <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-slate-800/90 bg-[#0d1524] px-2 py-1.5">
-          <div className="flex flex-wrap items-center gap-1.5 font-mono text-[9.5px]">
+          <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
             <span
               className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${
                 newsStreamStats?.wikimediaConnected
@@ -120,7 +120,7 @@ const NewsFirehoseTab = memo(function NewsFirehoseTab({
           <button
             type="button"
             onClick={onToggleTranslateVi}
-            className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[10px] font-semibold transition ${
+            className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[11px] font-semibold transition ${
               translateVi
                 ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
                 : 'border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200'
@@ -146,7 +146,7 @@ const NewsFirehoseTab = memo(function NewsFirehoseTab({
               key={cat.id}
               type="button"
               onClick={() => setNewsFilter(cat.id)}
-              className={`rounded px-2 py-1 text-[10.5px] font-medium transition ${
+              className={`rounded px-2 py-1 text-[11px] font-medium transition ${
                 newsFilter === cat.id
                   ? cat.id === 'bbc'
                     ? 'border border-red-500/55 bg-red-600/25 text-red-100'
@@ -195,19 +195,19 @@ const NewsFirehoseTab = memo(function NewsFirehoseTab({
                     isFresh ? 'bg-cyan-500/12' : ''
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-2 font-mono text-[10px]">
+                  <div className="flex items-center justify-between gap-2 font-mono text-[11px]">
                     <div className="flex min-w-0 items-center gap-1.5">
                       <span className={`truncate rounded px-1.5 py-0.2 font-semibold ${sourceBadgeStyle(item)}`}>
                         {item.source}
                       </span>
                       {item.isLiveStream && (
-                        <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-cyan-500/15 px-1 py-0.2 text-[9px] font-semibold text-cyan-300">
+                        <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-cyan-500/15 px-1 py-0.2 text-[11px] font-semibold text-cyan-300">
                           <Lightning size={9} weight="fill" />
                           LIVE
                         </span>
                       )}
                       {translateVi && isTranslated && (
-                        <span className="shrink-0 rounded bg-emerald-500/15 px-1 py-0.2 text-[9px] text-emerald-300">
+                        <span className="shrink-0 rounded bg-emerald-500/15 px-1 py-0.2 text-[11px] text-emerald-300">
                           VI
                         </span>
                       )}
@@ -227,7 +227,7 @@ const NewsFirehoseTab = memo(function NewsFirehoseTab({
                   </a>
 
                   {translateVi && isTranslated && (
-                    <p className="mt-0.5 line-clamp-1 text-[10.5px] text-slate-500" title={item.title}>
+                    <p className="mt-0.5 line-clamp-1 text-[11px] text-slate-500" title={item.title}>
                       Gốc: {item.title}
                     </p>
                   )}
@@ -237,7 +237,7 @@ const NewsFirehoseTab = memo(function NewsFirehoseTab({
                       <button
                         type="button"
                         onClick={() => onFlyToLocation(item.matchedLat!, item.matchedLon!, 5.5)}
-                        className="inline-flex items-center gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 font-mono text-[10px] font-medium text-cyan-300 transition hover:bg-cyan-500/20 active:scale-[0.98]"
+                        className="inline-flex items-center gap-1 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 font-mono text-[11px] font-medium text-cyan-300 transition hover:bg-cyan-500/20 active:scale-[0.98]"
                       >
                         <Crosshair size={11} />
                         Bay tới: {item.matchedLocation}
@@ -249,7 +249,7 @@ const NewsFirehoseTab = memo(function NewsFirehoseTab({
                       href={safeHref(item.url)}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-0.5 text-[10.5px] text-slate-400 hover:text-slate-200"
+                      className="inline-flex items-center gap-0.5 text-[11px] text-slate-400 hover:text-slate-200"
                     >
                       Mở nguồn <ArrowSquareOut size={11} />
                     </a>
@@ -262,7 +262,7 @@ const NewsFirehoseTab = memo(function NewsFirehoseTab({
                 <button
                   type="button"
                   onClick={() => setVisibleLimit((v) => v + 40)}
-                  className="rounded border border-slate-700 bg-slate-900 px-3 py-1 font-mono text-[10.5px] text-slate-300 transition hover:border-cyan-400 hover:text-cyan-200"
+                  className="rounded border border-slate-700 bg-slate-900 px-3 py-1 font-mono text-[11px] text-slate-300 transition hover:border-cyan-400 hover:text-cyan-200"
                 >
                   Xem thêm ({filteredNews.length - visibleLimit} tin còn lại)
                 </button>

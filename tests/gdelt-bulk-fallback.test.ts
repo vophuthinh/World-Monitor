@@ -19,6 +19,8 @@ function eventRow(): string {
   const cols = new Array(61).fill('');
   cols[0] = '123456789';
   cols[6] = 'IRAN';
+  cols[7] = 'IRN';
+  cols[17] = 'USA';
   cols[16] = 'UNITED STATES';
   cols[26] = '190';
   cols[28] = '19';

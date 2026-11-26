@@ -11,6 +11,7 @@ import { isFreshGoldComparison, isFreshMarketObservation } from '@shared/macro/c
 import { DEFAULT_BROWSER_UA, NAMED_APP_UA, fetchJsonWithTimeout, fetchTextWithTimeout } from '../lib/http';
 import { FearGreedPayload, fetchCryptoQuotes, normalizeFearGreed } from './markets/crypto';
 import { FRED_SERIES_TARGETS, fetchFredMacroMetrics } from './markets/fred';
+import { crossCheckMarketQuotes } from './markets/cross-check';
 import { ErApiPayload, YahooChartPayload, computeTechnicalIndicators, normalizeErApiFx, normalizeYahooChartQuote } from './markets/fx-yahoo';
 import { dchartObservationTime, fetchVietnamDomesticGold, fetchVn30Leaders, type VndDchartPayload } from './markets/vn-gold-stocks';
 import { fetchSimplizeVnIndexValuation, fetchVietnamAndGlobalMacroPulse } from './markets/vn-valuation-macro';
@@ -599,6 +600,8 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
     now,
   );
 
+  const crossChecks = await crossCheckMarketQuotes(quotes, now).catch(() => []);
+
   const vnGold = [...vnGoldByCode.values()];
   const hasFreshData = (cryptoRes.status === 'fulfilled' && cryptoRes.value.length > 0) ||
     baseFxQuotes.some((quote) => !quote.retained) ||
@@ -637,6 +640,7 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
 
   return {
     quotes,
+    ...(crossChecks.length > 0 ? { crossChecks } : {}),
     crypto,
     fearGreed,
     macro: previous?.macro ?? [],

@@ -29,7 +29,7 @@ export function FxRatesSection({ fxQuotes }: {
                   {fx.symbol}
                 </span>
                 {isVnd && (
-                  <span className="rounded bg-emerald-500/20 px-1 py-0.2 font-mono text-[9px] text-emerald-300">
+                  <span className="rounded bg-emerald-500/20 px-1 py-0.2 font-mono text-[11px] text-emerald-300">
                     VN
                   </span>
                 )}
@@ -39,8 +39,8 @@ export function FxRatesSection({ fxQuotes }: {
                   maximumFractionDigits: isVnd ? 0 : 4,
                 })}
               </div>
-              <div className="truncate text-[10px] text-slate-400">{fx.name}{fx.retained ? ' · dữ liệu cũ' : ''}</div>
-              <div className="text-[10px] text-slate-400">
+              <div className="truncate text-[11px] text-slate-400">{fx.name}{fx.retained ? ' · dữ liệu cũ' : ''}</div>
+              <div className="text-[11px] text-slate-400">
                 Giá lúc: {fx.observedAt ? new Date(fx.observedAt).toLocaleString('vi-VN') : 'không rõ'}
               </div>
             </div>

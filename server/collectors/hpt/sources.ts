@@ -1,3 +1,4 @@
+import { parseFeedDate } from '../../lib/feed-date';
 import { XMLParser } from 'fast-xml-parser';
 import type { HptCompanyItem, HptFundamentals } from '@shared/types';
 import { DEFAULT_BROWSER_UA, fetchTextWithTimeout } from '../../lib/http';
@@ -344,7 +345,7 @@ export function parseHptExternalRss(
     }
 
     const rawDate = String(entry?.pubDate ?? entry?.published ?? entry?.updated ?? '');
-    const parsedTs = rawDate ? Date.parse(rawDate) : Number.NaN;
+    const parsedTs = rawDate ? parseFeedDate(rawDate) : Number.NaN;
     const publishedAt = Number.isFinite(parsedTs) ? parsedTs : fallbackNow;
 
     const classified = classifyHptExternalItem(
@@ -393,7 +394,7 @@ function parseSearxngResultTimestamp(
   fallbackNow: number,
 ): { publishedAt: number; dateLabel?: string } {
   if (rawDate) {
-    const parsed = Date.parse(rawDate);
+    const parsed = parseFeedDate(rawDate);
     if (Number.isFinite(parsed) && parsed > 946_684_800_000 && parsed <= fallbackNow + 86_400_000) {
       return { publishedAt: parsed };
     }

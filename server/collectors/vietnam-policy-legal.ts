@@ -1,3 +1,4 @@
+import { parseFeedDate } from '../lib/feed-date';
 import { XMLParser } from 'fast-xml-parser';
 import type { LegalDocType, PolicyLegalItem, PolicyLegalSnapshot } from '@shared/types';
 import { callGroqChatCompletion } from '../lib/groq-intel';
@@ -505,7 +506,7 @@ export function parseCongBaoOrLegalRss(
     if (!title || title.length < 12 || !url || !url.startsWith('http')) continue;
 
     const rawDate = readXmlText(entry?.pubDate ?? entry?.published ?? entry?.updated);
-    const parsedTs = rawDate ? Date.parse(rawDate) : Number.NaN;
+    const parsedTs = rawDate ? parseFeedDate(rawDate) : Number.NaN;
     const publishedAt = Number.isFinite(parsedTs) ? parsedTs : fallbackNow;
 
     const classified = classifyVietnameseLegalDoc(`${title} ${rawDesc}`, undefined, sourceName);

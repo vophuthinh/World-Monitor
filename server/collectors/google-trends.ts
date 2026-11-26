@@ -1,3 +1,4 @@
+import { parseFeedDate } from '../lib/feed-date';
 import { XMLParser } from 'fast-xml-parser';
 import type { GoogleTrendGeo, GoogleTrendItem, GoogleTrendsSnapshot } from '@shared/types';
 import { DEFAULT_BROWSER_UA, fetchTextWithTimeout } from '../lib/http';
@@ -57,7 +58,7 @@ export function parseGoogleTrendsRss(
     const trafficScore = parseTrafficScore(approxTraffic);
 
     const rawPubDate = readXmlText(entry?.pubDate);
-    const parsedTs = rawPubDate ? Date.parse(rawPubDate) : Number.NaN;
+    const parsedTs = rawPubDate ? parseFeedDate(rawPubDate) : Number.NaN;
     const publishedAt = Number.isFinite(parsedTs) ? parsedTs : fallbackNow;
 
     const pictureUrl = readXmlText(entry?.['ht:picture']) || undefined;

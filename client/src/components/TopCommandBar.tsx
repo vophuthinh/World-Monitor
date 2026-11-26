@@ -96,7 +96,7 @@ const LiveClockLine = memo(function LiveClockLine() {
   });
 
   return (
-    <div className="font-mono text-[10px] text-slate-400 tabular-nums">
+    <div className="font-mono text-[11px] text-slate-400 tabular-nums">
       VN {vnClock} · UTC {utcClock}
     </div>
   );
@@ -212,7 +212,7 @@ export const TopCommandBar = memo(function TopCommandBar({
                   WORLD MONITOR
                 </span>
                 <span
-                  className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.2 font-mono text-[9.5px] font-semibold ${
+                  className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.2 font-mono text-[11px] font-semibold ${
                     streamConnected
                       ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300'
                       : 'border-amber-500/40 bg-amber-500/15 text-amber-300'
@@ -297,12 +297,12 @@ export const TopCommandBar = memo(function TopCommandBar({
                       }}
                       className="flex w-full items-start gap-2 rounded px-2.5 py-1.5 text-left transition hover:bg-slate-800/90"
                     >
-                      <span className="mt-0.5 shrink-0 rounded border border-cyan-500/30 bg-cyan-500/10 px-1.5 py-0.2 font-mono text-[9.5px] font-semibold text-cyan-300">
+                      <span className="mt-0.5 shrink-0 rounded border border-cyan-500/30 bg-cyan-500/10 px-1.5 py-0.2 font-mono text-[11px] font-semibold text-cyan-300">
                         {hit.badge}
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-xs font-medium text-slate-100">{hit.title}</div>
-                        <div className="truncate text-[10.5px] text-slate-400">{hit.subtitle}</div>
+                        <div className="truncate text-[11px] text-slate-400">{hit.subtitle}</div>
                       </div>
                     </button>
                   ))
@@ -480,11 +480,11 @@ export const TopCommandBar = memo(function TopCommandBar({
                             {src.status === 'error' && <WarningCircle size={13} weight="fill" className="shrink-0 text-rose-400" />}
                             <span className="truncate text-xs font-medium text-slate-200">{src.label}</span>
                           </div>
-                          <div className="mt-0.5 font-mono text-[10px] text-slate-400 tabular-nums">
+                          <div className="mt-0.5 font-mono text-[11px] text-slate-400 tabular-nums">
                             {src.status.toUpperCase()} · {src.itemCount} mục · chu kỳ {Math.round(src.intervalMs / 1000)}s
                           </div>
                           {src.lastError && (
-                            <div className="mt-0.5 truncate font-mono text-[9.5px] text-amber-400/90" title={src.lastError}>
+                            <div className="mt-0.5 truncate font-mono text-[11px] text-amber-400/90" title={src.lastError}>
                               {src.lastError}
                             </div>
                           )}
@@ -535,7 +535,7 @@ export const TopCommandBar = memo(function TopCommandBar({
       {/* Row 2: Realtime Tick-Flash Market & Telemetry Strip */}
       <div className="flex items-center justify-between gap-3 overflow-x-auto border-t border-slate-800/80 bg-[#070b12] px-3 py-1 font-mono text-[11px] tabular-nums">
         <div className="flex shrink-0 items-center gap-2.5">
-          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-cyan-400">
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-cyan-400">
             <Lightning size={12} weight="fill" />
             1S TICK
           </span>
@@ -583,7 +583,7 @@ export const TopCommandBar = memo(function TopCommandBar({
           )}
         </div>
 
-        <div className="hidden shrink-0 items-center gap-3 text-[10.5px] text-slate-400 lg:flex">
+        <div className="hidden shrink-0 items-center gap-3 text-[11px] text-slate-400 lg:flex">
           <span>
             MIL <strong className="text-cyan-300">{layerCounts.military}</strong>
           </span>

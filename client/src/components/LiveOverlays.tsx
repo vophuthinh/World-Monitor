@@ -32,7 +32,7 @@ export function LiveAlertStack({ alerts, onDismiss, onMuteAll, onFlyTo }: LiveAl
           }`}
         >
           <div className="flex items-center justify-between gap-1.5">
-            <span className="inline-flex items-center gap-1 font-mono text-[10px] font-bold tracking-wider">
+            <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold tracking-wider">
               <WarningOctagon size={13} weight="fill" className="animate-pulse" />
               {alert.badge}
             </span>
@@ -57,7 +57,7 @@ export function LiveAlertStack({ alerts, onDismiss, onMuteAll, onFlyTo }: LiveAl
           </div>
 
           <div className="mt-1 text-xs font-semibold leading-snug">{alert.title}</div>
-          <div className="mt-0.5 truncate text-[10.5px] opacity-80">{alert.subtitle}</div>
+          <div className="mt-0.5 truncate text-[11px] opacity-80">{alert.subtitle}</div>
 
           <div className="mt-2 flex justify-end">
             <button
@@ -66,7 +66,7 @@ export function LiveAlertStack({ alerts, onDismiss, onMuteAll, onFlyTo }: LiveAl
                 onFlyTo(alert.lat, alert.lon, 6.2);
                 onDismiss(alert.id);
               }}
-              className="inline-flex items-center gap-1 rounded border border-white/25 bg-white/10 px-2 py-0.5 font-mono text-[10px] font-semibold hover:bg-white/20"
+              className="inline-flex items-center gap-1 rounded border border-white/25 bg-white/10 px-2 py-0.5 font-mono text-[11px] font-semibold hover:bg-white/20"
             >
               <Crosshair size={11} />
               Bay tới tâm điểm
@@ -123,7 +123,7 @@ export function LiveTvPipWindow({ open, onClose }: { open: boolean; onClose: () 
       <div className="flex items-center justify-between border-b border-slate-800 px-2.5 py-1.5">
         <div className="flex items-center gap-1.5">
           <Broadcast size={14} className="animate-pulse text-rose-400" />
-          <span className="font-mono text-[10.5px] font-semibold text-slate-200">LIVE NEWS FEED</span>
+          <span className="font-mono text-[11px] font-semibold text-slate-200">LIVE NEWS FEED</span>
         </div>
         <div className="flex items-center gap-1">
           {LIVE_TV_CHANNELS.map((ch) => (
@@ -131,7 +131,7 @@ export function LiveTvPipWindow({ open, onClose }: { open: boolean; onClose: () 
               key={ch.id}
               type="button"
               onClick={() => setChannelId(ch.id)}
-              className={`rounded px-1.5 py-0.5 font-mono text-[9.5px] transition ${
+              className={`rounded px-1.5 py-0.5 font-mono text-[11px] transition ${
                 channelId === ch.id
                   ? 'bg-cyan-500/25 text-cyan-200'
                   : 'text-slate-400 hover:text-slate-200'
@@ -161,7 +161,7 @@ export function LiveTvPipWindow({ open, onClose }: { open: boolean; onClose: () 
           className="h-full w-full border-0"
         />
       </div>
-      <div className="flex items-center justify-between px-2.5 py-1 font-mono text-[9.5px] text-slate-400">
+      <div className="flex items-center justify-between px-2.5 py-1 font-mono text-[11px] text-slate-400">
         <span className="inline-flex items-center gap-1">
           <Television size={11} className="text-cyan-400" />
           {current.label}
@@ -194,7 +194,7 @@ export function WindyWeatherWindow({ open, onClose }: { open: boolean; onClose: 
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
             <Wind size={14} className="text-sky-400" weight="bold" />
-            <span className="font-mono text-[10.5px] font-bold text-sky-200">
+            <span className="font-mono text-[11px] font-bold text-sky-200">
               WINDY · DÒNG GIÓ &amp; BÃO BIỂN ĐÔNG
             </span>
           </div>
@@ -202,7 +202,7 @@ export function WindyWeatherWindow({ open, onClose }: { open: boolean; onClose: 
             type="button"
             onClick={onClose}
             aria-label="Đóng bản đồ gió Windy"
-            className="inline-flex items-center gap-1 rounded border border-rose-500/45 bg-rose-500/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-rose-100 transition hover:bg-rose-500/35"
+            className="inline-flex items-center gap-1 rounded border border-rose-500/45 bg-rose-500/20 px-2 py-0.5 font-mono text-[11px] font-semibold text-rose-100 transition hover:bg-rose-500/35"
           >
             <span>Đóng</span>
             <X size={12} weight="bold" />
@@ -215,7 +215,7 @@ export function WindyWeatherWindow({ open, onClose }: { open: boolean; onClose: 
               key={ov.id}
               type="button"
               onClick={() => setOverlay(ov.id)}
-              className={`rounded py-0.5 text-center font-mono text-[9.5px] font-semibold transition ${
+              className={`rounded py-0.5 text-center font-mono text-[11px] font-semibold transition ${
                 overlay === ov.id
                   ? 'border border-sky-400/55 bg-sky-500/25 text-sky-100'
                   : 'border border-slate-800 bg-slate-900/90 text-slate-400 hover:text-slate-200'
@@ -235,7 +235,7 @@ export function WindyWeatherWindow({ open, onClose }: { open: boolean; onClose: 
           className="h-full w-full border-0"
         />
       </div>
-      <div className="flex items-center justify-between px-2.5 py-1 font-mono text-[9.5px] text-slate-400">
+      <div className="flex items-center justify-between px-2.5 py-1 font-mono text-[11px] text-slate-400">
         <span>Mô hình ECMWF · Tâm điểm Việt Nam &amp; Biển Đông</span>
         <span>LIVE STREAMLINES</span>
       </div>

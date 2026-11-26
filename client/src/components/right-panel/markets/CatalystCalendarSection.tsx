@@ -29,7 +29,7 @@ export function CatalystCalendarSection({ catalystCalendar }: {
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px]">{ev.region === 'VN' ? '🇻🇳' : '🇺🇸'}</span>
+                  <span className="text-[11px]">{ev.region === 'VN' ? '🇻🇳' : '🇺🇸'}</span>
                   <span className="text-xs font-semibold text-slate-100">
                     {ev.title}
                   </span>
