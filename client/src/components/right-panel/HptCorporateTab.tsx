@@ -172,13 +172,13 @@ const HptCorporateTab = memo(function HptCorporateTab({
               <div>
                 <span className="text-slate-500">P/E </span>
                 <strong className="text-cyan-300">
-                  {hptIntel.stock.fundamentals.peRatio?.toFixed(2) ?? '—'}x
+                  {hptIntel.stock.fundamentals.peRatio === undefined ? '—' : `${hptIntel.stock.fundamentals.peRatio.toFixed(2)}x`}
                 </strong>
               </div>
               <div>
                 <span className="text-slate-500">P/B </span>
                 <strong className="text-emerald-300">
-                  {hptIntel.stock.fundamentals.pbRatio?.toFixed(2) ?? '—'}x
+                  {hptIntel.stock.fundamentals.pbRatio === undefined ? '—' : `${hptIntel.stock.fundamentals.pbRatio.toFixed(2)}x`}
                 </strong>
               </div>
               <div>
