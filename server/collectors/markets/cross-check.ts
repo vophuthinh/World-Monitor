@@ -39,18 +39,18 @@ export async function fetchVndRatios(code: string): Promise<Map<string, DataCros
 
 const present = (checks: Array<DataCrossCheck | null>) => checks.filter((c): c is DataCrossCheck => c !== null);
 
-export async function crossCheckMarketQuotes(quotes: readonly MarketQuote[], now = Date.now()): Promise<DataCrossCheck[]> {
+export async function crossCheckMarketQuotes(
+  quotes: readonly MarketQuote[],
+  now = Date.now(),
+  dailyUsdVnd?: MarketQuote,
+): Promise<DataCrossCheck[]> {
   const vni = quotes.find((q) => q.symbol === 'VN-Index' && !q.retained);
   const fx = quotes.find((q) => q.symbol === 'USD/VND' && !q.retained);
-  const [ratios, ssi, yahooFx] = await Promise.allSettled([
+  const [ratios, ssi] = await Promise.allSettled([
     fetchVndRatios('VNINDEX'),
     fetchJsonWithTimeout<{ data?: { indexValue?: number; time?: number } }>(
       'https://iboard-query.ssi.com.vn/exchange-index/VNINDEX',
       { timeoutMs: 6_000, retries: 0, userAgent: DEFAULT_BROWSER_UA, headers: { Referer: 'https://iboard.ssi.com.vn/' } },
-    ),
-    fetchJsonWithTimeout<{ chart?: { result?: Array<{ meta?: { regularMarketPrice?: number } }> } }>(
-      'https://query1.finance.yahoo.com/v8/finance/chart/VND=X?interval=1d&range=5d',
-      { timeoutMs: 6_000, retries: 0, userAgent: 'Mozilla/5.0' },
     ),
   ]);
   const checks: Array<DataCrossCheck | null> = [];
@@ -64,9 +64,10 @@ export async function crossCheckMarketQuotes(quotes: readonly MarketQuote[], now
   if (vni && index?.indexValue && sameDay(vni.observedAt, index.time)) {
     checks.push(compareSources('vn-index', 'Điểm VN-Index', { value: vni.price, source: 'VNDirect' }, { value: index.indexValue, source: 'SSI' }, 0.5, now));
   }
-  const rate = yahooFx.status === 'fulfilled' ? yahooFx.value?.chart?.result?.[0]?.meta?.regularMarketPrice : undefined;
-  if (fx && rate) {
-    checks.push(compareSources('usd-vnd', 'Tỷ giá USD/VND', { value: fx.price, source: 'ER-API' }, { value: rate, source: 'Yahoo' }, 1, now));
+  // The displayed rate is intraday (Yahoo); the daily ER-API rate is the independent reference.
+  if (fx && dailyUsdVnd && fx.source !== dailyUsdVnd.source) {
+    checks.push(compareSources('usd-vnd', 'Tỷ giá USD/VND', { value: fx.price, source: 'Yahoo' },
+      { value: dailyUsdVnd.price, source: 'ER-API' }, 1, now));
   }
   return present(checks);
 }

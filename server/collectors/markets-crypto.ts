@@ -415,6 +415,31 @@ export function getRetainedMarketSnapshot(
   };
 }
 
+const YAHOO_USD_VND_URL = 'https://query1.finance.yahoo.com/v8/finance/chart/VND=X?interval=1d&range=7d';
+
+/**
+ * ER-API publishes once a day; Yahoo ticks intraday. Take Yahoo only while it is recent, newer than the
+ * daily rate and within 2% of it, so a bad tick can never replace the reference.
+ */
+export function preferLiveUsdVnd(
+  daily: MarketQuote | undefined,
+  live: MarketQuote | undefined,
+  now = Date.now(),
+): MarketQuote | undefined {
+  if (!live || !isFreshMarketObservation(live.observedAt, now) || live.observedAt! <= (daily?.observedAt ?? 0)) return daily;
+  if (daily && Math.abs(live.price - daily.price) / daily.price > 0.02) return daily;
+  return { ...live, retained: false };
+}
+
+async function fetchYahooUsdVnd(): Promise<MarketQuote | null> {
+  const payload = await fetchJsonWithTimeout<YahooChartPayload>(YAHOO_USD_VND_URL, {
+    timeoutMs: 8_000,
+    retries: 1,
+    userAgent: 'Mozilla/5.0',
+  });
+  return normalizeYahooChartQuote('USD/VND', 'Đô la Mỹ / Việt Nam Đồng', 'fx', payload, undefined, Date.now());
+}
+
 export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): Promise<MarketSnapshot> {
   const now = Date.now();
   const recent = (updatedAt: number, maxAgeMs: number) => {
@@ -423,7 +448,7 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
   };
   const quoteRetentionMs = 6 * 3_600_000;
 
-  const [cryptoRes, fgRes, fxRes, marketQuotesRes, vnValRes, vnPulseRes, vn30Res, fredRes] = await Promise.allSettled([
+  const [cryptoRes, fgRes, fxRes, marketQuotesRes, vnValRes, vnPulseRes, vn30Res, fredRes, liveFxRes] = await Promise.allSettled([
     fetchCryptoQuotes(now),
     fetchJsonWithTimeout<FearGreedPayload>(FEAR_GREED_URL, {
       timeoutMs: 8_000,
@@ -440,6 +465,7 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
     fetchVietnamAndGlobalMacroPulse(now),
     fetchVn30Leaders(now),
     fetchFredMacroMetrics(now),
+    fetchYahooUsdVnd(),
   ]);
 
   const crypto = cryptoRes.status === 'fulfilled'
@@ -472,6 +498,12 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
       });
     }
   }
+  const usdVndNow = preferLiveUsdVnd(
+    baseFxMap.get('USD/VND'),
+    liveFxRes.status === 'fulfilled' ? liveFxRes.value ?? undefined : undefined,
+    Date.now(),
+  );
+  if (usdVndNow) baseFxMap.set('USD/VND', { ...usdVndNow, retained: Boolean(usdVndNow.retained) });
   const baseFxQuotes = [...baseFxMap.values()];
 
   // Merge per-symbol so transient Yahoo throttling on one symbol never drops prior valid quotes,
@@ -600,7 +632,8 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
     now,
   );
 
-  const crossChecks = await crossCheckMarketQuotes(quotes, now).catch(() => []);
+  const dailyUsdVnd = fxRes.status === 'fulfilled' ? fxRes.value.find((q) => q.symbol === 'USD/VND') : undefined;
+  const crossChecks = await crossCheckMarketQuotes(quotes, now, dailyUsdVnd).catch(() => []);
 
   const vnGold = [...vnGoldByCode.values()];
   const hasFreshData = (cryptoRes.status === 'fulfilled' && cryptoRes.value.length > 0) ||
