@@ -867,3 +867,31 @@ describe('US ERP, per-market confirmation and smooth macro threshold', () => {
     expect(report.marketConfirmations?.[0].label).toContain('VN-Index dưới MA200');
   });
 });
+
+describe('official statistics outrank press feeds', () => {
+  const t0 = Date.parse('2026-11-26T00:00:00Z');
+  const day = 86_400_000;
+  const run = async (source: string, period: string, value: number, now: number) => {
+    const { mergeVietnamMacroPulse } = await import('../server/collectors/markets-crypto');
+    const official = mergeVietnamMacroPulse({
+      ytdTradeBalanceBillionUsd: -12.07,
+      fieldMeta: { ytdTradeBalanceBillionUsd: { source: 'Cục Thống kê (NSO)', period: '10T/2026', fetchedAt: t0, retained: false } },
+    }, undefined, t0);
+    return mergeVietnamMacroPulse({
+      ytdTradeBalanceBillionUsd: value,
+      fieldMeta: { ytdTradeBalanceBillionUsd: { source, period, fetchedAt: now, retained: false } },
+    }, official, now)!;
+  };
+
+  it('keeps the official figure when the press feed reports the same period', async () => {
+    const out = await run('Hải quan / GSO (RSS)', '10T/2026', -48.6, t0 + day);
+    expect(out.ytdTradeBalanceBillionUsd).toBe(-12.07);
+    expect(out.fieldMeta?.ytdTradeBalanceBillionUsd).toMatchObject({ source: 'Cục Thống kê (NSO)', fetchedAt: t0, retained: true });
+  });
+
+  it('accepts a newer period, an official revision, or the press feed once the official figure has aged out', async () => {
+    expect((await run('Hải quan / GSO (RSS)', '11T/2026', -11, t0 + day)).ytdTradeBalanceBillionUsd).toBe(-11);
+    expect((await run('Cục Thống kê (NSO)', '10T/2026', -12.5, t0 + day)).ytdTradeBalanceBillionUsd).toBe(-12.5);
+    expect((await run('Hải quan / GSO (RSS)', '10T/2026', -12, t0 + 8 * day)).ytdTradeBalanceBillionUsd).toBe(-12);
+  });
+});

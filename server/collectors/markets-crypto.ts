@@ -289,7 +289,15 @@ export function mergeVietnamMacroPulse(
 
   for (const key of VN_PULSE_DATA_KEYS) {
     const freshVal = fresh?.[key];
-    if (freshVal !== undefined) {
+    // A press-feed (RSS) number never replaces an official one for the same period while the
+    // official one is still usable (7 days, the macro scoring retention limit).
+    const kept = previous?.fieldMeta?.[key];
+    const keepOfficial =
+      fresh?.fieldMeta?.[key]?.source.includes('(RSS)') === true &&
+      kept?.source.includes('(NSO)') === true &&
+      kept.period === fresh.fieldMeta[key]?.period &&
+      now - (kept.fetchedAt ?? 0) <= 7 * 86_400_000;
+    if (freshVal !== undefined && !keepOfficial) {
       out[key] = freshVal;
       const fm = fresh?.fieldMeta?.[key];
       fieldMeta[key] = {
