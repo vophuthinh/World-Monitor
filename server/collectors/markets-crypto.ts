@@ -419,7 +419,7 @@ export function getRetainedMarketSnapshot(
   };
 }
 
-const YAHOO_USD_VND_URL = 'https://query1.finance.yahoo.com/v8/finance/chart/VND=X?interval=1d&range=7d';
+const YAHOO_USD_VND_PATH = '/v8/finance/chart/VND=X?interval=1d&range=7d';
 
 /**
  * ER-API publishes once a day; Yahoo ticks intraday. Take Yahoo only while it is recent, newer than the
@@ -436,12 +436,20 @@ export function preferLiveUsdVnd(
 }
 
 async function fetchYahooUsdVnd(): Promise<MarketQuote | null> {
-  const payload = await fetchJsonWithTimeout<YahooChartPayload>(YAHOO_USD_VND_URL, {
-    timeoutMs: 8_000,
-    retries: 1,
-    userAgent: 'Mozilla/5.0',
-  });
-  return normalizeYahooChartQuote('USD/VND', 'Đô la Mỹ / Việt Nam Đồng', 'fx', payload, undefined, Date.now());
+  // Yahoo throttles one host at a time under the burst of index requests; try the other before giving up.
+  for (const host of ['query2', 'query1']) {
+    try {
+      const payload = await fetchJsonWithTimeout<YahooChartPayload>(`https://${host}.finance.yahoo.com${YAHOO_USD_VND_PATH}`, {
+        timeoutMs: 8_000,
+        retries: 1,
+        userAgent: 'Mozilla/5.0',
+      });
+      return normalizeYahooChartQuote('USD/VND', 'Đô la Mỹ / Việt Nam Đồng', 'fx', payload, undefined, Date.now());
+    } catch (error) {
+      console.warn(`[markets] USD/VND from ${host} unavailable:`, error instanceof Error ? error.message : String(error));
+    }
+  }
+  return null;
 }
 
 export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): Promise<MarketSnapshot> {
