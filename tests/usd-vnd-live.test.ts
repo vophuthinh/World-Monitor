@@ -29,4 +29,9 @@ describe('live USD/VND', () => {
   it('uses the intraday rate alone when the daily source is down', () => {
     expect(preferLiveUsdVnd(undefined, quote(25_825, 120_000, 'Yahoo'), now)?.price).toBe(25_825);
   });
+
+  it('stays live when a new fetch returns the same exchange timestamp as the stored quote', () => {
+    const stored = { ...quote(25_825, 960_000, 'Yahoo'), retained: true };
+    expect(preferLiveUsdVnd(stored, quote(25_825, 960_000, 'Yahoo'), now)?.retained).toBe(false);
+  });
 });

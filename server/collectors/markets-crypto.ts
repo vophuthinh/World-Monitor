@@ -430,7 +430,7 @@ export function preferLiveUsdVnd(
   live: MarketQuote | undefined,
   now = Date.now(),
 ): MarketQuote | undefined {
-  if (!live || !isFreshMarketObservation(live.observedAt, now) || live.observedAt! <= (daily?.observedAt ?? 0)) return daily;
+  if (!live || !isFreshMarketObservation(live.observedAt, now) || live.observedAt! < (daily?.observedAt ?? 0)) return daily;
   if (daily && Math.abs(live.price - daily.price) / daily.price > 0.02) return daily;
   return { ...live, retained: false };
 }
