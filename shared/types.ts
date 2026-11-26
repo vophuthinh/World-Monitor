@@ -352,6 +352,8 @@ export interface MacroPillarMetric {
   sourceLabel?: string;
   retained?: boolean;
   fetchedAt?: number;
+  /** false = shown for reference only, not part of the pillar score. */
+  scored?: boolean;
   status: 'good' | 'watch' | 'warn';
 }
 
@@ -500,6 +502,7 @@ export interface InvestmentCompassReport {
   capitulationLabel?: string;
   dualConfirmation?: 'confirmed_bull' | 'macro_bull_trend_weak' | 'macro_weak_trend_bull' | 'confirmed_bear';
   dualConfirmationLabel?: string;
+  marketConfirmations?: Array<{ market: 'VN' | 'US'; macroScore: number; trendAboveMa200: boolean; label: string }>;
   factorPillars?: CompassFactorPillar[];
   sectorRotation?: SectorRotationRecommendation;
   allocations: PortfolioAllocationSlice[];

@@ -94,7 +94,7 @@ export function buildUsGlobalMacroHealth(
   };
 
   const growthMetrics = [
-    toMetric(gdp, 'Dự báo IMF/Fed', 2.1, false),
+    toMetric(gdp, 'Mốc xu hướng', 2.1, false),
     toMetric(retail, 'Cầu tiêu dùng', 3.5, false),
     toMetric(indpro, 'TB mở rộng', 1.5, false),
     toMetric(neworder, 'Ngưỡng mở rộng', 2.0, false),
@@ -196,6 +196,7 @@ export function buildUsGlobalMacroHealth(
   ]);
 
   const monetaryScore = weightedMean([
+    ...(usErp ? [{ score: smoothFactorScore(usErp.erpPct, 0.8, 1.8, false), weight: 0.35 }] : []),
     ...(fedfunds ? [{ score: smoothFactorScore(fedVal, 4.2, 1.3, true), weight: 0.3 }] : []),
     ...(unrate ? [{ score: smoothFactorScore(unrateVal, 4.6, 0.85, true), weight: 0.35 }] : []),
     ...(spread10y2y ? [{ score: smoothFactorScore(curveVal, 0.0, 0.5, false), weight: 0.35 }] : []),

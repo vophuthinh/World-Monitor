@@ -69,7 +69,7 @@ const MarketsMacroTab = memo(function MarketsMacroTab({
 
   const fxQuotes = useMemo(() => markets.quotes.filter((q) => q.group === 'fx'), [markets.quotes]);
   const indexAndCommodityQuotes = useMemo(
-    () => markets.quotes.filter((q) => q.group !== 'fx' && q.symbol !== 'VIX 3M'),
+    () => markets.quotes.filter((q) => q.group !== 'fx' && q.symbol !== 'VIX' && q.symbol !== 'VIX 3M'),
     [markets.quotes],
   );
   const usdVndPrice = useMemo(
@@ -94,6 +94,10 @@ const MarketsMacroTab = memo(function MarketsMacroTab({
   );
   const vix3mPrice = useMemo(
     () => markets.quotes.find((q) => q.symbol === 'VIX 3M')?.price,
+    [markets.quotes],
+  );
+  const vixPrice = useMemo(
+    () => markets.quotes.find((q) => q.symbol === 'VIX')?.price,
     [markets.quotes],
   );
   const audJpyPrice = useMemo(
@@ -129,6 +133,7 @@ const MarketsMacroTab = memo(function MarketsMacroTab({
       soxPrice,
       vniQuoteRef,
       spxPrice,
+      vixPrice,
       vix3mPrice,
       audJpyPrice,
     ],

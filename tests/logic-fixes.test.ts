@@ -685,4 +685,185 @@ describe('US quadrant and PCE double counting', () => {
     // CPI alone: (3.0-2.3)/0.7*0.25 = 0.25, with no extra PCE-slot contribution
     expect(cpiOnly?.inflationZ).toBeCloseTo(0.25, 2);
   });
+
+  it('compares VIX with VIX3M only within one session, unrounded, and needs a US oversold reading', async () => {
+    const { evaluateInvestmentCompass } = await import('../shared/macro-health');
+    const day = Date.parse('2026-11-26T15:00:00Z');
+    const run = (vix: number, spxRsi: number, vixObservedAt = day) => evaluateInvestmentCompass({
+      quotes: [
+        { symbol: 'VN-Index', name: 'VN-Index', group: 'index', price: 100, changePercent24h: 0, rsi14: 25, updatedAt: day, source: 'test' },
+        { symbol: 'S&P 500', name: 'S&P 500', group: 'index', price: 100, changePercent24h: 0, rsi14: spxRsi, updatedAt: day, source: 'test' },
+        { symbol: 'VIX', name: 'VIX', group: 'index', price: vix, changePercent24h: 0, observedAt: vixObservedAt, updatedAt: day, source: 'test' },
+        { symbol: 'VIX 3M', name: 'VIX 3M', group: 'index', price: 26.29, changePercent24h: 0, observedAt: day, updatedAt: day, source: 'test' },
+      ],
+      crypto: [],
+      fearGreed: null,
+      macro: [],
+      fred: [
+        { id: 'SAHMREALTIME', label: 'Sahm', subtitle: 'Sahm', value: 0, change: 0, unit: 'pts', date: '2026-10-01', sparkline: [] },
+        { id: 'M2SL', label: 'M2', subtitle: 'M2', value: 5, change: 0, unit: '%', date: '2026-10-01', sparkline: [] },
+      ],
+      updatedAt: day,
+    } as never, undefined, day);
+
+    expect(run(26.28, 25)?.capitulationSignal).toBeUndefined(); // rounds to 1.00 but is below 1
+    expect(run(27, 40)?.capitulationSignal).toBeUndefined(); // only VN-Index is oversold
+    expect(run(27, 25, day - 2 * 86_400_000)?.vixTermRatio).toBeUndefined(); // different sessions
+    expect(run(27, 25)?.capitulationSignal).toBe(true);
+  });
+
+  it('marks displayed metrics that do not enter a pillar score, and displays every scored one', async () => {
+    const { evaluateMacroHealth } = await import('../shared/macro-health');
+    const now = Date.parse('2026-11-26T00:00:00Z');
+    const { vn, us } = evaluateMacroHealth({
+      quotes: [{ symbol: 'VN-Index', name: 'VN-Index', group: 'index', price: 1600, changePercent24h: 0, peRatio: 10, updatedAt: now, source: 'test' }],
+      crypto: [],
+      fearGreed: null,
+      macro: [{ countryCode: 'VNM', isVietnam: true, gdpGrowthPct: 8, gdpGrowthYear: 2025, unemploymentPct: 1.5, unemploymentYear: 2025, creditPctGdp: 125, creditYear: 2022, currentAccountPctGdp: 6, currentAccountYear: 2025 }],
+      vnMacroPulse: { vn10yYieldPct: 4.5, sp500PeRatio: 25, updatedAt: now },
+      fred: [
+        { id: 'FEDFUNDS', label: 'FF', subtitle: 'FF', value: 3.9, change: 0, unit: '%', date: '2026-10-01', sparkline: [] },
+        { id: 'DGS10', label: '10Y', subtitle: '10Y', value: 4.9, change: 0, unit: '%', date: '2026-11-24', sparkline: [] },
+      ],
+      updatedAt: now,
+    } as never, undefined, now);
+    const unscored = (r: typeof vn) => r!.pillars.flatMap((p) => p.metrics).filter((m) => m.scored === false).map((m) => m.id);
+
+    expect(vn!.pillars[2].metrics.map((m) => m.id)).toContain('vn-uem');
+    expect(unscored(vn)).toEqual(['vn-10y', 'vn-cab', 'vn-credit']);
+    expect(unscored(us)).toEqual([]);
+  });
+});
+
+describe('threshold cliffs', () => {
+  const base = { highInflationPressure: false, liquidityExpanding: true };
+
+  it('moves equity weight gradually with the score, across every stance boundary', async () => {
+    const { computeDynamicPortfolioAllocation: alloc } = await import('../shared/macro-health');
+    const equity = (score: number, dualConfirmation?: 'confirmed_bull', riskOnBlocked = false) => {
+      const stance = score < 42 ? 'defensive_recession' : score < 55 ? 'cautious' : score >= 74 && !riskOnBlocked ? 'risk_on' : 'selective_growth';
+      return alloc({ ...base, stance, riskAppetiteScore: score, dualConfirmation, riskOnBlocked })[0].weightPct;
+    };
+    for (let score = 11; score <= 98; score++) {
+      for (const [dual, blocked] of [[undefined, false], [undefined, true], ['confirmed_bull', false]] as const) {
+        const step = equity(score, dual, blocked) - equity(score - 1, dual, blocked);
+        expect(step, `score ${score}`).toBeGreaterThanOrEqual(0);
+        expect(step, `score ${score}`).toBeLessThanOrEqual(4);
+      }
+    }
+    expect(equity(95, undefined, true)).toBe(52);
+  });
+
+  it('adds no cheap-valuation equity bonus while an index is below MA200', async () => {
+    const { computeDynamicPortfolioAllocation: alloc } = await import('../shared/macro-health');
+    const equity = (indexBelowTrend: boolean) =>
+      alloc({ ...base, stance: 'selective_growth', riskAppetiteScore: 64, vnErpPct: 5, indexBelowTrend })[0].weightPct;
+    expect(equity(false)).toBe(59);
+    expect(equity(true)).toBe(52);
+  });
+
+  it('labels a small CPI overshoot as mild instead of overheating', async () => {
+    const { evaluateMacroHealth } = await import('../shared/macro-health');
+    const now = Date.parse('2026-11-26T00:00:00Z');
+    const label = (cpi: number) => evaluateMacroHealth({
+      quotes: [], crypto: [], fearGreed: null, macro: [], updatedAt: now,
+      vnMacroPulse: { quarterlyGdpPct: 9, manufacturingPmi: 52, ytdAvgCpiPct: cpi, updatedAt: now,
+        fieldMeta: { ytdAvgCpiPct: { source: 'test', period: '10T/2026', fetchedAt: now, retained: false } } },
+    } as never, undefined, now).vn!.regimeLabel;
+    expect(label(4.57)).toContain('VƯỢT NHẸ');
+    expect(label(5.2)).toContain('TĂNG TRƯỞNG NÓNG');
+    expect(label(4.5)).toContain('HẠ CÁNH MỀM');
+  });
+});
+
+describe('national trade balance from press headlines', () => {
+  const now = Date.parse('2026-11-26T00:00:00Z');
+  const parse = async (title: string) => {
+    const { parseVietnamOfficialYtdContext } = await import('../server/collectors/markets/vn-valuation-macro');
+    return parseVietnamOfficialYtdContext({
+      tradeRssXml: `<rss><item><title>${title}</title><pubDate>Thu, 26 Nov 2026 01:00:00 GMT</pubDate></item></rss>`,
+      now,
+    }).ytdTradeBalanceBillionUsd;
+  };
+
+  it('rejects bilateral, sector, partial-month and forecast figures', async () => {
+    for (const title of [
+      'Việt Nam nhập siêu 48,6 tỉ USD từ Hàn Quốc sau 10 tháng - Vietnam.vn',
+      'Việt Nam nhập siêu gần 17 tỉ USD từ ASEAN sau 10 tháng 2026 - Báo Văn Hóa',
+      '10 tháng, Việt Nam nhập siêu Trung Quốc 99,5 tỷ USD - Báo A',
+      'Khu vực kinh tế trong nước nhập siêu 30,2 tỷ USD sau 10 tháng - Báo A',
+      'Nhập siêu cả năm có thể thu hẹp còn 7,5 tỷ USD - nguoiquansat.vn',
+      'Nửa đầu tháng 11, nhập siêu 1,2 tỷ USD - Báo A',
+    ]) expect(await parse(title), title).toBeUndefined();
+  });
+
+  it('keeps a national cumulative headline, whatever the publisher is called', async () => {
+    expect(await parse('10 tháng, Việt Nam nhập siêu 12,07 tỷ USD - Sputnik Việt Nam')).toBe(-12.07);
+    expect(await parse('Xuất nhập khẩu 10 tháng: nhập siêu 12,07 tỷ USD - Tin nhanh Mỹ Thuật')).toBe(-12.07);
+  });
+});
+
+describe('momentum-aware compass inputs', () => {
+  const now = Date.parse('2026-11-26T00:00:00Z');
+  const compass = async (copper: number, hyDelta: number) => {
+    const { evaluateInvestmentCompass } = await import('../shared/macro-health');
+    const quote = (symbol: string, price: number, ma50: number) =>
+      ({ symbol, name: symbol, group: 'commodity', price, ma50, changePercent24h: 0, updatedAt: now, source: 'test' });
+    return evaluateInvestmentCompass({
+      quotes: [quote('Copper', copper, 5), quote('Gold', 3500, 3500)],
+      crypto: [], fearGreed: null, macro: [], updatedAt: now,
+      fred: [{ id: 'BAMLH0A0HYM2', label: 'HY', subtitle: 'HY', value: 3.7, change: 0, delta4w: hyDelta, unit: '%', date: '2026-11-24', sparkline: [] }],
+    } as never, undefined, now)!;
+  };
+
+  it('scores copper/gold on the ratio against its 50-day average', async () => {
+    expect((await compass(5.4, 0)).signals.find((s) => s.id === 'copper-gold')?.tone).toBe('bullish');
+    expect((await compass(4.6, 0)).signals.find((s) => s.id === 'copper-gold')?.tone).toBe('bearish');
+  });
+
+  it('lowers the credit pillar when high-yield spreads are widening', async () => {
+    const credit = async (d: number) => (await compass(5, d)).factorPillars!.find((p) => p.id === 'credit_recession')!.score;
+    expect(await credit(0.8)).toBeLessThan(await credit(0));
+  });
+});
+
+describe('US ERP, per-market confirmation and smooth macro threshold', () => {
+  const now = Date.parse('2026-11-26T00:00:00Z');
+
+  it('scores the US equity risk premium inside the monetary pillar', async () => {
+    const { evaluateMacroHealth } = await import('../shared/macro-health');
+    const monetary = (pe: number) => evaluateMacroHealth({
+      quotes: [], crypto: [], fearGreed: null, macro: [], updatedAt: now,
+      vnMacroPulse: { sp500PeRatio: pe, updatedAt: now },
+      fred: [
+        { id: 'FEDFUNDS', label: 'FF', subtitle: 'FF', value: 3.9, change: 0, unit: '%', date: '2026-10-01', sparkline: [] },
+        { id: 'DGS10', label: '10Y', subtitle: '10Y', value: 4.9, change: 0, unit: '%', date: '2026-11-24', sparkline: [] },
+      ],
+    } as never, undefined, now).us!.pillars[2].score;
+    expect(monetary(35)).toBeLessThan(monetary(12));
+  });
+
+  it('moves equity weight gradually as macro strength crosses the confirmation threshold', async () => {
+    const { computeDynamicPortfolioAllocation: alloc } = await import('../shared/macro-health');
+    const equity = (macroStrength: number) => alloc({
+      stance: 'selective_growth', riskAppetiteScore: 64, highInflationPressure: false, liquidityExpanding: true,
+      dualConfirmation: macroStrength >= 0.5 ? 'macro_bull_trend_weak' : 'confirmed_bear', macroStrength,
+    })[0].weightPct;
+    for (let i = 1; i <= 20; i++) expect(Math.abs(equity(i / 20) - equity((i - 1) / 20))).toBeLessThanOrEqual(2);
+  });
+
+  it('reports each market against its own macro health and index trend', async () => {
+    const { evaluateInvestmentCompass } = await import('../shared/macro-health');
+    const quote = (symbol: string, price: number, ma200: number) =>
+      ({ symbol, name: symbol, group: 'index', price, ma200, changePercent24h: 0, updatedAt: now, source: 'test' });
+    const report = evaluateInvestmentCompass({
+      quotes: [quote('VN-Index', 90, 100), quote('S&P 500', 110, 100)],
+      crypto: [], fearGreed: null, updatedAt: now,
+      macro: [{ countryCode: 'VNM', isVietnam: true, gdpGrowthPct: 8, gdpGrowthYear: 2025 }],
+      fred: [{ id: 'M2SL', label: 'M2', subtitle: 'M2', value: 5, change: 0, unit: '%', date: '2026-10-01', sparkline: [] },
+        { id: 'FEDFUNDS', label: 'FF', subtitle: 'FF', value: 3.9, change: 0, unit: '%', date: '2026-10-01', sparkline: [] }],
+    } as never, undefined, now)!;
+    expect(report.marketConfirmations?.map((m) => [m.market, m.trendAboveMa200])).toEqual([['VN', false], ['US', true]]);
+    expect(report.marketConfirmations?.[0].label).toContain('VN-Index dưới MA200');
+  });
 });

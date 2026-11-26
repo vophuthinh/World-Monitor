@@ -47,6 +47,7 @@ const YAHOO_TARGETS: readonly YahooTarget[] = [
   { yahooSymbol: '^GSPC', displaySymbol: 'S&P 500', name: 'S&P 500 Index (US)', group: 'index', unit: 'pts' },
   { yahooSymbol: '^IXIC', displaySymbol: 'NASDAQ', name: 'NASDAQ Composite (US)', group: 'index', unit: 'pts' },
   { yahooSymbol: '^SOX', displaySymbol: 'SOX Semi', name: 'PHLX Semiconductor (Bán dẫn AI)', group: 'index', unit: 'pts' },
+  { yahooSymbol: '^VIX', displaySymbol: 'VIX', name: 'CBOE Volatility Index (VIX)', group: 'index', unit: 'pts' },
   { yahooSymbol: '^VIX3M', displaySymbol: 'VIX 3M', name: 'CBOE 3M Volatility (Kỳ hạn VIX)', group: 'index', unit: 'pts' },
   { yahooSymbol: '^N225', displaySymbol: 'Nikkei 225', name: 'Nikkei 225 (Nhật Bản)', group: 'index', unit: 'pts' },
   { yahooSymbol: '^HSI', displaySymbol: 'Hang Seng', name: 'Hang Seng Index (HK)', group: 'index', unit: 'pts' },
@@ -170,9 +171,8 @@ async function fetchIndicesAndCommodities(now: number): Promise<MarketQuote[]> {
     const pairResults = await Promise.allSettled(
       pair.map(async (target, idx) => {
         const host = idx % 2 === 0 ? 'query1.finance.yahoo.com' : 'query2.finance.yahoo.com';
-        // Pull 1y daily bars for S&P 500 & SOX Semi to compute exact MA50 / MA200 / RSI-14
-        const range =
-          target.yahooSymbol === '^GSPC' || target.yahooSymbol === '^SOX' ? '1y' : '7d';
+        // 1y daily bars for MA50 / MA200 / RSI-14 (S&P 500, SOX) and the copper/gold MA50 ratio
+        const range = ['^GSPC', '^SOX', 'HG=F', 'GC=F'].includes(target.yahooSymbol) ? '1y' : '7d';
         const url = `https://${host}/v8/finance/chart/${encodeURIComponent(target.yahooSymbol)}?interval=1d&range=${range}`;
         const payload = await fetchJsonWithTimeout<YahooChartPayload>(url, {
           timeoutMs: 9_000,

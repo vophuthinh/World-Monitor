@@ -123,6 +123,8 @@ export interface Vn30Target {
   sector: string;
 }
 
+// ponytail: constituents checked against SSI iboard (group VN30) on 27/11/2026. HOSE reviews the basket
+// twice a year; update this list then, or fetch it live if that proves too easy to forget.
 export const VN30_LEADERS: readonly Vn30Target[] = [
   { symbol: 'VCB', name: 'Vietcombank', sector: 'Ngân hàng' },
   { symbol: 'FPT', name: 'Tập đoàn FPT', sector: 'Công nghệ · AI' },
@@ -134,6 +136,26 @@ export const VN30_LEADERS: readonly Vn30Target[] = [
   { symbol: 'TCB', name: 'Techcombank', sector: 'Ngân hàng' },
   { symbol: 'MWG', name: 'Thế Giới Di Động', sector: 'Bán lẻ' },
   { symbol: 'GAS', name: 'PV GAS', sector: 'Dầu khí · Năng lượng' },
+  { symbol: 'ACB', name: 'ACB', sector: 'Ngân hàng' },
+  { symbol: 'BSR', name: 'Lọc hóa dầu Bình Sơn', sector: 'Dầu khí · Năng lượng' },
+  { symbol: 'CTG', name: 'VietinBank', sector: 'Ngân hàng' },
+  { symbol: 'GVR', name: 'Tập đoàn Cao su VN', sector: 'Cao su · Công nghiệp' },
+  { symbol: 'HDB', name: 'HDBank', sector: 'Ngân hàng' },
+  { symbol: 'LPB', name: 'LPBank', sector: 'Ngân hàng' },
+  { symbol: 'MCH', name: 'Masan Consumer', sector: 'Tiêu dùng' },
+  { symbol: 'MSN', name: 'Tập đoàn Masan', sector: 'Tiêu dùng' },
+  { symbol: 'SAB', name: 'Sabeco', sector: 'Tiêu dùng' },
+  { symbol: 'SHB', name: 'SHB', sector: 'Ngân hàng' },
+  { symbol: 'SSB', name: 'SeABank', sector: 'Ngân hàng' },
+  { symbol: 'SSI', name: 'Chứng khoán SSI', sector: 'Chứng khoán' },
+  { symbol: 'STB', name: 'Sacombank', sector: 'Ngân hàng' },
+  { symbol: 'TCX', name: 'Chứng khoán Kỹ Thương', sector: 'Chứng khoán' },
+  { symbol: 'VIB', name: 'VIB', sector: 'Ngân hàng' },
+  { symbol: 'VJC', name: 'Vietjet Air', sector: 'Hàng không' },
+  { symbol: 'VNM', name: 'Vinamilk', sector: 'Tiêu dùng' },
+  { symbol: 'VPB', name: 'VPBank', sector: 'Ngân hàng' },
+  { symbol: 'VPL', name: 'Vinpearl', sector: 'Du lịch · Nghỉ dưỡng' },
+  { symbol: 'VRE', name: 'Vincom Retail', sector: 'Bất động sản' },
 ];
 
 export interface VndDchartPayload {

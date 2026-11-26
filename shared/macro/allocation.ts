@@ -1,5 +1,25 @@
 import type { InvestmentCompassReport, InvestmentStance, PortfolioAllocationSlice } from '../types';
 
+/** [equities, cash/bonds, gold, crypto] at the score where each stance mix applies in full. */
+const SCORE_ANCHORS = [
+  { score: 42, mix: [20, 55, 23, 2] }, // defensive
+  { score: 50, mix: [35, 43, 18, 4] }, // cautious
+  { score: 64, mix: [52, 28, 14, 6] }, // selective growth
+  { score: 80, mix: [66, 16, 10, 8] }, // risk on
+] as const;
+
+const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+
+function interpolateMix(score: number): number[] {
+  const hi = SCORE_ANCHORS.findIndex((a) => score <= a.score);
+  if (hi === 0) return [...SCORE_ANCHORS[0].mix];
+  if (hi < 0) return [...SCORE_ANCHORS[SCORE_ANCHORS.length - 1].mix];
+  const from = SCORE_ANCHORS[hi - 1];
+  const to = SCORE_ANCHORS[hi];
+  const t = (score - from.score) / (to.score - from.score);
+  return from.mix.map((v, i) => v + (to.mix[i] - v) * t);
+}
+
 /**
  * Dynamic Quantitative Tactical Asset Allocation Router (All-Weather × ERP × MA200 × Net Liquidity)
  * Guarantees exact integer weights summing strictly to 100%.
@@ -12,6 +32,12 @@ export function computeDynamicPortfolioAllocation(params: {
   capitulationSignal?: boolean;
   highInflationPressure: boolean;
   liquidityExpanding: boolean;
+  /** 0..1 macro support; blends smoothly between the "confirmed" and "diverging" states. */
+  macroStrength?: number;
+  /** High real yield: never go beyond the selective-growth mix. */
+  riskOnBlocked?: boolean;
+  /** An index is below MA200: cheap valuation earns no extra equity weight. */
+  indexBelowTrend?: boolean;
 }): PortfolioAllocationSlice[] {
   const {
     stance,
@@ -21,68 +47,48 @@ export function computeDynamicPortfolioAllocation(params: {
     capitulationSignal,
     highInflationPressure,
     liquidityExpanding,
+    riskOnBlocked,
+    indexBelowTrend,
   } = params;
+  const trendWeak = dualConfirmation === 'macro_bull_trend_weak' || dualConfirmation === 'confirmed_bear';
+  const trendUp = dualConfirmation === 'confirmed_bull' || dualConfirmation === 'macro_weak_trend_bull';
+  const strength = clamp01(
+    params.macroStrength ??
+      (dualConfirmation === 'confirmed_bull' || dualConfirmation === 'macro_bull_trend_weak' ? 1 : 0),
+  );
 
-  let equities = 50;
-  let cashBonds = 30;
-  let gold = 15;
-  let crypto = 5;
+  // Interpolate between stance mixes so a 1-point score change cannot jump the weights.
+  // A hard recession trigger (Sahm / HY spread) still forces the defensive mix.
+  let score = riskAppetiteScore;
+  // Weak trend: cap between the cautious (50) and selective (64) anchors by macro support.
+  if (trendWeak) score = Math.min(score, 50 + 14 * strength);
+  if (riskOnBlocked) score = Math.min(score, 64);
+  if (stance === 'defensive_recession') score = SCORE_ANCHORS[0].score;
+  let [equities, , gold, crypto] = interpolateMix(score);
 
-  if (stance === 'defensive_recession') {
-    equities = 20;
-    cashBonds = 55;
-    gold = 23;
-    crypto = 2;
-  } else if (stance === 'cautious') {
-    equities = 35;
-    cashBonds = 43;
-    gold = 18;
-    crypto = 4;
-  } else if (stance === 'risk_on') {
-    equities = 66;
-    cashBonds = 16;
-    gold = 10;
-    crypto = 8;
-  } else {
-    equities = 52;
-    cashBonds = 28;
-    gold = 14;
-    crypto = 6;
-  }
-
-  if (dualConfirmation === 'macro_bull_trend_weak') {
-    const shift = capitulationSignal ? 6 : 10;
-    equities -= shift;
-    cashBonds += shift;
-  } else if (dualConfirmation === 'confirmed_bull' && riskAppetiteScore >= 72) {
-    equities += 6;
-    cashBonds -= 6;
+  if (trendWeak) {
+    equities -= strength * (capitulationSignal ? 6 : 10);
+  } else if (trendUp) {
+    equities += 6 * strength * clamp01((riskAppetiteScore - 68) / 8);
   }
 
   if (vnErpPct !== undefined) {
-    if (vnErpPct >= 3.5) {
-      equities += 7;
-      cashBonds -= 7;
-    } else if (vnErpPct <= 0.8) {
-      equities -= 8;
-      cashBonds += 8;
-    }
+    // Ramps, not steps: full bonus at ERP >= 4.5, full penalty at ERP <= -0.2.
+    if (!indexBelowTrend) equities += 7 * clamp01((vnErpPct - 2.5) / 2);
+    equities -= 8 * clamp01((1.8 - vnErpPct) / 2);
   }
 
   if (highInflationPressure) {
     gold += 3;
-    cashBonds -= 3;
   }
   if (!liquidityExpanding && crypto > 3) {
-    const cut = crypto - 3;
     crypto = 3;
-    cashBonds += cut;
   }
 
   equities = Math.max(15, Math.min(78, Math.round(equities)));
   gold = Math.max(8, Math.min(28, Math.round(gold)));
   crypto = Math.max(0, Math.min(12, Math.round(crypto)));
-  cashBonds = 100 - equities - gold - crypto;
+  let cashBonds = 100 - equities - gold - crypto;
   if (cashBonds < 10) {
     // Keep the 10% cash/bond floor by trimming equities, so the weights still sum to exactly 100.
     equities -= 10 - cashBonds;

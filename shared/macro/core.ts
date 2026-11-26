@@ -462,7 +462,7 @@ export function classifyRegime(params: {
       regime: 'soft_landing',
       label: 'HẠ CÁNH MỀM · MỞ RỘNG KHỎE',
       summary:
-        'Tăng trưởng thực tế đạt/vượt dự báo trong khi lạm phát nằm trong vùng kiểm soát — chu kỳ mở rộng lành mạnh.',
+        'Tăng trưởng đạt ngưỡng tham chiếu trong khi lạm phát nằm trong vùng kiểm soát — chu kỳ mở rộng lành mạnh.',
     };
   }
 
@@ -471,7 +471,7 @@ export function classifyRegime(params: {
       regime: 'overheating',
       label: 'TĂNG TRƯỞNG NÓNG · ÁP LỰC LẠM PHÁT',
       summary:
-        'Sản xuất & cầu tiêu dùng tăng tốc vượt dự báo nhưng mặt bằng lạm phát / lãi suất liên ngân hàng dâng cao — tạo áp lực lên điều hành tiền tệ (giá cả, tỷ giá).',
+        'Tăng trưởng đạt ngưỡng tham chiếu nhưng lạm phát cao hơn ngưỡng — tạo áp lực lên điều hành tiền tệ.',
     };
   }
 
@@ -480,7 +480,7 @@ export function classifyRegime(params: {
       regime: 'stagflation_risk',
       label: 'RỦI RO ĐÌNH LẠM (STAGFLATION)',
       summary:
-        'Tăng trưởng hụt hơi dưới dự báo trong khi mặt bằng giá cả leo thang — rủi ro đình lạm cần phòng thủ danh mục.',
+        'Tăng trưởng dưới ngưỡng tham chiếu trong khi lạm phát cao hơn ngưỡng — rủi ro đình lạm cần phòng thủ danh mục.',
     };
   }
 
@@ -488,7 +488,7 @@ export function classifyRegime(params: {
     regime: 'early_slowdown',
     label: 'GIẢM TỐC SỚM · CẦN THEO DÕI CẦU',
     summary:
-      'Lạm phát hạ nhiệt nhưng đà tăng trưởng hoặc chỉ báo sản xuất dẫn dắt đang chậm lại so với kỳ vọng.',
+      'Lạm phát hạ nhiệt nhưng đà tăng trưởng hoặc chỉ báo sản xuất dẫn dắt đang chậm lại so với ngưỡng tham chiếu.',
   };
 }
 

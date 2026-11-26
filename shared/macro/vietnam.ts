@@ -207,7 +207,7 @@ export function buildVietnamMacroHealth(
         deltaVsBenchmark: Number((pulse.tradeBalanceBillionUsd - 1.5).toFixed(2)),
         trendLabel:
           ytdTradeB !== undefined
-            ? `Lũy kế ${ytdTradePeriod ?? (pulse?.ytdCpiMonths ? `${pulse.ytdCpiMonths}T` : 'năm')}: ${ytdTradeB >= 0 ? '+' : ''}${ytdTradeB.toFixed(2)}B$ (${ytdTradeB < 0 ? 'nhập siêu máy móc/NL' : 'xuất siêu'})`
+            ? `Lũy kế ${ytdTradePeriod ?? (pulse?.ytdCpiMonths ? `${pulse.ytdCpiMonths}T` : 'năm')}: ${ytdTradeB >= 0 ? '+' : ''}${ytdTradeB.toFixed(2)}B$ (${ytdTradeB < 0 ? 'nhập siêu' : 'xuất siêu'})`
             : exportsGdp !== undefined
               ? `Độ mở XK: ${exportsGdp.toFixed(0)}% GDP`
               : undefined,
@@ -351,6 +351,7 @@ export function buildVietnamMacroHealth(
     const spreadVsUs = us10yYield !== undefined ? Number((vn10y - us10yYield).toFixed(2)) : undefined;
     monetaryMetrics.push({
       id: 'vn-10y',
+      scored: false,
       name: 'Lợi suất Trái phiếu CP Việt Nam 10Y',
       actual: vn10y,
       unit: '%',
@@ -374,6 +375,7 @@ export function buildVietnamMacroHealth(
     if (isCabNotCurrentYear) {
       monetaryMetrics.push({
         id: 'vn-cab',
+        scored: false,
         name: `Cán cân Vãng lai / GDP (${cabYear !== undefined ? `Số chốt năm ${cabYear}` : 'chưa rõ kỳ'})`,
         actual: Number(currentAccount.toFixed(2)),
         unit: '% GDP',
@@ -422,6 +424,7 @@ export function buildVietnamMacroHealth(
   if (creditPctGdp !== null && creditPctGdp !== undefined) {
     monetaryMetrics.push({
       id: 'vn-credit',
+      scored: false,
       name: 'Tín dụng Tư nhân / GDP (Đòn bẩy nền KT)',
       actual: Number(creditPctGdp.toFixed(1)),
       unit: '% GDP',
@@ -433,7 +436,9 @@ export function buildVietnamMacroHealth(
       retained: wbRetained,
       status: creditPctGdp <= 125 ? 'good' : creditPctGdp <= 138 ? 'watch' : 'warn',
     });
-  } else if (unemp !== undefined) {
+  }
+
+  if (unemp !== undefined) {
     monetaryMetrics.push({
       id: 'vn-uem',
       name: 'Tỷ lệ Thất nghiệp chung',
@@ -530,6 +535,19 @@ export function buildVietnamMacroHealth(
       })
     : undefined;
 
+  // A hair above the ceiling must not read like a runaway CPI.
+  const mildCpiOvershoot =
+    cpiValue !== undefined && cpiValue > cpiCeiling && cpiValue - cpiCeiling <= 0.35;
+  const regimeText =
+    classified && mildCpiOvershoot
+      ? {
+          label: classified.regime === 'overheating'
+            ? 'TĂNG TRƯỞNG CAO · LẠM PHÁT VƯỢT NHẸ'
+            : 'GIẢM TỐC · LẠM PHÁT VƯỢT NHẸ',
+          summary: `CPI bình quân ${cpiValue!.toFixed(2)}% vượt nhẹ trần ${cpiCeiling}%; ${classified.regime === 'overheating' ? 'tăng trưởng vẫn đạt mục tiêu' : 'tăng trưởng dưới mục tiêu'}.`,
+        }
+      : classified;
+
   const warningFlags: EconomyHealthReport['warningFlags'] = [];
   if (worldBankMissing) {
     warningFlags.push({ severity: 'warn', text: 'Thiếu dữ liệu World Bank; báo cáo chỉ sử dụng các chỉ báo Việt Nam hiện có.' });
@@ -540,7 +558,7 @@ export function buildVietnamMacroHealth(
     const tradeContext =
       pulse?.tradeBalanceBillionUsd !== undefined
         ? ytdTradeB !== undefined && ytdTradeB < 0
-          ? `, tháng gần nhất xuất siêu +$${pulse.tradeBalanceBillionUsd.toFixed(2)}B (nhưng lũy kế ${tradePeriodLabel}nhập siêu ${ytdTradeB.toFixed(2)}B$ do nhập máy móc/nguyên liệu)`
+          ? `, tháng gần nhất xuất siêu +$${pulse.tradeBalanceBillionUsd.toFixed(2)}B (nhưng lũy kế ${tradePeriodLabel}nhập siêu ${ytdTradeB.toFixed(2)}B$)`
           : `, xuất siêu tháng +$${pulse.tradeBalanceBillionUsd.toFixed(2)}B`
         : '';
     warningFlags.push({
@@ -560,7 +578,7 @@ export function buildVietnamMacroHealth(
       text: `Lạm phát kiểm soát tốt: CPI bình quân ${cpiValue.toFixed(2)}% thấp hơn mục tiêu Quốc hội (${cpiCeiling}%)${spotNote}.`,
     });
   } else if (hasPolicyComparableCpi && cpiValue !== undefined) {
-    const isMildOvershoot = cpiValue - cpiCeiling <= 0.35;
+    const isMildOvershoot = mildCpiOvershoot;
     const detailParts: string[] = [];
     if (coreCpi !== undefined) {
       detailParts.push(`lạm phát cơ bản bình quân vẫn kiểm soát thấp hơn ở ${coreCpi.toFixed(2)}%`);
@@ -635,9 +653,9 @@ export function buildVietnamMacroHealth(
     subtitle: 'PMI & CPI Tháng · TPCP VN 10Y · Định giá ERP · World Bank',
     compositeScore,
     ...(classified ? { regime: classified.regime } : {}),
-    regimeLabel: classified?.label ?? 'CHƯA ĐỦ DỮ LIỆU CPI BÌNH QUÂN',
+    regimeLabel: regimeText?.label ?? 'CHƯA ĐỦ DỮ LIỆU CPI BÌNH QUÂN',
     regimeSummary:
-      classified?.summary ??
+      regimeText?.summary ??
       'Chưa có CPI bình quân cùng kỳ để kết luận mức độ kiểm soát lạm phát và phân loại chế độ kinh tế.',
     ...(quad ? { quadrant: quad.quadrant, quadrantLabel: quad.quadrantLabel } : {}),
     growthZ,

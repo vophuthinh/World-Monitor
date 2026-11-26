@@ -337,6 +337,11 @@ export function MacroHealthSection({
                         <span className="rounded border border-cyan-500/25 bg-cyan-950/30 px-1 py-0.1 text-cyan-200/90">
                           Kỳ: {m.periodLabel}
                         </span>
+                        {m.scored === false && (
+                          <span className="rounded border border-slate-600 bg-slate-800/80 px-1 py-0.1 text-slate-300">
+                            Tham khảo · không chấm điểm
+                          </span>
+                        )}
                         {m.retained ? (
                           <span
                             title="Nguồn không trả dữ liệu mới ở lần quét gần nhất; đang hiển thị số giữ lại từ phiên thành công trước đó"

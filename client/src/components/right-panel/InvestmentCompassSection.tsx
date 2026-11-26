@@ -21,7 +21,7 @@ export function InvestmentCompassSection({
             <span>KHẨU VỊ RỦI RO &amp; TÍN HIỆU THỊ TRƯỜNG</span>
           </h2>
           <span className="shrink-0 rounded border border-emerald-500/45 bg-emerald-500/15 px-1.5 py-0.5 font-mono text-[10px] font-bold text-emerald-200 tabular-nums">
-            Điểm rủi ro: {investmentCompass.riskAppetiteScore}/100
+            Khẩu vị rủi ro: {investmentCompass.riskAppetiteScore}/100
           </span>
         </div>
 
@@ -57,6 +57,13 @@ export function InvestmentCompassSection({
             >
               ⚡ {investmentCompass.dualConfirmationLabel}
             </div>
+          )}
+          {investmentCompass.marketConfirmations && (
+            <ul className="mt-1 space-y-0.5 font-mono text-[9.5px] text-slate-300">
+              {investmentCompass.marketConfirmations.map((m) => (
+                <li key={m.market}>• {m.label}</li>
+              ))}
+            </ul>
           )}
           {investmentCompass.capitulationSignal && investmentCompass.capitulationLabel && (
             <div className="mt-1 rounded border border-cyan-500/45 bg-cyan-950/35 px-2 py-1 font-mono text-[9.5px] font-semibold text-cyan-200">

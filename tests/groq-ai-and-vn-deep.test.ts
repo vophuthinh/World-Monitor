@@ -570,8 +570,8 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
 
     const compassMarkets: Parameters<typeof evaluateInvestmentCompass>[0] = {
       quotes: [
-        { symbol: 'Copper', name: 'Dr. Copper', group: 'commodity', price: 5.48, changePercent24h: 1.4, updatedAt: 1700000000000, source: 'Yahoo' },
-        { symbol: 'Gold', name: 'Gold', group: 'commodity', price: 3550, changePercent24h: 0.2, observedAt: 1700000000000, updatedAt: 1700000000000, source: 'Yahoo' },
+        { symbol: 'Copper', name: 'Dr. Copper', group: 'commodity', price: 5.48, ma50: 5.2, changePercent24h: 1.4, updatedAt: 1700000000000, source: 'Yahoo' },
+        { symbol: 'Gold', name: 'Gold', group: 'commodity', price: 3550, ma50: 3550, changePercent24h: 0.2, observedAt: 1700000000000, updatedAt: 1700000000000, source: 'Yahoo' },
         { symbol: 'SOX Semi', name: 'PHLX Semiconductor', group: 'index', price: 8408, changePercent24h: 1.8, updatedAt: 1700000000000, source: 'Yahoo' },
         { symbol: 'USD/VND', name: 'USD/VND', group: 'fx', price: 25780, changePercent24h: 0, observedAt: 1700000000000, updatedAt: 1700000000000, source: 'FX' },
       ],
@@ -788,7 +788,8 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
       quotes: [
         { symbol: 'VN-Index', name: 'VN-Index', group: 'index', price: 1689, changePercent24h: -0.05, ma50: 1748, ma200: 1784, rsi14: 33, peRatio: 10.46, pbRatio: 1.8, updatedAt: 1, source: 'HOSE' },
         { symbol: 'S&P 500', name: 'S&P 500', group: 'index', price: 6910, changePercent24h: -3.7, ma50: 7625, ma200: 7349, rsi14: 25, updatedAt: 1, source: 'Yahoo' },
-        { symbol: 'VIX 3M', name: 'VIX 3M', group: 'index', price: 21.5, changePercent24h: 4.0, updatedAt: 1, source: 'Yahoo' },
+        { symbol: 'VIX', name: 'VIX', group: 'index', price: 24.2, changePercent24h: 3.1, observedAt: 1, updatedAt: 1, source: 'Yahoo' },
+        { symbol: 'VIX 3M', name: 'VIX 3M', group: 'index', price: 21.5, changePercent24h: 4.0, observedAt: 1, updatedAt: 1, source: 'Yahoo' },
         { symbol: 'AUD/JPY', name: 'AUD/JPY', group: 'fx', price: 98.4, changePercent24h: -1.65, updatedAt: 1, source: 'Yahoo' },
       ],
       crypto: [],

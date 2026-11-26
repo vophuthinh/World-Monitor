@@ -251,6 +251,16 @@ export function extractRssItems(xml: string): Array<{
   return [...xml.matchAll(/<title>([^<]+)<\/title>/gi)].map((m) => ({ title: m[1].trim() }));
 }
 
+// Headlines about one partner, one sector, a half month or a forecast are not the national YTD balance.
+const NON_NATIONAL_TRADE_HEADLINE = new RegExp(
+  [
+    '(?:từ|với|sang|ở|tại)\\s+\\p{Lu}',
+    '(?<!\\p{L})(?:Trung Quốc|Hàn Quốc|ASEAN|Mỹ|Hoa Kỳ|EU|Nhật Bản|Thái Lan|Malaysia|Indonesia|Ấn Độ|Nga|Đài Loan|Singapore|Campuchia|Australia)(?!\\p{L})',
+    '[Kk]hu vực|[Nn]ửa (?:đầu|cuối)|[Dd]ự báo|[Dd]ự kiến|có thể|[Kk]ịch bản|[Mm]ục tiêu',
+  ].join('|'),
+  'u',
+);
+
 export function parseVietnameseMonthsPhrase(phrase: string): number {
   const s = phrase.toLowerCase().replace(/\s+/g, ' ').trim();
   if (s.includes('cả năm')) return 12;
@@ -491,6 +501,9 @@ export function parseVietnamOfficialYtdContext(params: {
         continue;
       }
 
+      // Strip the trailing " - Publisher" so a publisher name never looks like a trade partner.
+      if (NON_NATIONAL_TRADE_HEADLINE.test(rawTitle.replace(/\s+-\s+[^-]+$/, ''))) continue;
+
       const deficitMatch = rawTitle.match(/nhập\s+siêu[^0-9]{0,25}?([0-9]+[.,][0-9]+)\s*t[ỷỉ](?:\s*USD)?/i);
       const surplusMatch = rawTitle.match(/xuất\s+siêu[^0-9]{0,25}?([0-9]+[.,][0-9]+)\s*t[ỷỉ](?:\s*USD)?/i);
       let signedVal: number | undefined;
@@ -570,8 +583,8 @@ export async function fetchVietnamAndGlobalMacroPulse(now: number): Promise<Viet
       userAgent: 'Mozilla/5.0',
     }),
     fetchTextWithTimeout(nsoApiUrl, {
-      timeoutMs: 6_500,
-      retries: 0,
+      timeoutMs: 12_000,
+      retries: 1,
       userAgent: 'Mozilla/5.0',
     }),
     fetchTextWithTimeout(cpiRssUrl, {

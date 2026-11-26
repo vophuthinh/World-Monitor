@@ -86,6 +86,7 @@ export function evaluateInvestmentCompass(
   const gold = quoteBySym.get('Gold');
   const sox = quoteBySym.get('SOX Semi');
   const spx = quoteBySym.get('S&P 500');
+  const vix = quoteBySym.get('VIX');
   const vix3m = quoteBySym.get('VIX 3M');
   const vni = quoteBySym.get('VN-Index');
   const usdVnd = quoteBySym.get('USD/VND');
@@ -144,7 +145,7 @@ export function evaluateInvestmentCompass(
       tone:
         delta4w === undefined
           ? 'neutral'
-          : delta4w >= 20
+          : delta4w >= 30
             ? 'bullish'
             : delta4w <= -60
               ? 'bearish'
@@ -246,6 +247,14 @@ export function evaluateInvestmentCompass(
     });
   }
 
+  // Credit and volatility momentum: a calm level that is deteriorating fast must score lower.
+  if (hySpread?.delta4w !== undefined) {
+    f2CreditRecession.push({ score: smoothFactorScore(hySpread.delta4w, 0, 0.5, true), weight: 0.15 });
+  }
+  if (vixSpot?.delta4w !== undefined) {
+    f5FxVolatility.push({ score: smoothFactorScore(vixSpot.delta4w, 0, 6, true), weight: 0.15 });
+  }
+
   // 4. 10Y Real TIPS Yield
   if (realYield) {
     const val = realYield.value;
@@ -262,31 +271,22 @@ export function evaluateInvestmentCompass(
     });
   }
 
-  // 5. Dr. Copper / Gold Ratio
-  if (copper && gold && gold.price > 0 && copper.changePercent24h != null && gold.changePercent24h != null) {
-    const ratio = Number(((copper.price * 1000) / gold.price).toFixed(2));
-    const copperExpanding =
-      copper.changePercent24h >= 0 && copper.changePercent24h >= gold.changePercent24h;
-    const broadCommoditySelloff =
-      copper.changePercent24h <= -1.0 && gold.changePercent24h <= -1.0;
+  // 5. Dr. Copper / Gold Ratio against its 50-day average (one day of price moves is noise)
+  if (copper?.ma50 && gold?.ma50 && gold.price > 0) {
+    const ratio = (copper.price * 1000) / gold.price;
+    const vsAvgPct = (ratio / ((copper.ma50 * 1000) / gold.ma50) - 1) * 100;
 
-    f4TrendBreadth.push({
-      score: copperExpanding ? 72 : broadCommoditySelloff ? 38 : 54,
-      weight: 0.12,
-    });
+    // Low weight: as a timing signal this performed poorly in a 2007-2026 backtest (Sharpe < buy-and-hold).
+    f4TrendBreadth.push({ score: smoothFactorScore(vsAvgPct, 0, 5, false), weight: 0.05 });
 
     signals.push({
       id: 'copper-gold',
       label: 'Tỷ lệ Đồng / Vàng',
       category: 'cycle_tech',
       valueDisplay: `${ratio.toFixed(2)}x`,
-      subtext: `Đồng $${copper.price.toFixed(2)}/lb (${copper.changePercent24h >= 0 ? '+' : ''}${copper.changePercent24h.toFixed(1)}%)`,
-      signalBadge: copperExpanding
-        ? 'CẦU SẢN XUẤT TỐT'
-        : broadCommoditySelloff
-          ? 'ÁP LỰC BÁN HÀNG HÓA'
-          : 'THIÊN VỀ TRÚ ẨN',
-      tone: copperExpanding ? 'bullish' : broadCommoditySelloff ? 'bearish' : 'neutral',
+      subtext: `So TB 50 phiên: ${vsAvgPct >= 0 ? '+' : ''}${vsAvgPct.toFixed(1)}%`,
+      signalBadge: vsAvgPct >= 2 ? 'CẦU SẢN XUẤT TỐT' : vsAvgPct <= -2 ? 'THIÊN VỀ TRÚ ẨN' : 'TRUNG TÍNH',
+      tone: vsAvgPct >= 2 ? 'bullish' : vsAvgPct <= -2 ? 'bearish' : 'neutral',
     });
   }
 
@@ -449,7 +449,7 @@ export function evaluateInvestmentCompass(
       label: 'Độ rộng Nội tại VN30',
       category: 'valuation_breadth',
       valueDisplay: `${breadth.aboveMa50Pct}% >MA50`,
-      subtext: `Trên MA200: ${breadth.aboveMa200Pct}%${breadth.medianRsi14 !== undefined ? ` · RSI vị ${breadth.medianRsi14}` : ''
+      subtext: `${breadth.sampleCount} mã · Trên MA200: ${breadth.aboveMa200Pct}%${breadth.medianRsi14 !== undefined ? ` · RSI vị ${breadth.medianRsi14}` : ''
         }`,
       signalBadge:
         breadth.aboveMa200Pct >= 60
@@ -475,33 +475,35 @@ export function evaluateInvestmentCompass(
     f5FxVolatility.push({ score: smoothFactorScore(vixSpot.value, 20.0, 6.5, true), weight: 0.35 });
   }
 
-  if (vixSpot && vix3m && vix3m.price > 0) {
-    vixTermRatio = Number((vixSpot.value / vix3m.price).toFixed(2));
+  // Term structure needs both legs from one session; FRED VIXCLS lags by 1-2 days.
+  const sessionDay = (t: number | undefined) => (t === undefined ? undefined : new Date(t).toISOString().slice(0, 10));
+  const vixDay = sessionDay(vix?.observedAt);
+  if (vix && vix3m && vix3m.price > 0 && vixDay !== undefined && vixDay === sessionDay(vix3m.observedAt)) {
+    vixTermRatio = vix.price / vix3m.price; // unrounded: 0.996 is not backwardation
     const hasRecessionData = recessionProb12m !== undefined || sahm !== undefined;
     const macroNotRecession =
       hasRecessionData &&
       (recessionProb12m === undefined || recessionProb12m < 35) &&
       (sahm === undefined || sahm.value < 0.45);
-    const equityOversold =
-      (spx?.rsi14 !== undefined && spx.rsi14 <= 32) ||
-      (vni?.rsi14 !== undefined && vni.rsi14 <= 34);
+    const equityOversold = spx?.rsi14 !== undefined && spx.rsi14 <= 32;
 
     if (vixTermRatio >= 1.0 && macroNotRecession && equityOversold) {
       capitulationSignal = true;
-      capitulationLabel = `TÍN HIỆU RŨ BỎ HOẢNG LOẠN (VIX/VIX3M = ${vixTermRatio.toFixed(2)}x + RSI QUÁ BÁN) · CANH NHỊP HỒI KỸ THUẬT`;
+      capitulationLabel = `TÍN HIỆU RŨ BỎ HOẢNG LOẠN (VIX/VIX3M = ${vixTermRatio.toFixed(3)}x + RSI S&P 500 QUÁ BÁN) · CANH NHỊP HỒI KỸ THUẬT`;
     }
 
+    // Low weight for the same backtest reason; the capitulation rule above is unaffected.
     f5FxVolatility.push({
       score: smoothFactorScore(vixTermRatio, 0.94, 0.08, true),
-      weight: 0.2,
+      weight: 0.08,
     });
 
     signals.push({
       id: 'vix-term',
       label: 'Cấu trúc Kỳ hạn VIX',
       category: 'valuation_breadth',
-      valueDisplay: `${vixTermRatio.toFixed(2)}x`,
-      subtext: `VIX ${vixSpot.value.toFixed(1)} / VIX3M ${vix3m.price.toFixed(1)}`,
+      valueDisplay: `${vixTermRatio.toFixed(3)}x`,
+      subtext: `VIX ${vix.price.toFixed(2)} / VIX3M ${vix3m.price.toFixed(2)}`,
       signalBadge:
         vixTermRatio >= 1.0
           ? capitulationSignal
@@ -668,23 +670,38 @@ export function evaluateInvestmentCompass(
   const trendBullish =
     (!vniTrend || vniTrend.aboveMa200) && (!spxTrend || spxTrend.aboveMa200);
 
+  // The blended state below drives the single simulated allocation; each market is also reported on
+  // its own macro health and its own index, so US data never speaks for Vietnam.
+  const health = evaluateMacroHealth(markets, predictions, now);
+  const marketConfirmations: NonNullable<InvestmentCompassReport['marketConfirmations']> = [];
+  for (const [market, report, trend, index] of [
+    ['VN', health.vn, vniTrend, 'VN-Index'],
+    ['US', health.us, spxTrend, 'S&P 500'],
+  ] as const) {
+    if (!report || !trend) continue;
+    const macroText = report.compositeScore >= 56 ? 'vĩ mô thuận' : 'vĩ mô yếu';
+    marketConfirmations.push({
+      market,
+      macroScore: report.compositeScore,
+      trendAboveMa200: trend.aboveMa200,
+      label: `${market === 'VN' ? 'VN' : 'Mỹ'}: ${macroText} (${report.compositeScore}/100) · ${index} ${trend.aboveMa200 ? 'trên' : 'dưới'} MA200`,
+    });
+  }
+
   if (hasTrendFilter && hasMacroCoreData) {
     const macroBullish = macroCoreScore >= 56;
     if (macroBullish && trendBullish) {
       dualConfirmation = 'confirmed_bull';
-      dualConfirmationLabel = 'XÁC NHẬN KÉP: VĨ MÔ THUẬN + GIÁ TRÊN MA200';
+      dualConfirmationLabel = 'XÁC NHẬN KÉP TỔNG HỢP: NỀN VĨ MÔ THUẬN + GIÁ TRÊN MA200';
     } else if (macroBullish && !trendBullish) {
       dualConfirmation = 'macro_bull_trend_weak';
-      dualConfirmationLabel =
-        vni?.peRatio && vni.peRatio <= 12.0
-          ? `PHÂN KỲ: VĨ MÔ ỔN & P/E THẤP (${vni.peRatio.toFixed(1)}x) NHƯNG CHỈ SỐ DƯỚI MA200`
-          : 'PHÂN KỲ: VĨ MÔ ỔN NHƯNG CHỈ SỐ CÒN DƯỚI MA200';
+      dualConfirmationLabel = 'PHÂN KỲ TỔNG HỢP: NỀN VĨ MÔ ỔN NHƯNG CÓ CHỈ SỐ DƯỚI MA200';
     } else if (!macroBullish && trendBullish) {
       dualConfirmation = 'macro_weak_trend_bull';
-      dualConfirmationLabel = 'PHÂN KỲ: GIÁ TRÊN MA200 NHƯNG CHỈ BÁO VĨ MÔ SUY YẾU';
+      dualConfirmationLabel = 'PHÂN KỲ TỔNG HỢP: GIÁ TRÊN MA200 NHƯNG NỀN VĨ MÔ SUY YẾU';
     } else {
       dualConfirmation = 'confirmed_bear';
-      dualConfirmationLabel = 'CẢNH BÁO KÉP: VĨ MÔ SUY YẾU + CHỈ SỐ DƯỚI MA200';
+      dualConfirmationLabel = 'CẢNH BÁO KÉP TỔNG HỢP: NỀN VĨ MÔ SUY YẾU + CHỈ SỐ DƯỚI MA200';
     }
   }
 
@@ -697,8 +714,7 @@ export function evaluateInvestmentCompass(
       : rawComposite;
 
   // Determine active Macro Quadrant for Sector Rotation
-  const vnHealthRef = evaluateMacroHealth(markets, predictions, now);
-  const activeQuad = vnHealthRef.vn?.quadrant ?? vnHealthRef.us?.quadrant;
+  const activeQuad = health.vn?.quadrant ?? health.us?.quadrant;
   const sectorRotation = activeQuad ? buildSectorRotation(activeQuad) : undefined;
 
   let stance: InvestmentStance = 'selective_growth';
@@ -760,6 +776,10 @@ export function evaluateInvestmentCompass(
     capitulationSignal,
     highInflationPressure,
     liquidityExpanding,
+    riskOnBlocked: realYield !== undefined && realYield.value >= 2.2,
+    // 0 at macro core 50, 1 at 62: no allocation jump when it crosses the label threshold of 56.
+    macroStrength: Math.max(0, Math.min(1, (macroCoreScore - 50) / 12)),
+    indexBelowTrend: hasTrendFilter && !trendBullish,
   });
 
   // Sector-rotation-aware actionable guidance
@@ -830,6 +850,7 @@ export function evaluateInvestmentCompass(
     ...(capitulationSignal ? { capitulationSignal, capitulationLabel } : {}),
     ...(dualConfirmation ? { dualConfirmation, dualConfirmationLabel } : {}),
     factorPillars,
+    ...(marketConfirmations.length > 0 ? { marketConfirmations } : {}),
     ...(sectorRotation ? { sectorRotation } : {}),
     allocations,
     favoredAssets,
