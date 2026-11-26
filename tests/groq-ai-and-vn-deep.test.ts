@@ -836,7 +836,8 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     expect(vnPulse.vn10yYieldPct).toBe(4.57);
     expect(vnPulse.monthlyCpiPct).toBe(5.09);
     expect(vnPulse.manufacturingPmi).toBe(52.3);
-    expect(vnPulse.interbankRatePct).toBe(7.66);
+    expect(vnPulse.interbankTermRatePct).toBe(7.66); // longer tenor: reference only
+    expect(vnPulse.interbankRatePct).toBeUndefined();
     expect(vnPulse.quarterlyGdpPct).toBe(9.95);
     expect(vnPulse.tradeBalanceBillionUsd).toBe(7.31);
 

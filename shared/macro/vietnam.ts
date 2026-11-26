@@ -330,18 +330,37 @@ export function buildVietnamMacroHealth(
   if (interbank !== undefined) {
     inflationMetrics.push({
       id: 'vn-interbank',
-      name: 'Lãi suất Liên ngân hàng VN (Kỳ hạn ngắn)',
+      name: 'Lãi suất Liên ngân hàng VND qua đêm',
       actual: interbank,
       unit: '%',
       benchmarkLabel: 'Vùng cân bằng',
       benchmarkValue: 4.5,
       deltaVsBenchmark: Number((interbank - 4.5).toFixed(2)),
       trendLabel: vn10y !== undefined ? `TPCP 10Y: ${vn10y.toFixed(2)}% · Điều tiết OMO` : undefined,
-      periodLabel: fm?.interbankRatePct?.period ?? 'Kỳ ngắn hạn',
-      sourceLabel: fm?.interbankRatePct?.source ?? 'SBV / TE',
+      periodLabel: fm?.interbankRatePct?.period ?? 'Qua đêm',
+      sourceLabel: fm?.interbankRatePct?.source ?? 'Báo chí · thị trường LNH',
       retained: Boolean(fm?.interbankRatePct?.retained),
       fetchedAt: fm?.interbankRatePct?.fetchedAt,
       status: interbank <= 5.0 ? 'good' : interbank <= 6.8 ? 'watch' : 'warn',
+    });
+  }
+
+  if (pulse?.interbankTermRatePct !== undefined) {
+    const meta = fm?.interbankTermRatePct;
+    inflationMetrics.push({
+      id: 'vn-interbank-term',
+      scored: false,
+      name: 'Lãi suất Liên ngân hàng kỳ hạn dài',
+      actual: pulse.interbankTermRatePct,
+      unit: '%',
+      benchmarkLabel: 'So lãi điều hành',
+      benchmarkValue: pulse.sbvPolicyRatePct ?? 4.5,
+      deltaVsBenchmark: Number((pulse.interbankTermRatePct - (pulse.sbvPolicyRatePct ?? 4.5)).toFixed(2)),
+      periodLabel: meta?.period ?? 'Chưa rõ kỳ',
+      sourceLabel: meta?.source ?? 'TradingEconomics',
+      retained: Boolean(meta?.retained),
+      fetchedAt: meta?.fetchedAt,
+      status: 'watch',
     });
   }
 
@@ -603,7 +622,7 @@ export function buildVietnamMacroHealth(
   if (interbank !== undefined && interbank >= 6.5) {
     warningFlags.push({
       severity: 'warn',
-      text: `Lãi suất liên ngân hàng cao (${interbank.toFixed(2)}%, theo nguồn dữ liệu gần nhất): chi phí vốn ngắn hạn cao làm thu hẹp dư địa giảm lãi vay margin.`,
+      text: `Lãi suất liên ngân hàng qua đêm cao (${interbank.toFixed(2)}%, theo nguồn dữ liệu gần nhất): chi phí vốn ngắn hạn cao làm thu hẹp dư địa giảm lãi vay margin.`,
     });
   }
 

@@ -433,6 +433,7 @@ export interface PortfolioAllocationSlice {
 export type VietnamMacroPulseFieldKey =
   | 'vn10yYieldPct'
   | 'interbankRatePct'
+  | 'interbankTermRatePct'
   | 'sbvPolicyRatePct'
   | 'monthlyCpiPct'
   | 'ytdAvgCpiPct'
@@ -453,7 +454,10 @@ export interface MacroFieldMeta {
 
 export interface VietnamLiveMacroPulse {
   vn10yYieldPct?: number;
+  /** VND overnight interbank rate. */
   interbankRatePct?: number;
+  /** Longer-tenor interbank figure, shown for reference and never scored. */
+  interbankTermRatePct?: number;
   sbvPolicyRatePct?: number;
   monthlyCpiPct?: number;
   monthlyCpiPrevPct?: number;

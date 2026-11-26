@@ -176,8 +176,9 @@ export function parseTradingEconomicsVietnamHtml(
         if (Number.isFinite(prev)) out.manufacturingPmiPrev = Number(prev.toFixed(1));
         stamp('manufacturingPmi', 'S&P Global / TE', refPeriod);
       } else if (slug === 'interbank-rate' && latest >= 0 && latest < 30) {
-        out.interbankRatePct = Number(latest.toFixed(2));
-        stamp('interbankRatePct', 'SBV / TE', refPeriod);
+        // This figure runs far above the overnight rate (a longer tenor), so it is reference only.
+        out.interbankTermRatePct = Number(latest.toFixed(2));
+        stamp('interbankTermRatePct', 'TradingEconomics', refPeriod);
       } else if (slug === 'interest-rate' && latest >= 0 && latest < 25) {
         out.sbvPolicyRatePct = Number(latest.toFixed(2));
         stamp('sbvPolicyRatePct', 'NHNN / TE', refPeriod);
@@ -260,6 +261,27 @@ const NON_NATIONAL_TRADE_HEADLINE = new RegExp(
   ].join('|'),
   'u',
 );
+
+// A level, not a change: "qua đêm neo mức 4,9%" matches, "qua đêm giảm 0,9 điểm %" does not.
+const OVERNIGHT_LEVEL_RE =
+  /qua đêm[^0-9%,;:]{0,20}?(?:mức|còn|về|lên|xuống|ở)\s*(\d{1,2}(?:[.,]\d{1,2})?)\s*%/i;
+
+/** Latest VND overnight interbank rate stated in a headline of the past 10 days. */
+export function parseOvernightRateRss(xml: string, now = Date.now()): { ratePct: number; period: string } | undefined {
+  let best: { ratePct: number; publishedAt: number } | undefined;
+  for (const item of xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)) {
+    const title = item[1].match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/i)?.[1] ?? '';
+    const publishedAt = Date.parse(item[1].match(/<pubDate>([^<]+)<\/pubDate>/i)?.[1] ?? '');
+    if (!Number.isFinite(publishedAt) || publishedAt > now || now - publishedAt > 10 * 86_400_000) continue;
+    if (/USD|đô la/i.test(title)) continue;
+    const ratePct = Number(title.match(OVERNIGHT_LEVEL_RE)?.[1].replace(',', '.'));
+    if (!(ratePct > 0.05 && ratePct < 25)) continue;
+    if (!best || publishedAt > best.publishedAt) best = { ratePct, publishedAt };
+  }
+  if (!best) return undefined;
+  const [year, month, day] = new Date(best.publishedAt + 7 * 3_600_000).toISOString().slice(0, 10).split('-');
+  return { ratePct: best.ratePct, period: `${day}/${month}/${year}` };
+}
 
 export function parseVietnameseMonthsPhrase(phrase: string): number {
   const s = phrase.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -566,7 +588,7 @@ export async function fetchVietnamAndGlobalMacroPulse(now: number): Promise<Viet
     `("nhập siêu" OR "xuất siêu") ("tỷ USD" OR "tỉ USD") "xuất nhập khẩu" ${currentYear} Việt Nam`,
   )}&hl=vi&gl=VN&ceid=VN:vi`;
 
-  const [teIndRes, teBondRes, multplRes, nsoRes, cpiRssRes, tradeRssRes, vcbRes] = await Promise.allSettled([
+  const [teIndRes, teBondRes, multplRes, nsoRes, cpiRssRes, tradeRssRes, vcbRes, overnightRes] = await Promise.allSettled([
     fetchTextWithTimeout('https://tradingeconomics.com/vietnam/indicators', {
       timeoutMs: 6_500,
       retries: 0,
@@ -602,6 +624,10 @@ export async function fetchVietnamAndGlobalMacroPulse(now: number): Promise<Viet
       retries: 0,
       userAgent: 'Mozilla/5.0',
     }),
+    fetchTextWithTimeout(
+      `https://news.google.com/rss/search?q=${encodeURIComponent('"lãi suất qua đêm" liên ngân hàng when:14d')}&hl=vi&gl=VN&ceid=VN:vi`,
+      { timeoutMs: 6_500, retries: 1, userAgent: 'Mozilla/5.0' },
+    ),
   ]);
 
   const indHtml = teIndRes.status === 'fulfilled' ? teIndRes.value.text : '';
@@ -617,8 +643,12 @@ export async function fetchVietnamAndGlobalMacroPulse(now: number): Promise<Viet
 
   const vnParsed = parseTradingEconomicsVietnamHtml(indHtml, bondHtml, now);
   const sp500PeRatio = parseMultplSp500PeHtml(multplHtml);
+  const overnight = overnightRes.status === 'fulfilled' ? parseOvernightRateRss(overnightRes.value.text, now) : undefined;
   const mergedMeta: Partial<Record<VietnamMacroPulseFieldKey, MacroFieldMeta>> = {
     ...(vnParsed.fieldMeta ?? {}),
+    ...(overnight
+      ? { interbankRatePct: { source: 'Báo chí · thị trường LNH (RSS)', period: overnight.period, fetchedAt: now, retained: false } }
+      : {}),
     ...(ytdContext.fieldMeta ?? {}),
     ...(sp500PeRatio !== undefined
       ? { sp500PeRatio: { source: 'Multpl (S&P 500)', fetchedAt: now, retained: false } }
@@ -628,6 +658,7 @@ export async function fetchVietnamAndGlobalMacroPulse(now: number): Promise<Viet
   const combined: VietnamLiveMacroPulse = {
     ...vnParsed,
     ...ytdContext,
+    ...(overnight ? { interbankRatePct: overnight.ratePct } : {}),
     ...(sp500PeRatio !== undefined ? { sp500PeRatio } : {}),
     ...(Object.keys(mergedMeta).length > 0 ? { fieldMeta: mergedMeta } : {}),
     updatedAt: now,

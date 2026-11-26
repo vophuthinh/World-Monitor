@@ -559,7 +559,7 @@ export function evaluateInvestmentCompass(
       label: 'Chênh Lãi suất VN–Mỹ & LNH',
       category: 'credit_rates',
       valueDisplay: `${vnUsYieldSpreadBps >= 0 ? '+' : ''}${vnUsYieldSpreadBps} bps`,
-      subtext: `VN10Y ${pulse.vn10yYieldPct.toFixed(2)}%${pulse.interbankRatePct !== undefined ? ` · Liên NH ${pulse.interbankRatePct.toFixed(2)}%` : ''
+      subtext: `VN10Y ${pulse.vn10yYieldPct.toFixed(2)}%${pulse.interbankRatePct !== undefined ? ` · LNH qua đêm ${pulse.interbankRatePct.toFixed(2)}%` : ''
         }`,
       signalBadge:
         vnUsYieldSpreadBps <= -100 || (pulse.interbankRatePct !== undefined && pulse.interbankRatePct >= 6.8)
@@ -684,7 +684,7 @@ export function evaluateInvestmentCompass(
       market,
       macroScore: report.compositeScore,
       trendAboveMa200: trend.aboveMa200,
-      label: `${market === 'VN' ? 'VN' : 'Mỹ'}: ${macroText} (${report.compositeScore}/100) · ${index} ${trend.aboveMa200 ? 'trên' : 'dưới'} MA200`,
+      label: `${market === 'VN' ? 'VN' : 'Mỹ'}: ${macroText} (${report.compositeScore}/100) · ${index} ${trend.aboveMa200 ? 'trên' : 'dưới'} MA200 (${trend.pctVsMa200 >= 0 ? '+' : ''}${trend.pctVsMa200}%)`,
     });
   }
 
@@ -705,13 +705,16 @@ export function evaluateInvestmentCompass(
     }
   }
 
-  const bothIndicesBroken =
-    Boolean(vniTrend && !vniTrend.aboveMa200) && Boolean(spxTrend && !spxTrend.aboveMa200);
-  const riskAppetiteScore = bothIndicesBroken
-    ? Math.min(64, rawComposite)
-    : hasTrendFilter && !trendBullish
-      ? Math.min(68, rawComposite)
-      : rawComposite;
+  // Distance to the 200-day average drives a 0..1 weakness over a ±2% band (the same band that
+  // performed best in the 2007-2026 S&P 500 backtest of this filter).
+  const trends = [vniTrend, spxTrend].filter((t): t is NonNullable<typeof t> => t !== null);
+  const trendWeakness = trends.length
+    ? Math.max(...trends.map((t) => Math.max(0, Math.min(1, (2 - t.pctVsMa200) / 4))))
+    : 0;
+  // A weak trend caps the score: down to 68 with one index broken, 64 with both, phased in smoothly.
+  const bothIndicesBroken = trends.length === 2 && trends.every((t) => t.pctVsMa200 <= -2);
+  const scoreCap = bothIndicesBroken ? 64 : 68;
+  const riskAppetiteScore = Math.round(rawComposite - trendWeakness * Math.max(0, rawComposite - scoreCap));
 
   // Determine active Macro Quadrant for Sector Rotation
   const activeQuad = health.vn?.quadrant ?? health.us?.quadrant;
@@ -779,7 +782,7 @@ export function evaluateInvestmentCompass(
     riskOnBlocked: realYield !== undefined && realYield.value >= 2.2,
     // 0 at macro core 50, 1 at 62: no allocation jump when it crosses the label threshold of 56.
     macroStrength: Math.max(0, Math.min(1, (macroCoreScore - 50) / 12)),
-    indexBelowTrend: hasTrendFilter && !trendBullish,
+    trendWeakness,
   });
 
   // Sector-rotation-aware actionable guidance

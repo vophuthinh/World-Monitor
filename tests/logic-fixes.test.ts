@@ -756,10 +756,10 @@ describe('threshold cliffs', () => {
 
   it('adds no cheap-valuation equity bonus while an index is below MA200', async () => {
     const { computeDynamicPortfolioAllocation: alloc } = await import('../shared/macro-health');
-    const equity = (indexBelowTrend: boolean) =>
-      alloc({ ...base, stance: 'selective_growth', riskAppetiteScore: 64, vnErpPct: 5, indexBelowTrend })[0].weightPct;
-    expect(equity(false)).toBe(59);
-    expect(equity(true)).toBe(52);
+    const equity = (trendWeakness: number) =>
+      alloc({ ...base, stance: 'selective_growth', riskAppetiteScore: 64, vnErpPct: 5, trendWeakness })[0].weightPct;
+    expect(equity(0)).toBe(59);
+    expect(equity(1)).toBe(52);
   });
 
   it('labels a small CPI overshoot as mild instead of overheating', async () => {

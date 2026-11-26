@@ -30,7 +30,8 @@ const VN_PULSE_LABELS: Partial<Record<VietnamMacroPulseFieldKey, { label: string
   ytdAvgCpiPct: { label: 'CPI Bình quân Lũy kế', defaultSource: 'Cục Thống kê (NSO)', unit: '%' },
   ytdCoreCpiPct: { label: 'CPI Lõi Bình quân Lũy kế', defaultSource: 'Cục Thống kê (NSO)', unit: '%' },
   monthlyCpiPct: { label: 'CPI Tháng VN (YoY)', defaultSource: 'GSO / TE', unit: '%' },
-  interbankRatePct: { label: 'Lãi suất Liên ngân hàng VN', defaultSource: 'SBV / TE', unit: '%' },
+  interbankRatePct: { label: 'Lãi suất Liên ngân hàng qua đêm', defaultSource: 'Báo chí · thị trường LNH', unit: '%' },
+  interbankTermRatePct: { label: 'Lãi suất Liên ngân hàng kỳ hạn dài', defaultSource: 'TradingEconomics', unit: '%' },
   vn10yYieldPct: { label: 'Lợi suất TPCP VN 10Y', defaultSource: 'VBMA / TE', unit: '%' },
   vcbSellUsdVnd: { label: 'Tỷ giá bán Vietcombank', defaultSource: 'Vietcombank', unit: '₫' },
 };

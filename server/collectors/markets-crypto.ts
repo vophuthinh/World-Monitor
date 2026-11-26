@@ -204,6 +204,7 @@ async function fetchIndicesAndCommodities(now: number): Promise<MarketQuote[]> {
 const VN_PULSE_DATA_KEYS: readonly VietnamMacroPulseFieldKey[] = [
   'vn10yYieldPct',
   'interbankRatePct',
+  'interbankTermRatePct',
   'sbvPolicyRatePct',
   'monthlyCpiPct',
   'ytdAvgCpiPct',
@@ -218,7 +219,8 @@ const VN_PULSE_DATA_KEYS: readonly VietnamMacroPulseFieldKey[] = [
 
 const DEFAULT_VN_PULSE_SOURCE: Record<VietnamMacroPulseFieldKey, string> = {
   vn10yYieldPct: 'VBMA / TE',
-  interbankRatePct: 'SBV / TE',
+  interbankRatePct: 'Báo chí · thị trường LNH (RSS)',
+  interbankTermRatePct: 'TradingEconomics',
   sbvPolicyRatePct: 'NHNN / TE',
   monthlyCpiPct: 'GSO / TradingEconomics',
   ytdAvgCpiPct: 'Cục Thống kê (NSO)',
@@ -310,7 +312,9 @@ export function mergeVietnamMacroPulse(
       continue;
     }
 
-    const prevVal = previous?.[key];
+    // Older caches stored the longer-tenor TradingEconomics figure as the short rate: do not carry it over.
+    const legacyShortRate = key === 'interbankRatePct' && previous?.fieldMeta?.[key]?.source === 'SBV / TE';
+    const prevVal = legacyShortRate ? undefined : previous?.[key];
     if (prevVal !== undefined) {
       out[key] = prevVal;
       const pm = previous?.fieldMeta?.[key];

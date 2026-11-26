@@ -36,8 +36,11 @@ export function computeDynamicPortfolioAllocation(params: {
   macroStrength?: number;
   /** High real yield: never go beyond the selective-growth mix. */
   riskOnBlocked?: boolean;
-  /** An index is below MA200: cheap valuation earns no extra equity weight. */
-  indexBelowTrend?: boolean;
+  /**
+   * 0 = every index at least 2% above its MA200, 1 = some index at least 2% below. Weak-trend effects
+   * scale with it, so crossing the average cannot jump the weights.
+   */
+  trendWeakness?: number;
 }): PortfolioAllocationSlice[] {
   const {
     stance,
@@ -48,10 +51,10 @@ export function computeDynamicPortfolioAllocation(params: {
     highInflationPressure,
     liquidityExpanding,
     riskOnBlocked,
-    indexBelowTrend,
   } = params;
-  const trendWeak = dualConfirmation === 'macro_bull_trend_weak' || dualConfirmation === 'confirmed_bear';
-  const trendUp = dualConfirmation === 'confirmed_bull' || dualConfirmation === 'macro_weak_trend_bull';
+  const labelledWeak = dualConfirmation === 'macro_bull_trend_weak' || dualConfirmation === 'confirmed_bear';
+  const weakness = clamp01(params.trendWeakness ?? (labelledWeak ? 1 : 0));
+  const hasTrend = dualConfirmation !== undefined;
   const strength = clamp01(
     params.macroStrength ??
       (dualConfirmation === 'confirmed_bull' || dualConfirmation === 'macro_bull_trend_weak' ? 1 : 0),
@@ -61,20 +64,20 @@ export function computeDynamicPortfolioAllocation(params: {
   // A hard recession trigger (Sahm / HY spread) still forces the defensive mix.
   let score = riskAppetiteScore;
   // Weak trend: cap between the cautious (50) and selective (64) anchors by macro support.
-  if (trendWeak) score = Math.min(score, 50 + 14 * strength);
+  if (hasTrend && weakness > 0) {
+    const cap = 50 + 14 * strength;
+    score -= weakness * Math.max(0, score - cap);
+  }
   if (riskOnBlocked) score = Math.min(score, 64);
   if (stance === 'defensive_recession') score = SCORE_ANCHORS[0].score;
   let [equities, , gold, crypto] = interpolateMix(score);
 
-  if (trendWeak) {
-    equities -= strength * (capitulationSignal ? 6 : 10);
-  } else if (trendUp) {
-    equities += 6 * strength * clamp01((riskAppetiteScore - 68) / 8);
-  }
+  equities -= weakness * strength * (capitulationSignal ? 6 : 10);
+  if (hasTrend) equities += (1 - weakness) * 6 * strength * clamp01((riskAppetiteScore - 68) / 8);
 
   if (vnErpPct !== undefined) {
     // Ramps, not steps: full bonus at ERP >= 4.5, full penalty at ERP <= -0.2.
-    if (!indexBelowTrend) equities += 7 * clamp01((vnErpPct - 2.5) / 2);
+    equities += (1 - weakness) * 7 * clamp01((vnErpPct - 2.5) / 2);
     equities -= 8 * clamp01((1.8 - vnErpPct) / 2);
   }
 

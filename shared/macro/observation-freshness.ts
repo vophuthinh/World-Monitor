@@ -14,7 +14,8 @@ const VN_FIELDS: Partial<Record<VietnamMacroPulseFieldKey, { label: string; days
   ytdCoreCpiPct: { label: 'CPI lõi lũy kế', days: 120 },
   tradeBalanceBillionUsd: { label: 'Cán cân thương mại tháng', days: 120 },
   ytdTradeBalanceBillionUsd: { label: 'Cán cân thương mại lũy kế', days: 120 },
-  interbankRatePct: { label: 'Lãi suất liên ngân hàng', days: 30 },
+  interbankRatePct: { label: 'Lãi suất liên ngân hàng qua đêm', days: 30 },
+  interbankTermRatePct: { label: 'Lãi suất liên ngân hàng kỳ hạn dài', days: 45 },
   vn10yYieldPct: { label: 'Lợi suất TPCP 10 năm', days: 30 },
 };
 
