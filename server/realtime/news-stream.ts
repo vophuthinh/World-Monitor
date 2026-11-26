@@ -520,6 +520,8 @@ export class UnifiedNewsStreamService {
       if (item.id.startsWith('bsky:') || (item as { streamSource?: string }).streamSource === 'bluesky') {
         continue;
       }
+      // A date well in the future is a parsing error (e.g. cached from a zone-less feed); wait for a good copy.
+      if (item.publishedAt > Date.now() + 10 * 60_000) continue;
       const fp = this.fingerprint(item);
       if (this.itemsById.has(item.id) || this.seenFingerprints.has(fp)) {
         // Update existing item if titleVi was newly populated

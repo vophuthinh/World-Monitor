@@ -63,3 +63,16 @@ describe('score history', () => {
     expect(history.at(-1)?.scoringVersion).toBe(SCORING_VERSION);
   });
 });
+
+describe('server payloads', () => {
+  it('keeps cross-checks in the bootstrap response and drops future-dated cached news', async () => {
+    const { readFileSync } = await import('node:fs');
+    expect(readFileSync('server/app.ts', 'utf8')).toContain('crossChecks: rawMarkets.crossChecks');
+    const { UnifiedNewsStreamService } = await import('../server/realtime/news-stream');
+    const stream = new UnifiedNewsStreamService({} as never, { get: () => null } as never);
+    const item = (id: string, publishedAt: number) =>
+      ({ id, title: `Headline ${id}`, source: 'S', category: 'vietnam' as const, streamSource: 'rss' as const, publishedAt, url: `https://example.com/${id}` });
+    stream.ingestBatchItems([item('future', Date.now() + 6 * 3_600_000), item('past', Date.now() - 60_000)]);
+    expect(stream.getUnifiedNews().map((n) => n.id)).toEqual(['past']);
+  });
+});

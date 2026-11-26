@@ -1041,6 +1041,7 @@ export interface LiveFastResponse {
   vnGold: VnGoldQuote[];
   vn30: Vn30StockQuote[];
   fred: FredMacroMetric[];
+  crossChecks?: DataCrossCheck[];
   vnMacroPulse?: VietnamLiveMacroPulse;
   expiredMacroNotices?: { vn: ExpiredMacroMetricNotice[]; us: ExpiredMacroMetricNotice[] };
   predictions?: PredictionItem[];

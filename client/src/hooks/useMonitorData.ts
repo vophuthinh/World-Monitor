@@ -295,6 +295,7 @@ export function useMonitorData() {
             fearGreed: fast.fearGreed,
             fred: fast.fred,
             vnMacroPulse: fast.vnMacroPulse,
+            crossChecks: fast.crossChecks,
             expiredMacroNotices: fast.expiredMacroNotices,
             vn30: fast.vn30,
             vnGold: fast.vnGold,
