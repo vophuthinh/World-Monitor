@@ -722,8 +722,6 @@ export function evaluateInvestmentCompass(
 
   let stance: InvestmentStance = 'selective_growth';
   let stanceLabel = 'KHẨU VỊ TRUNG TÍNH - TÍCH CỰC · CHỌN LỌC';
-  let summary =
-    'Thanh khoản và tín dụng đang hỗ trợ định giá, nhưng mặt bằng lãi suất thực còn cao; các nhóm ít nợ vay thường ít chịu áp lực chi phí vốn hơn.';
 
   if (
     (sahm && sahm.value >= 0.5) ||
@@ -732,13 +730,9 @@ export function evaluateInvestmentCompass(
   ) {
     stance = 'defensive_recession';
     stanceLabel = 'NGHIÊNG PHÒNG THỦ · TÍN HIỆU SUY THOÁI SỚM';
-    summary =
-      'Chỉ báo lao động hoặc chênh lệch tín dụng phát tín hiệu suy yếu; nhóm tài sản thanh khoản cao và phòng thủ thường ít biến động hơn.';
   } else if (riskAppetiteScore < 55 || dualConfirmation === 'confirmed_bear') {
     stance = 'cautious';
     stanceLabel = 'THẬN TRỌNG · ÁP LỰC THANH KHOẢN & XU HƯỚNG';
-    summary =
-      'Thanh khoản, biến động VIX hoặc xu hướng MA200 đang kém thuận lợi; độ rủi ro đối với các tài sản biến động mạnh đang ở mức cao.';
   } else if (
     riskAppetiteScore >= 74 &&
     (!realYield || realYield.value < 2.2) &&
@@ -746,19 +740,24 @@ export function evaluateInvestmentCompass(
   ) {
     stance = 'risk_on';
     stanceLabel = 'KHẨU VỊ RỦI RO CAO · THANH KHOẢN & XU HƯỚNG THUẬN';
-    summary =
-      'Các trụ cột thanh khoản, tín dụng, định giá và xu hướng trên MA200 đang đồng thuận tích cực.';
   } else if (dualConfirmation === 'macro_bull_trend_weak') {
     stance = 'selective_growth';
     stanceLabel = 'PHÂN KỲ VĨ MÔ - GIÁ · CHỈ SỐ DƯỚI MA200';
-    summary =
-      vni?.peRatio && vnErp && vni.peRatio <= 12.2
-        ? `Định giá VN-Index ở vùng thấp (P/E ${vni.peRatio.toFixed(1)}x, ERP +${vnErp.erpPct.toFixed(1)}% vs TPCP 10Y), nhưng xu hướng giá còn nằm dưới đường MA200${pulse?.interbankRatePct && pulse.interbankRatePct >= 6.5
-          ? ` trong bối cảnh lãi liên ngân hàng cao (${pulse.interbankRatePct.toFixed(1)}%)`
-          : ''
-        }.`
-        : 'Các chỉ số vĩ mô thực vẫn ổn định nhưng chỉ số chứng khoán đang giao dịch dưới đường trung bình dài hạn MA200.';
   }
+
+  // Figures only: interpretation of what they imply for any asset did not survive the backtest.
+  const signed = (value: number, digits: number) => `${value >= 0 ? '+' : ''}${value.toFixed(digits)}%`;
+  const facts = [
+    vniTrend && `VN-Index ${signed(vniTrend.pctVsMa200, 1)} so MA200`,
+    spxTrend && `S&P 500 ${signed(spxTrend.pctVsMa200, 1)} so MA200`,
+    vni?.peRatio && `P/E VN-Index ${vni.peRatio.toFixed(1)}x${vnErp ? ` (ERP ${signed(vnErp.erpPct, 2)} so TPCP 10 năm)` : ''}`,
+    pulse?.interbankRatePct !== undefined && `Lãi qua đêm VND ${pulse.interbankRatePct.toFixed(2)}%`,
+    realYield && `Lãi thực Mỹ 10 năm ${realYield.value.toFixed(2)}%`,
+    hySpread && `Chênh lệch HY ${hySpread.value.toFixed(2)}%`,
+    sahm && `Sahm ${sahm.value.toFixed(2)}`,
+    vixSpot && `VIX ${vixSpot.value.toFixed(1)}`,
+  ].filter(Boolean);
+  const summary = facts.length > 0 ? facts.join(' · ') : 'Chưa đủ số liệu thị trường để tóm tắt.';
 
   const highInflationPressure =
     (pulse?.ytdAvgCpiPct !== undefined
