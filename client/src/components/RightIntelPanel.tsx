@@ -66,7 +66,7 @@ export interface RightIntelPanelProps {
 
 function TabLoadingFallback() {
   return (
-    <div className="flex flex-1 items-center justify-center p-6 font-mono text-xs text-slate-400">
+    <div className="flex flex-1 items-center justify-center p-6 font-mono text-[13px] text-slate-400">
       Đang tải chuyên mục...
     </div>
   );
@@ -144,7 +144,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
   }, [hptIntel?.items]);
 
   return (
-    <aside className="flex h-full w-full flex-col border-l border-slate-800/95 bg-[#090e18] lg:w-[454px] xl:w-[494px] 2xl:w-[548px]">
+    <aside className="intel-panel flex h-full w-full flex-col border-l border-slate-800/95 bg-[#090e18] lg:w-[454px] xl:w-[494px] 2xl:w-[548px]">
       {/* Command Header: Live Intel · AI & ML · Tin nóng · Chính sách · Thị trường · HPT */}
       <div className="flex shrink-0 items-stretch border-b border-slate-800/95 bg-[#070b12]">
         <nav aria-label="Chuyên mục bảng Intel" className="flex min-w-0 flex-1 items-stretch overflow-x-auto">
@@ -152,7 +152,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
           type="button"
           onClick={() => setActiveTab('intel')}
           aria-pressed={activeTab === 'intel'}
-          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-xs font-semibold transition lg:flex-1 lg:px-1 lg:text-[11px] xl:text-[11px] ${
+          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-[13px] font-semibold transition lg:flex-1 lg:px-1 lg:text-xs xl:text-xs ${
             activeTab === 'intel'
               ? 'border-fuchsia-400 bg-fuchsia-500/12 text-fuchsia-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -165,7 +165,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
           type="button"
           onClick={() => setActiveTab('techCyber')}
           aria-pressed={activeTab === 'techCyber'}
-          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-xs font-semibold transition lg:flex-1 lg:px-1 lg:text-[11px] xl:text-[11px] ${
+          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-[13px] font-semibold transition lg:flex-1 lg:px-1 lg:text-xs xl:text-xs ${
             activeTab === 'techCyber'
               ? 'border-violet-400 bg-violet-500/12 text-violet-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -178,7 +178,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
           type="button"
           onClick={() => setActiveTab('news')}
           aria-pressed={activeTab === 'news'}
-          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-xs font-semibold transition lg:flex-1 lg:px-1 lg:text-[11px] xl:text-[11px] ${
+          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-[13px] font-semibold transition lg:flex-1 lg:px-1 lg:text-xs xl:text-xs ${
             activeTab === 'news'
               ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -191,7 +191,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
           type="button"
           onClick={() => setActiveTab('policy')}
           aria-pressed={activeTab === 'policy'}
-          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-xs font-semibold transition lg:flex-1 lg:px-1 lg:text-[11px] xl:text-[11px] ${
+          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-[13px] font-semibold transition lg:flex-1 lg:px-1 lg:text-xs xl:text-xs ${
             activeTab === 'policy'
               ? 'border-amber-400 bg-amber-500/12 text-amber-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -204,7 +204,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
           type="button"
           onClick={() => setActiveTab('markets')}
           aria-pressed={activeTab === 'markets'}
-          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-xs font-semibold transition lg:flex-1 lg:px-1 lg:text-[11px] xl:text-[11px] ${
+          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-[13px] font-semibold transition lg:flex-1 lg:px-1 lg:text-xs xl:text-xs ${
             activeTab === 'markets'
               ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -217,7 +217,7 @@ export const RightIntelPanel = memo(function RightIntelPanel({
           type="button"
           onClick={() => setActiveTab('hpt')}
           aria-pressed={activeTab === 'hpt'}
-          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-xs font-semibold transition lg:flex-1 lg:px-1 lg:text-[11px] xl:text-[11px] ${
+          className={`flex min-h-11 shrink-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-2.5 text-[13px] font-semibold transition lg:flex-1 lg:px-1 lg:text-xs xl:text-xs ${
             activeTab === 'hpt'
               ? 'border-emerald-400 bg-emerald-500/12 text-emerald-200'
               : 'border-transparent text-slate-400 hover:text-slate-200'

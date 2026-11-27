@@ -17,11 +17,11 @@ export function IocCyberPanel({ cyberThreats, iocQuery, setIocQuery, iocLoading,
     <div className="bg-[#0b1220] p-2.5">
       <div className="rounded border border-fuchsia-500/30 bg-[#0d1524] p-2">
         <div className="flex items-center justify-between gap-1.5">
-          <h2 className="flex items-center gap-1 font-mono text-[11px] font-semibold tracking-wider text-fuchsia-200">
+          <h2 className="flex items-center gap-1 font-mono text-xs font-semibold tracking-wider text-fuchsia-200">
             <ShieldWarning size={12} className="text-fuchsia-400" weight="fill" />
             <span>QUÉT IOC / IP / CVE TRỰC TIẾP (SHODAN + NVD)</span>
           </h2>
-          <div className="flex items-center gap-1 font-mono text-[11px]">
+          <div className="flex items-center gap-1 font-mono text-xs">
             <button
               type="button"
               onClick={() => {
@@ -57,30 +57,30 @@ export function IocCyberPanel({ cyberThreats, iocQuery, setIocQuery, iocLoading,
             value={iocQuery}
             onChange={(e) => setIocQuery(e.target.value)}
             placeholder="Nhập IP (45.148.10.240) hoặc CVE-2024-38477..."
-            className="min-w-0 flex-1 rounded border border-slate-700/95 bg-[#070b12] px-2 py-1 font-mono text-[11px] text-slate-100 placeholder:text-slate-500 focus:border-fuchsia-400 focus:outline-none"
+            className="min-w-0 flex-1 rounded border border-slate-700/95 bg-[#070b12] px-2 py-1 font-mono text-xs text-slate-100 placeholder:text-slate-500 focus:border-fuchsia-400 focus:outline-none"
           />
           <button
             type="submit"
             disabled={iocLoading}
-            className="shrink-0 rounded border border-fuchsia-500/50 bg-fuchsia-500/20 px-2.5 py-1 font-mono text-[11px] font-semibold text-fuchsia-100 transition hover:bg-fuchsia-500/30 disabled:opacity-50"
+            className="shrink-0 rounded border border-fuchsia-500/50 bg-fuchsia-500/20 px-2.5 py-1 font-mono text-xs font-semibold text-fuchsia-100 transition hover:bg-fuchsia-500/30 disabled:opacity-50"
           >
             {iocLoading ? 'Đang quét...' : 'Quét Live'}
           </button>
         </form>
 
         {iocError && (
-          <div className="mt-1.5 rounded border border-rose-500/40 bg-rose-950/40 px-2 py-1 text-[11px] text-rose-200">
+          <div className="mt-1.5 rounded border border-rose-500/40 bg-rose-950/40 px-2 py-1 text-xs text-rose-200">
             {iocError}
           </div>
         )}
 
         {iocResult && (
-          <div className="mt-2 space-y-1.5 rounded border border-slate-800 bg-[#080d17] p-2 font-mono text-[11px]">
+          <div className="mt-2 space-y-1.5 rounded border border-slate-800 bg-[#080d17] p-2 font-mono text-xs">
             <div className="flex items-center justify-between gap-2">
               <span className="font-bold text-slate-100">{iocResult.query}</span>
               <div className="flex items-center gap-1.5">
                 <span
-                  className={`rounded px-1.5 py-0.2 text-[11px] font-bold uppercase ${
+                  className={`rounded px-1.5 py-0.2 text-xs font-bold uppercase ${
                     iocResult.riskLevel === 'critical'
                       ? 'border border-rose-500/50 bg-rose-500/25 text-rose-200'
                       : iocResult.riskLevel === 'high'
@@ -105,7 +105,7 @@ export function IocCyberPanel({ cyberThreats, iocQuery, setIocQuery, iocLoading,
             {iocResult.kind === 'ip' ? (
               <>
                 {(iocResult.country || iocResult.org) && (
-                  <div className="font-sans text-[11px] text-slate-300">
+                  <div className="font-sans text-xs text-slate-300">
                     {[iocResult.city, iocResult.country, iocResult.org]
                       .filter(Boolean)
                       .join(' · ')}
@@ -125,7 +125,7 @@ export function IocCyberPanel({ cyberThreats, iocQuery, setIocQuery, iocLoading,
                         key={v}
                         type="button"
                         onClick={() => void runIocScan(v)}
-                        className="rounded border border-rose-500/40 bg-rose-500/15 px-1 py-0.2 text-[11px] text-rose-200 hover:bg-rose-500/30"
+                        className="rounded border border-rose-500/40 bg-rose-500/15 px-1 py-0.2 text-xs text-rose-200 hover:bg-rose-500/30"
                       >
                         {v}
                       </button>
@@ -133,20 +133,20 @@ export function IocCyberPanel({ cyberThreats, iocQuery, setIocQuery, iocLoading,
                   </div>
                 )}
                 {iocResult.cpes && iocResult.cpes.length > 0 && (
-                  <div className="truncate text-[11px] text-slate-400">
+                  <div className="truncate text-xs text-slate-400">
                     CPE: {iocResult.cpes.slice(0, 3).join(' · ')}
                   </div>
                 )}
               </>
             ) : (
               <>
-                <div className="font-sans text-[11px] leading-snug text-slate-200">
+                <div className="font-sans text-xs leading-snug text-slate-200">
                   {translateVi
                     ? iocResult.descriptionVi || iocResult.description
                     : iocResult.description}
                 </div>
                 {iocResult.vectorString && (
-                  <div className="truncate text-[11px] text-slate-400">
+                  <div className="truncate text-xs text-slate-400">
                     {iocResult.vectorString}
                   </div>
                 )}
@@ -158,7 +158,7 @@ export function IocCyberPanel({ cyberThreats, iocQuery, setIocQuery, iocLoading,
                 href={safeHref(iocResult.referenceUrl)}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-0.5 text-[11px] text-fuchsia-300 hover:underline"
+                className="inline-flex items-center gap-0.5 text-xs text-fuchsia-300 hover:underline"
               >
                 Mở hồ sơ gốc <ArrowSquareOut size={10} />
               </a>

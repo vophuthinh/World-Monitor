@@ -75,13 +75,13 @@ const HptCorporateTab = memo(function HptCorporateTab({
       <div className="shrink-0 space-y-2 border-b border-slate-800/90 bg-[#08101d] p-2.5">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-1.5">
-            <span className="rounded border border-emerald-400/55 bg-emerald-500/20 px-1.5 py-0.5 font-mono text-[11px] font-bold text-emerald-200">
+            <span className="rounded border border-emerald-400/55 bg-emerald-500/20 px-1.5 py-0.5 font-mono text-xs font-bold text-emerald-200">
               HPT · UPCoM
             </span>
-            <h2 className="truncate text-xs font-semibold tracking-wide text-slate-100">
+            <h2 className="truncate text-[13px] font-semibold tracking-wide text-slate-100">
               Tin về HPT
             </h2>
-            <span className="hidden font-mono text-[11px] text-slate-500 sm:inline">
+            <span className="hidden font-mono text-xs text-slate-500 sm:inline">
               MST 0301447436
             </span>
           </div>
@@ -92,7 +92,7 @@ const HptCorporateTab = memo(function HptCorporateTab({
                 type="button"
                 onClick={() => onFlyToLocation(hptIntel.stock!.hqLat, hptIntel.stock!.hqLon, 12.5)}
                 title="Bay tới Trụ sở HPT tại Khu Công nghệ cao TP.HCM (SHTP)"
-                className="inline-flex items-center gap-0.5 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 font-mono text-[11px] text-cyan-300 hover:bg-cyan-500/20"
+                className="inline-flex items-center gap-0.5 rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 font-mono text-xs text-cyan-300 hover:bg-cyan-500/20"
               >
                 <Crosshair size={10} />
                 SHTP
@@ -103,7 +103,7 @@ const HptCorporateTab = memo(function HptCorporateTab({
                 type="button"
                 onClick={() => onForceRefresh('hpt-intel')}
                 title="Quét mới Đấu thầu, CBTT HNX/UBCKNN, Simplize, Báo chí & Diễn đàn về HPT"
-                className="inline-flex items-center gap-1 rounded border border-slate-700 bg-slate-900 px-2 py-0.5 font-mono text-[11px] text-slate-300 hover:border-emerald-400/50 hover:text-emerald-200"
+                className="inline-flex items-center gap-1 rounded border border-slate-700 bg-slate-900 px-2 py-0.5 font-mono text-xs text-slate-300 hover:border-emerald-400/50 hover:text-emerald-200"
               >
                 <ArrowsClockwise
                   size={10}
@@ -117,7 +117,7 @@ const HptCorporateTab = memo(function HptCorporateTab({
 
         <div className="space-y-1.5 rounded border border-slate-800/90 bg-[#0d1729] px-2.5 py-2 font-mono">
           {(sourceStale || hptIntel?.stockRetained || hptIntel?.itemsRetained) && (
-            <div className="text-[11px] text-amber-300" role="status">
+            <div className="text-xs text-amber-300" role="status">
               {sourceStale ? '⟳ Nguồn HPT lỗi; dữ liệu có thể đã cũ' : `⟳ Giữ lại dữ liệu cũ: ${[
                 hptIntel?.stockRetained && 'giá HPT',
                 hptIntel?.itemsRetained && 'tin HPT',
@@ -134,14 +134,14 @@ const HptCorporateTab = memo(function HptCorporateTab({
                     </span>
                     {hptIntel.stock.priceKind === 'reference' && <span className="text-amber-300">Giá tham chiếu</span>}
                     <span
-                      className={`text-[11px] font-semibold ${
+                      className={`text-xs font-semibold ${
                         (hptIntel.stock.changePercent ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
                       }`}
                     >
                       {hptIntel.stock.changePercent === undefined ? '—' : `${hptIntel.stock.changePercent >= 0 ? '+' : ''}${hptIntel.stock.changePercent.toFixed(2)}%`}
                     </span>
                   </div>
-                  <div className="text-[11px] text-slate-400 tabular-nums">
+                  <div className="text-xs text-slate-400 tabular-nums">
                     KL: {hptIntel.stock.volume === undefined ? '—' : `${(hptIntel.stock.volume * 100).toLocaleString('en-US')} cp`}
                     {hptIntel.stock.fundamentals?.ceilingThousandVnd
                       ? ` · Trần ${hptIntel.stock.fundamentals.ceilingThousandVnd} / Sàn ${hptIntel.stock.fundamentals.floorThousandVnd}`
@@ -154,10 +154,10 @@ const HptCorporateTab = memo(function HptCorporateTab({
                 />
               </div>
             ) : (
-              <span className="text-[11px] text-slate-400">Mã HPT (UPCoM)</span>
+              <span className="text-xs text-slate-400">Mã HPT (UPCoM)</span>
             )}
 
-            <div className="text-right text-[11px]">
+            <div className="text-right text-xs">
               <div className="font-semibold text-emerald-300">
                 {hptIntel?.aiSentimentEnabled ? '🤖 AI PHÂN TÍCH TÍN HIỆU' : 'TỔNG HỢP ĐA NGUỒN'}
               </div>
@@ -168,7 +168,7 @@ const HptCorporateTab = memo(function HptCorporateTab({
           </div>
 
           {hptIntel?.stock?.fundamentals && (
-            <div className="grid grid-cols-4 gap-1 border-t border-slate-800/85 pt-1.5 text-[11px] tabular-nums">
+            <div className="grid grid-cols-4 gap-1 border-t border-slate-800/85 pt-1.5 text-xs tabular-nums">
               <div>
                 <span className="text-slate-500">P/E </span>
                 <strong className="text-cyan-300">
@@ -210,18 +210,18 @@ const HptCorporateTab = memo(function HptCorporateTab({
 
           {hptIntel?.stock?.fundamentals && (
             <div>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-xs text-slate-400">
                 P/B, vốn hóa: VNDirect{hptIntel.stock.fundamentals.valuationAsOf ? ` ngày ${viDate(hptIntel.stock.fundamentals.valuationAsOf)}` : ' (chưa lấy được)'}. YTD: Simplize.
               </p>
               {hptIntel.stock.fundamentals.peRatio === undefined && (
-                <p className="text-[11px] text-amber-200">
+                <p className="text-xs text-amber-200">
                   P/E: chưa có số cập nhật{hptIntel.stock.fundamentals.peAsOf ? ` (VNDirect tính lần cuối ${viDate(hptIntel.stock.fundamentals.peAsOf)})` : ''}.
                 </p>
               )}
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-1 border-t border-slate-800/80 pt-1.5 text-[11px]">
+          <div className="flex flex-wrap items-center gap-1 border-t border-slate-800/80 pt-1.5 text-xs">
             <span className="text-slate-500">Tra cứu gốc:</span>
             {[
               { label: 'MuaSắmCông (Thầu)', href: 'https://muasamcong.mpi.gov.vn/' },
@@ -261,7 +261,7 @@ const HptCorporateTab = memo(function HptCorporateTab({
               key={tab.id}
               type="button"
               onClick={() => setHptFilter(tab.id)}
-              className={`rounded border px-2 py-0.5 text-[11px] font-medium transition ${
+              className={`rounded border px-2 py-0.5 text-xs font-medium transition ${
                 hptFilter === tab.id
                   ? 'border-emerald-400/55 bg-emerald-500/20 text-emerald-200'
                   : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
@@ -283,14 +283,14 @@ const HptCorporateTab = memo(function HptCorporateTab({
             onChange={(e) => setHptQuery(e.target.value)}
             placeholder="Tìm nhanh cổ tức, đấu thầu, đối tác Microsoft, HSOC, Reddit..."
             aria-label="Tìm tin tức về HPT"
-            className="w-full rounded border border-slate-800 bg-[#0d1524] py-1 pl-7 pr-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none"
+            className="w-full rounded border border-slate-800 bg-[#0d1524] py-1 pl-7 pr-2 text-[13px] text-slate-100 placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none"
           />
         </div>
       </div>
 
       <div className="flex-1 divide-y divide-slate-800/80 overflow-y-auto bg-[#080f1c]">
         {filteredHptItems.length === 0 ? (
-          <div className="py-10 text-center text-xs text-slate-400">
+          <div className="py-10 text-center text-[13px] text-slate-400">
             {!hptIntel || hptIntel.items.length === 0
               ? 'Đang thu thập thông tin CBTT, đấu thầu, báo chí & diễn đàn về HPT...'
               : 'Không có bài viết nào khớp điều kiện lọc.'}
@@ -318,7 +318,7 @@ const HptCorporateTab = memo(function HptCorporateTab({
                   key={item.id}
                   className="perf-card px-3 py-2.5 transition hover:bg-[#0f1a2e]"
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-1 font-mono text-[11px]">
+                  <div className="flex flex-wrap items-center justify-between gap-1 font-mono text-xs">
                     <div className="flex flex-wrap items-center gap-1">
                       <span
                         className={`rounded border px-1.5 py-0.2 font-bold ${
@@ -346,18 +346,18 @@ const HptCorporateTab = memo(function HptCorporateTab({
                     href={safeHref(item.url)}
                     target="_blank"
                     rel="noreferrer"
-                    className="mt-1.5 block text-xs font-semibold leading-relaxed text-slate-100 hover:text-emerald-300"
+                    className="mt-1.5 block text-[13px] font-semibold leading-relaxed text-slate-100 hover:text-emerald-300"
                   >
                     {item.title}
                   </a>
 
                   {item.aiSummary && (
-                    <p className="mt-1.5 rounded border border-slate-800/80 bg-[#0b1424] px-2.5 py-1.5 text-[11px] leading-snug text-emerald-200/90">
+                    <p className="mt-1.5 rounded border border-slate-800/80 bg-[#0b1424] px-2.5 py-1.5 text-xs leading-snug text-emerald-200/90">
                       🤖 {renderInlineMarkdown(item.aiSummary)}
                     </p>
                   )}
 
-                  <div className="mt-2 flex items-center justify-between gap-2 font-mono text-[11px]">
+                  <div className="mt-2 flex items-center justify-between gap-2 font-mono text-xs">
                     <span className="truncate text-slate-400">{item.source}</span>
                     <div className="flex shrink-0 items-center gap-1.5">
                       {item.pdfUrl && (
@@ -389,7 +389,7 @@ const HptCorporateTab = memo(function HptCorporateTab({
                 <button
                   type="button"
                   onClick={() => setVisibleLimit((v) => v + 40)}
-                  className="rounded border border-slate-700 bg-slate-900 px-3 py-1 font-mono text-[11px] text-slate-300 transition hover:border-emerald-400 hover:text-emerald-200"
+                  className="rounded border border-slate-700 bg-slate-900 px-3 py-1 font-mono text-xs text-slate-300 transition hover:border-emerald-400 hover:text-emerald-200"
                 >
                   Xem thêm ({filteredHptItems.length - visibleLimit} bài còn lại)
                 </button>

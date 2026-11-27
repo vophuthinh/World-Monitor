@@ -167,7 +167,7 @@ export function MiniSparkline({ values, positive }: { values?: number[]; positiv
 export function RegimeHistoryTimelineChart({ history }: { history: readonly RegimeHistoryPoint[] }) {
   if (history.length < 2) {
     return (
-      <p className="mt-2 text-[11px] text-slate-400">
+      <p className="mt-2 text-xs text-slate-400">
         Chưa đủ 2 ngày ghi nhận thực để hiển thị lịch sử.
       </p>
     );
@@ -204,7 +204,7 @@ export function RegimeHistoryTimelineChart({ history }: { history: readonly Regi
 
   return (
     <div className="mt-2 rounded border border-slate-800/90 bg-[#08101d] p-2 font-mono">
-      <div className="mb-1 flex flex-wrap items-center justify-between gap-1 text-[11px]">
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-1 text-xs">
         <span className="flex flex-wrap items-center gap-1 font-bold text-emerald-300">
           <span>
             {reconstructedCount > 0
@@ -212,7 +212,7 @@ export function RegimeHistoryTimelineChart({ history }: { history: readonly Regi
               : `NHẬT KÝ ĐIỂM GHI NHẬN HÀNG NGÀY (${observedCount} NGÀY)`}
           </span>
           {reconstructedCount > 0 && (
-            <span className="rounded border border-amber-500/45 bg-amber-500/15 px-1 py-0.1 text-[11px] font-bold text-amber-200">
+            <span className="rounded border border-amber-500/45 bg-amber-500/15 px-1 py-0.1 text-xs font-bold text-amber-200">
               KHÔNG DÙNG BACKTEST
             </span>
           )}
@@ -259,7 +259,7 @@ export function RegimeHistoryTimelineChart({ history }: { history: readonly Regi
           points={toPoints(compassVals)}
         />
       </svg>
-      <div className="mt-0.5 flex items-center justify-between text-[11px] text-slate-400 tabular-nums">
+      <div className="mt-0.5 flex items-center justify-between text-xs text-slate-400 tabular-nums">
         <span className="flex items-center gap-2">
           <span className="text-emerald-300">━ Khẩu vị rủi ro ({latest.compassScore})</span>
           {latest.vnMacroScore !== undefined && (
@@ -273,11 +273,11 @@ export function RegimeHistoryTimelineChart({ history }: { history: readonly Regi
         )}
       </div>
       {formulaChange > 0 && (
-        <p className="mt-1 text-[11px] leading-snug text-amber-200">
+        <p className="mt-1 text-xs leading-snug text-amber-200">
           ┆ Công thức chấm điểm đổi từ {history[formulaChange].date.slice(5)}: điểm trước và sau mốc này không so sánh trực tiếp được.
         </p>
       )}
-      <p className="mt-1 text-[11px] leading-snug text-slate-500">
+      <p className="mt-1 text-xs leading-snug text-slate-500">
         {reconstructedCount > 0
           ? 'Các phiên ước tính dựng lại từ giá đóng cửa chỉ số và giữ cố định số vĩ mô hiện hành; không phải lịch sử vĩ mô thực.'
           : 'Ghi nhận điểm tổng hợp mỗi ngày khi ứng dụng chạy; không thay thế chuỗi dữ liệu kinh tế gốc theo kỳ thống kê.'}
@@ -301,7 +301,7 @@ export function renderInlineMarkdown(raw: string): ReactNode[] {
       return (
         <code
           key={idx}
-          className="rounded border border-slate-700/80 bg-slate-800/90 px-1 py-0.2 font-mono text-[11px] text-cyan-200"
+          className="rounded border border-slate-700/80 bg-slate-800/90 px-1 py-0.2 font-mono text-xs text-cyan-200"
         >
           {part.slice(1, -1)}
         </code>
@@ -325,14 +325,14 @@ export function FormattedAiMarkdown({ text }: { text: string }) {
     .filter(Boolean);
 
   return (
-    <div className="mt-1.5 space-y-1.5 text-[11px] leading-relaxed text-slate-200">
+    <div className="mt-1.5 space-y-1.5 text-xs leading-relaxed text-slate-200">
       {lines.map((line, idx) => {
         const headingMatch = line.match(/^#{1,4}\s+(.+)$/);
         if (headingMatch) {
           return (
             <div
               key={idx}
-              className="pt-0.5 font-mono text-[11px] font-bold uppercase tracking-wider text-emerald-300"
+              className="pt-0.5 font-mono text-xs font-bold uppercase tracking-wider text-emerald-300"
             >
               {renderInlineMarkdown(headingMatch[1])}
             </div>
@@ -346,7 +346,7 @@ export function FormattedAiMarkdown({ text }: { text: string }) {
           if (tagMatch) {
             return (
               <div key={idx} className="flex items-start gap-1.5">
-                <span className="mt-0.5 shrink-0 rounded border border-emerald-500/35 bg-emerald-500/12 px-1 py-0.1 font-mono text-[11px] font-bold text-emerald-300">
+                <span className="mt-0.5 shrink-0 rounded border border-emerald-500/35 bg-emerald-500/12 px-1 py-0.1 font-mono text-xs font-bold text-emerald-300">
                   {tagMatch[1]}
                 </span>
                 <span className="min-w-0 flex-1">{renderInlineMarkdown(tagMatch[2])}</span>

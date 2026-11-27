@@ -14,7 +14,7 @@ function EnsembleLine({ ensemble }: { ensemble: VietnamEnvEnsemble }) {
   const { summary, agreement, tooltip } = describeEnsemble(ensemble);
   const style = AGREEMENT_STYLE[agreement];
   return (
-    <div className="mt-1 border-t border-slate-800/80 pt-1 text-[11px] leading-snug text-slate-400" title={tooltip}>
+    <div className="mt-1 border-t border-slate-800/80 pt-1 text-xs leading-snug text-slate-400" title={tooltip}>
       <span>{summary}</span> · <span className={style.cls}>{style.label}</span>
     </div>
   );
@@ -30,7 +30,7 @@ export function VietnamEnvSection({ vietnamEnv, onFlyToLocation, onForceRefresh,
   return (
     <section>
       <div className="flex flex-wrap items-center justify-between gap-1.5">
-        <h2 className="flex items-center gap-1.5 font-mono text-[11px] font-semibold tracking-wider text-slate-200">
+        <h2 className="flex items-center gap-1.5 font-mono text-xs font-semibold tracking-wider text-slate-200">
           <CloudSun size={13} className="text-sky-400" weight="fill" />
           <span>KHÍ TƯỢNG · SÓNG BIỂN ĐÔNG &amp; AQI VN</span>
         </h2>
@@ -40,7 +40,7 @@ export function VietnamEnvSection({ vietnamEnv, onFlyToLocation, onForceRefresh,
               type="button"
               onClick={onOpenWindy}
               title="Mở Bản đồ Dòng chảy Gió & Sóng Biển Đông trực tiếp (Windy)"
-              className="inline-flex items-center gap-1 rounded border border-sky-500/40 bg-sky-500/15 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-sky-200 transition hover:bg-sky-500/25"
+              className="inline-flex items-center gap-1 rounded border border-sky-500/40 bg-sky-500/15 px-1.5 py-0.5 font-mono text-xs font-semibold text-sky-200 transition hover:bg-sky-500/25"
             >
               <Wind size={10} weight="bold" />
               <span>Gió/Bão Windy</span>
@@ -82,16 +82,16 @@ export function VietnamEnvSection({ vietnamEnv, onFlyToLocation, onForceRefresh,
                 }`}
               >
                 <div className="flex items-center justify-between gap-1">
-                  <span className="truncate text-[11px] font-semibold text-slate-100">
+                  <span className="truncate text-xs font-semibold text-slate-100">
                     {loc.name}
                   </span>
-                  <span className="shrink-0 font-mono text-[11px] font-bold text-cyan-300 tabular-nums">
+                  <span className="shrink-0 font-mono text-xs font-bold text-cyan-300 tabular-nums">
                     {loc.tempC}°C
                   </span>
                 </div>
 
                 {isSea ? (
-                  <div className="mt-1 space-y-0.5 font-mono text-[11px]">
+                  <div className="mt-1 space-y-0.5 font-mono text-xs">
                     <div className="flex items-center justify-between text-sky-200">
                       <span className="inline-flex items-center gap-0.5">
                         <Wind size={10} /> Cấp {loc.beaufortScale}
@@ -99,7 +99,7 @@ export function VietnamEnvSection({ vietnamEnv, onFlyToLocation, onForceRefresh,
                       </span>
                       <span>Giật {loc.windGustKmh}km/h</span>
                     </div>
-                    <div className="flex items-center justify-between text-[11px]">
+                    <div className="flex items-center justify-between text-xs">
                       <span className={loc.stormWarning ? 'font-bold text-rose-300' : 'text-slate-400'}>
                         {loc.stormWarning ? '⚠️ BIỂN ĐỘNG' : loc.weatherLabel}
                       </span>
@@ -111,7 +111,7 @@ export function VietnamEnvSection({ vietnamEnv, onFlyToLocation, onForceRefresh,
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-1 space-y-0.5 font-mono text-[11px]">
+                  <div className="mt-1 space-y-0.5 font-mono text-xs">
                     <div className="flex items-center justify-between gap-1">
                       {loc.usAqi !== undefined && aqiMeta ? (
                         <span className={`rounded border px-1 py-0.1 font-bold ${aqiMeta.cls}`}>
@@ -121,12 +121,12 @@ export function VietnamEnvSection({ vietnamEnv, onFlyToLocation, onForceRefresh,
                         <span className="text-slate-400">{loc.weatherLabel}</span>
                       )}
                       {loc.pm25 !== undefined && (
-                        <span className="text-[11px] text-slate-400 tabular-nums">
+                        <span className="text-xs text-slate-400 tabular-nums">
                           PM2.5 {loc.pm25}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 tabular-nums">
+                    <div className="flex items-center justify-between text-xs text-slate-400 tabular-nums">
                       <span>
                         {loc.rainProbPct !== undefined ? `Mưa ${loc.rainProbPct}%` : loc.weatherLabel}
                         {loc.humidityPct !== undefined ? ` · Ẩm ${loc.humidityPct}%` : ''}
@@ -141,14 +141,14 @@ export function VietnamEnvSection({ vietnamEnv, onFlyToLocation, onForceRefresh,
                 )}
                 {loc.ensemble && <EnsembleLine ensemble={loc.ensemble} />}
                 {isSea && (loc.seaSurfaceTempC !== undefined || loc.oceanCurrentKmh !== undefined || loc.swellHeightM !== undefined) && (
-                  <div className="mt-1 text-[11px] text-slate-400">
+                  <div className="mt-1 text-xs text-slate-400">
                     {loc.seaSurfaceTempC !== undefined && `Mặt biển ${loc.seaSurfaceTempC}°C · `}
                     {loc.oceanCurrentKmh !== undefined && `Dòng chảy ${loc.oceanCurrentKmh} km/h${loc.oceanCurrentDirectionDeg !== undefined ? ` (${loc.oceanCurrentDirectionDeg}°)` : ''} · `}
                     {loc.swellHeightM !== undefined && `Sóng lừng ${loc.swellHeightM} m`}
                   </div>
                 )}
                 {loc.hourlyForecast && loc.hourlyForecast.length > 0 && (
-                  <div className="mt-1 text-[11px] text-slate-400">
+                  <div className="mt-1 text-xs text-slate-400">
                     6 giờ tới: {loc.hourlyForecast.map((hour) =>
                       `${hour.time.slice(11)} ${hour.rainMm === null ? '—' : `${hour.rainMm}mm`}/${hour.windKmh === null ? '—' : `${hour.windKmh}km/h`}`,
                     ).join(' · ')}
@@ -159,11 +159,11 @@ export function VietnamEnvSection({ vietnamEnv, onFlyToLocation, onForceRefresh,
           })}
       </div>
 
-      <p className="mt-1 text-[11px] text-slate-400">
+      <p className="mt-1 text-xs text-slate-400">
         Open-Meteo · tải lúc {new Date(vietnamEnv.updatedAt).toLocaleString('vi-VN')}: dữ liệu mô hình tham khảo, không dùng để dẫn đường hoặc thay cảnh báo chính thức.
       </p>
       {vietnamEnv.riverDischarge && vietnamEnv.riverDischarge.length > 0 && (
-        <div className="mt-2 rounded border border-slate-700 p-2 text-[11px] text-slate-300">
+        <div className="mt-2 rounded border border-slate-700 p-2 text-xs text-slate-300">
           <strong>Lưu lượng mô phỏng gần TP.HCM / Hà Nội · Open-Meteo GloFAS</strong>
           <p>Ô lưới gần tọa độ thành phố; chưa xác minh sông, không phải mực nước hoặc cảnh báo lũ.</p>
           {vietnamEnv.riverDischarge.map((river) => (
@@ -171,10 +171,10 @@ export function VietnamEnvSection({ vietnamEnv, onFlyToLocation, onForceRefresh,
           ))}
         </div>
       )}
-      {!vietnamEnv.riverDischarge?.length && <p className="mt-1 text-[11px] text-slate-400">Chưa có lưu lượng mô phỏng gần Hà Nội / TP.HCM.</p>}
+      {!vietnamEnv.riverDischarge?.length && <p className="mt-1 text-xs text-slate-400">Chưa có lưu lượng mô phỏng gần Hà Nội / TP.HCM.</p>}
       {vietnamEnv.alerts && vietnamEnv.alerts.length > 0 && (
         <div className="mt-2 rounded border border-sky-500/30 bg-[#0a1322] px-2.5 py-2">
-          <div className="mb-1 flex items-center justify-between font-mono text-[11px]">
+          <div className="mb-1 flex items-center justify-between font-mono text-xs">
             <span className="font-bold text-sky-300">
               ⚠️ BẢN TIN CẢNH BÁO KTTV VIỆT NAM (NCHMF · BÃO &amp; LŨ)
             </span>
@@ -198,7 +198,7 @@ export function VietnamEnvSection({ vietnamEnv, onFlyToLocation, onForceRefresh,
               >
                 <div className="min-w-0 flex-1">
                   <span
-                    className={`mr-1.5 inline-block rounded border px-1 py-0.1 font-mono text-[11px] font-bold ${
+                    className={`mr-1.5 inline-block rounded border px-1 py-0.1 font-mono text-xs font-bold ${
                       al.severity === 'critical'
                         ? 'border-rose-500/50 bg-rose-500/20 text-rose-200'
                         : al.severity === 'high'
@@ -208,11 +208,11 @@ export function VietnamEnvSection({ vietnamEnv, onFlyToLocation, onForceRefresh,
                   >
                     {al.badge}
                   </span>
-                  <span className="text-[11px] leading-snug text-slate-200 hover:text-sky-200">
+                  <span className="text-xs leading-snug text-slate-200 hover:text-sky-200">
                     {al.title}
                   </span>
                 </div>
-                <span className="shrink-0 font-mono text-[11px] text-slate-500 tabular-nums">
+                <span className="shrink-0 font-mono text-xs text-slate-500 tabular-nums">
                   {formatRelativeTime(al.publishedAt)}
                 </span>
               </a>

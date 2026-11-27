@@ -8,10 +8,10 @@ export function InstabilityIndexSection({ ciiScores, onFlyToLocation }: {
   return (
     <section>
       <div className="flex items-center justify-between">
-        <h2 className="font-mono text-[11px] font-semibold tracking-wider text-slate-300">
+        <h2 className="font-mono text-xs font-semibold tracking-wider text-slate-300">
           COUNTRY INSTABILITY INDEX (CII REALTIME)
         </h2>
-        <span className="font-mono text-[11px] text-slate-500">
+        <span className="font-mono text-xs text-slate-500">
           0 = Ổn định · 100 = Xung đột
         </span>
       </div>
@@ -29,8 +29,8 @@ export function InstabilityIndexSection({ ciiScores, onFlyToLocation }: {
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-semibold text-slate-100">{row.name}</span>
-                  <span className="font-mono text-[11px] text-slate-500">{row.code}</span>
+                  <span className="text-[13px] font-semibold text-slate-100">{row.name}</span>
+                  <span className="font-mono text-xs text-slate-500">{row.code}</span>
                 </div>
                 <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
                   <div
@@ -40,9 +40,9 @@ export function InstabilityIndexSection({ ciiScores, onFlyToLocation }: {
                 </div>
               </div>
               <div className="shrink-0 text-right font-mono tabular-nums">
-                <div className="text-xs font-bold text-slate-100">{row.score}/100</div>
+                <div className="text-[13px] font-bold text-slate-100">{row.score}/100</div>
                 <span
-                  className={`inline-block rounded border px-1 py-0.2 text-[11px] font-semibold ${style.badge}`}
+                  className={`inline-block rounded border px-1 py-0.2 text-xs font-semibold ${style.badge}`}
                 >
                   {row.isVietnam && row.band === 'LOW' ? 'STABLE · LOW' : row.band}
                 </span>

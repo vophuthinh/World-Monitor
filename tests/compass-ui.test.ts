@@ -22,3 +22,18 @@ describe('risk appetite presentation', () => {
     expect(html).not.toMatch(/TỶ TRỌNG|Cổ phiếu chất lượng|31%|CP 31|Nhóm [ABC]|NHÓM/);
   });
 });
+
+describe('markets tab layout', () => {
+  it('folds the reference sections below the two key panels, closed by default', async () => {
+    const { default: MarketsMacroTab } = await import('../client/src/components/right-panel/MarketsMacroTab');
+    const html = renderToStaticMarkup(createElement(MarketsMacroTab, {
+      markets: { quotes: [], crypto: [], fearGreed: null, macro: [], updatedAt: 1,
+        vn30: [{ symbol: 'FPT', name: 'FPT', sector: 'x', priceThousandVnd: 45, changePercent: 1, volume: 1, sparkline: [], updatedAt: 1 }] },
+      predictions: [], regimeHistory: [], military: [], vessels: [], geopolitics: [], priceFlashes: {},
+      streamConnected: true, onFlyToLocation: () => {}, translateVi: true,
+    }));
+    expect(html).toMatch(/<details(?![^>]*open)[^>]*><summary[^>]*>Cổ phiếu VN30<\/summary>[\s\S]*FPT/);
+    // A section without data gets no empty fold.
+    expect(html).not.toContain('>Vàng trong nước</summary>');
+  });
+});

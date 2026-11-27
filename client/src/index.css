@@ -62,6 +62,18 @@ body,
   background-color: rgba(100, 116, 139, 0.8);
 }
 
+/* Right panel: Vietnamese prose in a monospace face is hard to read, so use the sans face
+   everywhere there and keep digits aligned with tabular figures. */
+.intel-panel .font-mono {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: normal;
+}
+
+.intel-panel {
+  line-height: 1.5;
+}
+
 /* MapLibre tactical dark overrides */
 .maplibregl-popup-content {
   background: rgba(9, 14, 24, 0.96) !important;

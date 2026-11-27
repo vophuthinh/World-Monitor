@@ -12,11 +12,11 @@ export function FredSection({ markets }: {
   return (
     <section>
       <div className="flex items-center justify-between">
-        <h2 className="font-mono text-[11px] font-semibold tracking-wider text-sky-300">
+        <h2 className="font-mono text-xs font-semibold tracking-wider text-sky-300">
           LÃI SUẤT FED · LỢI SUẤT TRÁI PHIẾU MỸ &amp; VIX (FRED)
         </h2>
         <span
-          className={`font-mono text-[11px] ${anyRetained ? 'text-amber-300' : 'text-slate-500'}`}
+          className={`font-mono text-xs ${anyRetained ? 'text-amber-300' : 'text-slate-500'}`}
         >
           {anyRetained ? 'St. Louis Fed · Có số giữ lại' : 'St. Louis Fed'}
         </span>
@@ -36,16 +36,16 @@ export function FredSection({ markets }: {
                 }`}
               >
                 <div className="flex items-center justify-between gap-1">
-                  <span className="truncate font-mono text-[11px] font-bold text-slate-200">
+                  <span className="truncate font-mono text-xs font-bold text-slate-200">
                     {fm.label}
                   </span>
-                  <span className="font-mono text-xs font-bold text-cyan-300 tabular-nums">
+                  <span className="font-mono text-[13px] font-bold text-cyan-300 tabular-nums">
                     {fm.value.toFixed(2)}
                     {fm.unit === '%' ? '%' : ''}
                   </span>
                 </div>
-                <div className="mt-0.5 truncate text-[11px] text-slate-400">{fm.subtitle}</div>
-                <div className="mt-0.5 flex items-center justify-between font-mono text-[11px] text-slate-500">
+                <div className="mt-0.5 truncate text-xs text-slate-400">{fm.subtitle}</div>
+                <div className="mt-0.5 flex items-center justify-between font-mono text-xs text-slate-500">
                   <span>Kỳ: {fm.date}</span>
                   {fm.retained ? (
                     <span
@@ -61,7 +61,7 @@ export function FredSection({ markets }: {
                 <div className="mt-1 flex items-center justify-between gap-1">
                   <MiniSparkline values={fm.sparkline} positive={up} />
                   <span
-                    className={`font-mono text-[11px] font-semibold tabular-nums ${
+                    className={`font-mono text-xs font-semibold tabular-nums ${
                       up ? 'text-emerald-400' : 'text-rose-400'
                     }`}
                   >
@@ -70,7 +70,7 @@ export function FredSection({ markets }: {
                   </span>
                 </div>
                 {fm.alertBadge && (
-                  <div className="mt-1 rounded border border-rose-500/45 bg-rose-500/20 px-1.5 py-0.2 text-center font-mono text-[11px] font-bold text-rose-200">
+                  <div className="mt-1 rounded border border-rose-500/45 bg-rose-500/20 px-1.5 py-0.2 text-center font-mono text-xs font-bold text-rose-200">
                     {fm.alertBadge}
                   </div>
                 )}

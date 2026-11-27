@@ -17,11 +17,11 @@ export function CryptoSentimentSection({ markets, priceFlashes, volatileCrypto }
   return (
     <section>
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-1.5 font-mono text-[11px] font-semibold tracking-wider text-slate-300">
+        <h2 className="flex items-center gap-1.5 font-mono text-xs font-semibold tracking-wider text-slate-300">
           <span>TIỀN SỐ</span>
         </h2>
         {markets.fearGreed && (
-          <span className="inline-flex items-center gap-1 font-mono text-[11px] text-cyan-300 tabular-nums">
+          <span className="inline-flex items-center gap-1 font-mono text-xs text-cyan-300 tabular-nums">
             <Gauge size={13} />
             F&amp;G: {markets.fearGreed.value}/100 ({markets.fearGreed.classification}){sentimentIsStale ? ' · dữ liệu cũ' : ''}
           </span>
@@ -63,15 +63,15 @@ export function CryptoSentimentSection({ markets, priceFlashes, volatileCrypto }
               }`}
             >
               <div>
-                <span className="font-mono text-xs font-semibold text-slate-100">
+                <span className="font-mono text-[13px] font-semibold text-slate-100">
                   {coin.symbol}
                 </span>
-                <span className="ml-1.5 text-[11px] text-slate-400">{coin.name}</span>
-                {coin.retained && <span className="ml-1 text-[11px] text-amber-300">dữ liệu cũ</span>}
+                <span className="ml-1.5 text-xs text-slate-400">{coin.name}</span>
+                {coin.retained && <span className="ml-1 text-xs text-amber-300">dữ liệu cũ</span>}
               </div>
               <div className="text-right font-mono tabular-nums">
                 <div
-                  className={`text-xs font-semibold ${
+                  className={`text-[13px] font-semibold ${
                     flash === 'up'
                       ? 'text-emerald-200'
                       : flash === 'down'
@@ -84,7 +84,7 @@ export function CryptoSentimentSection({ markets, priceFlashes, volatileCrypto }
                     maximumFractionDigits: coin.priceUsd >= 10 ? 2 : 4,
                   })}
                 </div>
-                <div className="text-[11px]">
+                <div className="text-xs">
                   <span className={coin.changePercent24h === null ? 'text-slate-400' : up ? 'text-emerald-400' : 'text-rose-400'}>
                     {coin.changePercent24h === null ? 'không rõ' : `${up ? '+' : ''}${coin.changePercent24h.toFixed(2)}%`}
                   </span>

@@ -12,10 +12,10 @@ export function ThreatSummaryBar({ globalThreat, military, vessels, cyberThreats
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-fuchsia-500/30 bg-[#0d1524] px-2.5 py-1.5">
-      <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
+      <div className="flex flex-wrap items-center gap-1.5 font-mono text-xs">
         <span
           title={globalThreat.summary}
-          className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-bold ${
+          className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-xs font-bold ${
             globalThreat.defcon <= 2
               ? 'border-rose-500/55 bg-rose-500/20 text-rose-200'
               : globalThreat.defcon === 3
@@ -35,7 +35,7 @@ export function ThreatSummaryBar({ globalThreat, military, vessels, cyberThreats
       <button
         type="button"
         onClick={onToggleTranslateVi}
-        className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[11px] font-semibold transition ${
+        className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-xs font-semibold transition ${
           translateVi
             ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-300'
             : 'border-slate-700 bg-slate-900 text-slate-400'

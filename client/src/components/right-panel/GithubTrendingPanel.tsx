@@ -14,11 +14,11 @@ export function GithubTrendingPanel({ activeGhTrending, filteredGhTrending, filt
 }) {
   return (
     <div className="bg-[#080e19]">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/85 bg-[#0d1524] px-3 py-2 font-mono text-[11px]">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/85 bg-[#0d1524] px-3 py-2 font-mono text-xs">
         <div className="flex items-center gap-1.5">
           <Fire size={13} weight="fill" className="text-orange-400" />
           <span className="font-bold text-emerald-300">GITHUB TRENDING</span>
-          <span className="rounded bg-slate-800 px-1.5 py-0.2 text-[11px] text-slate-300">
+          <span className="rounded bg-slate-800 px-1.5 py-0.2 text-xs text-slate-300">
             {filteredGhTrending.length} repo
           </span>
         </div>
@@ -26,7 +26,7 @@ export function GithubTrendingPanel({ activeGhTrending, filteredGhTrending, filt
           <button
             type="button"
             onClick={() => setGhTrendingPeriod('daily')}
-            className={`rounded border px-2 py-0.5 text-[11px] font-semibold transition ${
+            className={`rounded border px-2 py-0.5 text-xs font-semibold transition ${
               ghTrendingPeriod === 'daily'
                 ? 'border-emerald-400/60 bg-emerald-500/20 text-emerald-200'
                 : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
@@ -37,7 +37,7 @@ export function GithubTrendingPanel({ activeGhTrending, filteredGhTrending, filt
           <button
             type="button"
             onClick={() => setGhTrendingPeriod('weekly')}
-            className={`rounded border px-2 py-0.5 text-[11px] font-semibold transition ${
+            className={`rounded border px-2 py-0.5 text-xs font-semibold transition ${
               ghTrendingPeriod === 'weekly'
                 ? 'border-emerald-400/60 bg-emerald-500/20 text-emerald-200'
                 : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
@@ -62,7 +62,7 @@ export function GithubTrendingPanel({ activeGhTrending, filteredGhTrending, filt
             href={`https://github.com/trending?since=${ghTrendingPeriod}`}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-0.5 rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[11px] text-slate-300 hover:border-cyan-400/50 hover:text-cyan-200"
+            className="inline-flex items-center gap-0.5 rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-xs text-slate-300 hover:border-cyan-400/50 hover:text-cyan-200"
           >
             github.com/trending <ArrowSquareOut size={10} />
           </a>
@@ -70,7 +70,7 @@ export function GithubTrendingPanel({ activeGhTrending, filteredGhTrending, filt
       </div>
 
       {filteredGhTrending.length === 0 ? (
-        <div className="px-3 py-4 text-center text-xs text-slate-400">
+        <div className="px-3 py-4 text-center text-[13px] text-slate-400">
           {activeGhTrending.length === 0
             ? 'Đang tải danh sách repo nổi bật từ github.com/trending...'
             : 'Không có repo GitHub Trending nào khớp từ khóa.'}
@@ -87,10 +87,10 @@ export function GithubTrendingPanel({ activeGhTrending, filteredGhTrending, filt
                 key={repo.id}
                 className="perf-card px-3 py-2.5 transition hover:bg-slate-900/65"
               >
-                <div className="flex items-center justify-between gap-2 font-mono text-[11px]">
+                <div className="flex items-center justify-between gap-2 font-mono text-xs">
                   <div className="flex min-w-0 items-center gap-1.5">
                     <span
-                      className={`shrink-0 rounded px-1.5 py-0.2 text-[11px] font-bold ${
+                      className={`shrink-0 rounded px-1.5 py-0.2 text-xs font-bold ${
                         repo.rank <= 3
                           ? 'border border-amber-500/45 bg-amber-500/20 text-amber-200'
                           : 'border border-slate-700 bg-slate-800 text-slate-300'
@@ -109,7 +109,7 @@ export function GithubTrendingPanel({ activeGhTrending, filteredGhTrending, filt
                     </a>
                   </div>
                   {repo.periodStars > 0 && (
-                    <span className="inline-flex shrink-0 items-center gap-0.5 rounded border border-emerald-500/45 bg-emerald-500/15 px-1.5 py-0.5 text-[11px] font-bold text-emerald-300 tabular-nums">
+                    <span className="inline-flex shrink-0 items-center gap-0.5 rounded border border-emerald-500/45 bg-emerald-500/15 px-1.5 py-0.5 text-xs font-bold text-emerald-300 tabular-nums">
                       <Fire size={10} weight="fill" className="text-orange-400" />
                       +{repo.periodStars.toLocaleString('en-US')} ★{' '}
                       {ghTrendingPeriod === 'daily' ? 'hôm nay' : 'tuần này'}
@@ -126,7 +126,7 @@ export function GithubTrendingPanel({ activeGhTrending, filteredGhTrending, filt
                   </p>
                 )}
 
-                <div className="mt-1.5 flex items-center justify-between font-mono text-[11px] text-slate-400">
+                <div className="mt-1.5 flex items-center justify-between font-mono text-xs text-slate-400">
                   <div className="flex flex-wrap items-center gap-2.5">
                     {repo.language && (
                       <span className="inline-flex items-center gap-1 text-slate-300">
@@ -160,7 +160,7 @@ export function GithubTrendingPanel({ activeGhTrending, filteredGhTrending, filt
       )}
 
       {filteredTech.length > 0 && (
-        <div className="border-t border-slate-800 bg-[#0d1524] px-3 py-1.5 font-mono text-[11px] font-bold text-violet-300">
+        <div className="border-t border-slate-800 bg-[#0d1524] px-3 py-1.5 font-mono text-xs font-bold text-violet-300">
           🚀 PHIÊN BẢN PHÁT HÀNH MỚI · AI &amp; AGENT CLI ({filteredTech.length})
         </div>
       )}

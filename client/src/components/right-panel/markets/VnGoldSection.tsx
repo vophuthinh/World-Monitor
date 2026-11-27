@@ -14,7 +14,7 @@ export function VnGoldSection({ markets, onForceRefresh, refreshingIds }: {
   return (
     <section>
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-1.5 font-mono text-[11px] font-semibold tracking-wider text-amber-200">
+        <h2 className="flex items-center gap-1.5 font-mono text-xs font-semibold tracking-wider text-amber-200">
           <Coins size={13} className="text-amber-400" weight="fill" />
           <span>GIÁ VÀNG TRONG NƯỚC (TRIỆU ₫ / LƯỢNG)</span>
         </h2>
@@ -39,15 +39,15 @@ export function VnGoldSection({ markets, onForceRefresh, refreshingIds }: {
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="rounded border border-amber-400/50 bg-amber-500/20 px-1.5 py-0.1 font-mono text-[11px] font-bold text-amber-200">
+                  <span className="rounded border border-amber-400/50 bg-amber-500/20 px-1.5 py-0.1 font-mono text-xs font-bold text-amber-200">
                     {g.code}
                   </span>
-                  <span className="text-xs leading-tight font-semibold text-slate-100">{g.name}</span>
-                  {(g.retained || !isFreshMarketObservation(g.observedAt, now)) && <span className="text-[11px] text-amber-300">dữ liệu cũ hoặc chưa rõ</span>}
+                  <span className="text-[13px] leading-tight font-semibold text-slate-100">{g.name}</span>
+                  {(g.retained || !isFreshMarketObservation(g.observedAt, now)) && <span className="text-xs text-amber-300">dữ liệu cũ hoặc chưa rõ</span>}
                 </div>
                 {g.worldParityPerLuongMillionVnd !== undefined &&
                   g.premiumVsWorldMillionVnd !== undefined && (
-                    <div className="mt-0.5 font-mono text-[11px] text-slate-400 tabular-nums">
+                    <div className="mt-0.5 font-mono text-xs text-slate-400 tabular-nums">
                       Quy đổi TG{!isFreshGoldComparison(g, gold, fx, now) ? ' (tham chiếu cũ hoặc chưa rõ)' : ''}: {g.worldParityPerLuongMillionVnd.toFixed(2)} tr · Chênh{' '}
                       <span
                         className={
@@ -62,18 +62,18 @@ export function VnGoldSection({ markets, onForceRefresh, refreshingIds }: {
               </div>
 
               <div className="shrink-0 text-right font-mono tabular-nums">
-                <div className="text-xs">
-                  <span className="text-[11px] text-slate-400">Mua </span>
+                <div className="text-[13px]">
+                  <span className="text-xs text-slate-400">Mua </span>
                   <strong className="text-emerald-300">
                     {g.buyPerLuongMillionVnd.toFixed(2)}
                   </strong>
                   <span className="mx-1 text-slate-600">|</span>
-                  <span className="text-[11px] text-slate-400">Bán </span>
+                  <span className="text-xs text-slate-400">Bán </span>
                   <strong className="text-amber-300">
                     {g.sellPerLuongMillionVnd.toFixed(2)}
                   </strong>
                 </div>
-                <div className="text-[11px] text-slate-500">
+                <div className="text-xs text-slate-500">
                   Biên độ {g.spreadMillionVnd.toFixed(2)} tr
                   {g.updatedLabel ? ` · ${g.updatedLabel}` : ' · không rõ thời điểm nguồn'}
                 </div>

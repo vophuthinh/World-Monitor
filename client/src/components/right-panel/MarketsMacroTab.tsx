@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   buildMarketCatalystCalendar,
   evaluateChokepointMarketImpacts,
@@ -45,6 +45,16 @@ export interface MarketsMacroTabProps {
   streamConnected: boolean;
   onFlyToLocation: (lat: number, lon: number, zoom?: number) => void;
   translateVi: boolean;
+}
+
+/** Reference sections stay closed so the two key panels are not buried in a very long page. */
+function FoldedSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <details className="rounded-md border border-slate-700 bg-[#0a1220] px-2.5">
+      <summary className="min-h-11 cursor-pointer py-2.5 text-[13px] font-semibold text-slate-100">{title}</summary>
+      <div className="pb-2.5">{children}</div>
+    </details>
+  );
 }
 
 const MarketsMacroTab = memo(function MarketsMacroTab({
@@ -187,29 +197,16 @@ const MarketsMacroTab = memo(function MarketsMacroTab({
   }, [predictions]);
 
   return (
-    <div className="flex-1 space-y-4 overflow-y-auto p-3">
+    <div className="flex-1 space-y-3 overflow-y-auto p-3">
       {/* Macroeconomic Health & Regime Diagnosis Radar */}
-      <p className="mt-1 text-xs text-slate-300">
-        Dữ liệu giữ lại quá 7 ngày từ lần lấy thành công không được dùng để chấm điểm.
-      </p>
-      <CrossCheckNotice checks={markets.crossChecks} />
-      {(['vn', 'us'] as const).map((region) => observationWarnings[region].length > 0 && (
-        <details key={region} className="rounded border border-amber-500/45 bg-amber-950/35 px-2 py-1.5 text-xs text-amber-200">
-          <summary className="cursor-pointer">
-            ⚠ {region === 'vn' ? 'Việt Nam' : 'Mỹ'}: kỳ quan sát có thể cũ hoặc chưa rõ ({observationWarnings[region].length} chỉ báo)
-          </summary>
-          <p>Ngưỡng cảnh báo tham khảo theo tần suất, không tự loại khỏi điểm; các quy tắc lọc khác vẫn áp dụng.</p>
-          <ul>{observationWarnings[region].map((warning) => <li key={warning}>• {warning}</li>)}</ul>
-        </details>
-      ))}
       {!macroHealth.vn && expiredNotices.vn.length > 0 && (
-        <div className="rounded border border-rose-500/45 bg-rose-950/35 px-2.5 py-1.5 font-mono text-xs text-rose-200">
+        <div className="rounded border border-rose-500/45 bg-rose-950/35 px-2.5 py-1.5 font-mono text-[13px] text-rose-200">
           ⚠️ Chưa đủ dữ liệu để chấm điểm vĩ mô Việt Nam.
           <ExpiredMacroNotices notices={expiredNotices.vn} />
         </div>
       )}
       {!macroHealth.us && expiredNotices.us.length > 0 && (
-        <div className="rounded border border-rose-500/45 bg-rose-950/35 px-2.5 py-1.5 font-mono text-xs text-rose-200">
+        <div className="rounded border border-rose-500/45 bg-rose-950/35 px-2.5 py-1.5 font-mono text-[13px] text-rose-200">
           ⚠️ Chưa đủ dữ liệu để chấm điểm vĩ mô Mỹ.
           <ExpiredMacroNotices notices={expiredNotices.us} />
         </div>
@@ -224,43 +221,101 @@ const MarketsMacroTab = memo(function MarketsMacroTab({
         />
       )}
 
-      {/* Upcoming Macro & VN30 Derivatives Catalyst Countdown Calendar */}
-      <CatalystCalendarSection catalystCalendar={catalystCalendar} />
-
       {/* Forward-Looking Investment Compass & Leading Indicators */}
       {investmentCompass && (
         <InvestmentCompassSection investmentCompass={investmentCompass} regimeHistory={regimeHistory} />
       )}
 
+      {/* Upcoming Macro & VN30 Derivatives Catalyst Countdown Calendar */}
+      {catalystCalendar.length > 0 && (
+        <FoldedSection title="Lịch sự kiện sắp tới">
+          <CatalystCalendarSection catalystCalendar={catalystCalendar} />
+        </FoldedSection>
+      )}
+
+      <p className="mt-1 text-[13px] text-slate-300">
+        Dữ liệu giữ lại quá 7 ngày từ lần lấy thành công không được dùng để chấm điểm.
+      </p>
+      <CrossCheckNotice checks={markets.crossChecks} />
+      {(['vn', 'us'] as const).map((region) => observationWarnings[region].length > 0 && (
+        <details key={region} className="rounded border border-amber-500/45 bg-amber-950/35 px-2 py-1.5 text-[13px] text-amber-200">
+          <summary className="cursor-pointer">
+            ⚠ {region === 'vn' ? 'Việt Nam' : 'Mỹ'}: kỳ quan sát có thể cũ hoặc chưa rõ ({observationWarnings[region].length} chỉ báo)
+          </summary>
+          <p>Ngưỡng cảnh báo tham khảo theo tần suất, không tự loại khỏi điểm; các quy tắc lọc khác vẫn áp dụng.</p>
+          <ul>{observationWarnings[region].map((warning) => <li key={warning}>• {warning}</li>)}</ul>
+        </details>
+      ))}
+
       {/* Cross-Domain Maritime Chokepoints <-> Commodity & HOSE Sector Impact Matrix */}
-      <ChokepointImpactSection chokepointImpacts={chokepointImpacts} onFlyToLocation={onFlyToLocation} />
+      {chokepointImpacts.length > 0 && (
+        <FoldedSection title="Eo biển và tác động thị trường">
+          <ChokepointImpactSection chokepointImpacts={chokepointImpacts} onFlyToLocation={onFlyToLocation} />
+        </FoldedSection>
+      )}
 
       {/* Vietnam Domestic Gold */}
-      <VnGoldSection markets={markets} onForceRefresh={onForceRefresh} refreshingIds={refreshingIds} />
+      {(markets.vnGold?.length ?? 0) > 0 && (
+        <FoldedSection title="Vàng trong nước">
+          <VnGoldSection markets={markets} onForceRefresh={onForceRefresh} refreshingIds={refreshingIds} />
+        </FoldedSection>
+      )}
 
       {/* Top 10 VN30 Leading Stocks */}
-      <Vn30Section markets={markets} />
+      {(markets.vn30?.length ?? 0) > 0 && (
+        <FoldedSection title="Cổ phiếu VN30">
+          <Vn30Section markets={markets} />
+        </FoldedSection>
+      )}
 
       {/* FX Rates */}
-      <FxRatesSection fxQuotes={fxQuotes} />
+      {fxQuotes.length > 0 && (
+        <FoldedSection title="Tỷ giá ngoại hối">
+          <FxRatesSection fxQuotes={fxQuotes} />
+        </FoldedSection>
+      )}
 
       {/* FRED Live Telemetry */}
-      <FredSection markets={markets} />
+      {(markets.fred?.length ?? 0) > 0 && (
+        <FoldedSection title="Số liệu vĩ mô Mỹ (FRED)">
+          <FredSection markets={markets} />
+        </FoldedSection>
+      )}
 
       {/* Global & Vietnam Indices + Strategic Commodities */}
-      <IndicesCommoditiesSection indexAndCommodityQuotes={indexAndCommodityQuotes} priceFlashes={priceFlashes} />
+      {indexAndCommodityQuotes.length > 0 && (
+        <FoldedSection title="Chỉ số và hàng hóa">
+          <IndicesCommoditiesSection indexAndCommodityQuotes={indexAndCommodityQuotes} priceFlashes={priceFlashes} />
+        </FoldedSection>
+      )}
 
       {/* Stablecoin Peg Monitor */}
-      <StablecoinSection stablecoins={stablecoins} />
+      {stablecoins.length > 0 && (
+        <FoldedSection title="Stablecoin">
+          <StablecoinSection stablecoins={stablecoins} />
+        </FoldedSection>
+      )}
 
       {/* Crypto & Fear & Greed Sentiment */}
-      <CryptoSentimentSection markets={markets} priceFlashes={priceFlashes} volatileCrypto={volatileCrypto} />
+      {(volatileCrypto.length > 0 || markets.fearGreed !== null) && (
+        <FoldedSection title="Tiền số">
+          <CryptoSentimentSection markets={markets} priceFlashes={priceFlashes} volatileCrypto={volatileCrypto} />
+        </FoldedSection>
+      )}
 
       {/* World Bank Macroeconomic Table */}
-      <WorldBankSection markets={markets} />
+      {markets.macro.length > 0 && (
+        <FoldedSection title="Vĩ mô 8 nền kinh tế (World Bank)">
+          <WorldBankSection markets={markets} />
+        </FoldedSection>
+      )}
 
       {/* Compact Top 5 Macro & Geopolitical Probability Indicators (Polymarket) */}
-      <PredictionOddsSection topMacroGeopoliticsPredictions={topMacroGeopoliticsPredictions} translateVi={translateVi} />
+      {topMacroGeopoliticsPredictions.length > 0 && (
+        <FoldedSection title="Xác suất sự kiện (Polymarket)">
+          <PredictionOddsSection topMacroGeopoliticsPredictions={topMacroGeopoliticsPredictions} translateVi={translateVi} />
+        </FoldedSection>
+      )}
     </div>
   );
 });
