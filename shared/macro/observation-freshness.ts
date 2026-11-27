@@ -16,6 +16,7 @@ const VN_FIELDS: Partial<Record<VietnamMacroPulseFieldKey, { label: string; days
   ytdTradeBalanceBillionUsd: { label: 'Cán cân thương mại lũy kế', days: 120 },
   interbankRatePct: { label: 'Lãi suất liên ngân hàng qua đêm', days: 30 },
   interbankTermRatePct: { label: 'Lãi suất liên ngân hàng kỳ hạn dài', days: 45 },
+  sp500PeRatio: { label: 'P/E S&P 500', days: 14 },
   vn10yYieldPct: { label: 'Lợi suất TPCP 10 năm', days: 30 },
 };
 

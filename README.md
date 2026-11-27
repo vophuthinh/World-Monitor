@@ -164,7 +164,7 @@ Quy ước làm việc và nợ kỹ thuật hiện tại nằm trong [AGENTS.md
 
 ## Giới hạn đã biết
 
-- **Không phải mô hình dự báo.** Các bảng vĩ mô phản ánh sức khỏe và tín hiệu rủi ro từ số liệu đã công bố; không phải dự báo GDP, CPI hay tỷ giá. Tỷ trọng danh mục là mô phỏng theo quy tắc, chưa qua backtest, không phải lời khuyên đầu tư.
+- **Không phải mô hình dự báo.** Các bảng vĩ mô phản ánh sức khỏe và tín hiệu rủi ro từ số liệu đã công bố; không phải dự báo GDP, CPI hay tỷ giá. Tỷ trọng danh mục là mô phỏng theo quy tắc, không phải lời khuyên đầu tư. Kiểm định 11/2026 trên dữ liệu 2019–2026 (thiếu số vĩ mô Việt Nam, Polymarket, độ rộng VN30; chênh lệch HY chỉ có từ 11/2023): tỷ trọng cổ phiếu theo điểm tổng hợp cho Sharpe thấp hơn giữ cố định cùng tỷ trọng trung bình trên cả VN-Index và S&P 500, và điểm tương quan âm với lợi nhuận 3–6 tháng sau đó.
 - **Tham số hiệu chỉnh cố định.** Một số mốc đối chiếu của Việt Nam (vùng cân bằng USD/VND, CPI, lãi suất liên ngân hàng) là hằng số trong mã và trôi dần theo thời gian. Cần rà soát định kỳ, có nguồn và có kiểm thử.
 - **Nguồn không chính thức.** Yahoo Finance v8, RSSHub, Reddit JSON, trang cảnh báo NCHMF có thể đổi cấu trúc hoặc chặn truy cập bất cứ lúc nào. Xem trạng thái từng nguồn trên thanh công cụ hoặc tại `/api/health`.
 - **Dữ liệu bão lấy từ GDACS, chưa trực tiếp từ JMA/JTWC.** GDACS đăng lại cảnh báo JTWC (đường đi, vùng dự báo) và cấu trúc đã được kiểm chứng bằng cả bão đang hoạt động lẫn bão đã qua. Bản tin trực tiếp của JMA (`targetTc.json`) và JTWC chưa được dùng vì chưa có bão để xác minh cấu trúc dữ liệu.

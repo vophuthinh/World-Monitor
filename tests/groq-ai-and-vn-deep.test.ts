@@ -31,7 +31,6 @@ import {
   normalizeMihongGoldPrices,
   normalizeVn30DchartQuote,
   normalizeYahooChartQuote,
-  parseMultplSp500PeHtml,
   parseSimplizeIndexValuationHtml,
   parseTradingEconomicsVietnamHtml,
   parseVietnamOfficialYtdContext,
@@ -841,8 +840,6 @@ describe('Phase 12 — Groq LPU AI Intelligence & Deep Vietnam Markets / Env / G
     expect(vnPulse.quarterlyGdpPct).toBe(9.95);
     expect(vnPulse.tradeBalanceBillionUsd).toBe(7.31);
 
-    const spPe = parseMultplSp500PeHtml(`<div id="current">Current S&amp;P 500 PE Ratio: <b>23.55</b></div>`);
-    expect(spPe).toBe(23.55);
 
     // 3. Polymarket real-money FOMC hawkish rate hike detection
     const polyInsight = extractPolymarketMacroInsight([

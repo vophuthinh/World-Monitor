@@ -209,14 +209,16 @@ export function parseTradingEconomicsVietnamHtml(
   return out;
 }
 
-export function parseMultplSp500PeHtml(html: string): number | undefined {
-  if (!html) return undefined;
-  const match =
-    html.match(/Current\s+S(?:&amp;|&)P\s+500\s+PE\s+Ratio[\s\S]{0,180}?([0-9]+\.[0-9]+)/i) ??
-    html.match(/id=["']current["'][\s\S]{0,220}?([0-9]+\.[0-9]+)/i);
-  if (!match) return undefined;
-  const val = Number(match[1]);
-  return Number.isFinite(val) && val > 5 && val < 90 ? Number(val.toFixed(2)) : undefined;
+const SSGA_SPY_URL = 'https://www.ssga.com/us/en/intermediary/etfs/spdr-sp-500-etf-trust-spy';
+
+/** Index "Price/Earnings" with its date from State Street's SPY page; nothing older than 14 days. */
+export function parseSsgaIndexPe(html: string, now = Date.now()): { pe: number; period: string } | undefined {
+  const section = html.match(/Index Characteristics[\s\S]{0,200}?as of\s+([A-Z][a-z]{2} \d{1,2} 20\d{2})([\s\S]{0,2000}?)<\/table>/);
+  const pe = Number(section?.[2].match(/>\s*Price\/Earnings\s*<\/th>\s*<td[^>]*>\s*([0-9]+\.[0-9]+)/)?.[1]);
+  const asOf = section ? Date.parse(`${section[1]} UTC`) : Number.NaN;
+  if (!(pe > 5 && pe < 80) || !(asOf <= now && now - asOf <= 14 * 86_400_000)) return undefined;
+  const [year, month, day] = new Date(asOf).toISOString().slice(0, 10).split('-');
+  return { pe, period: `${day}/${month}/${year}` };
 }
 
 export function extractRssItems(xml: string): Array<{
@@ -588,7 +590,7 @@ export async function fetchVietnamAndGlobalMacroPulse(now: number): Promise<Viet
     `("nhập siêu" OR "xuất siêu") ("tỷ USD" OR "tỉ USD") "xuất nhập khẩu" ${currentYear} Việt Nam`,
   )}&hl=vi&gl=VN&ceid=VN:vi`;
 
-  const [teIndRes, teBondRes, multplRes, nsoRes, cpiRssRes, tradeRssRes, vcbRes, overnightRes] = await Promise.allSettled([
+  const [teIndRes, teBondRes, spPeRes, nsoRes, cpiRssRes, tradeRssRes, vcbRes, overnightRes] = await Promise.allSettled([
     fetchTextWithTimeout('https://tradingeconomics.com/vietnam/indicators', {
       timeoutMs: 6_500,
       retries: 0,
@@ -599,9 +601,9 @@ export async function fetchVietnamAndGlobalMacroPulse(now: number): Promise<Viet
       retries: 0,
       userAgent: 'Mozilla/5.0',
     }),
-    fetchTextWithTimeout('https://www.multpl.com/s-p-500-pe-ratio', {
-      timeoutMs: 6_500,
-      retries: 0,
+    fetchTextWithTimeout(SSGA_SPY_URL, {
+      timeoutMs: 12_000,
+      retries: 1,
       userAgent: 'Mozilla/5.0',
     }),
     fetchTextWithTimeout(nsoApiUrl, {
@@ -632,7 +634,7 @@ export async function fetchVietnamAndGlobalMacroPulse(now: number): Promise<Viet
 
   const indHtml = teIndRes.status === 'fulfilled' ? teIndRes.value.text : '';
   const bondHtml = teBondRes.status === 'fulfilled' ? teBondRes.value.text : '';
-  const multplHtml = multplRes.status === 'fulfilled' ? multplRes.value.text : '';
+  const spPeHtml = spPeRes.status === 'fulfilled' ? spPeRes.value.text : '';
   const ytdContext = parseVietnamOfficialYtdContext({
     nsoPostsJson: nsoRes.status === 'fulfilled' ? nsoRes.value.text : undefined,
     cpiRssXml: cpiRssRes.status === 'fulfilled' ? cpiRssRes.value.text : undefined,
@@ -642,7 +644,8 @@ export async function fetchVietnamAndGlobalMacroPulse(now: number): Promise<Viet
   });
 
   const vnParsed = parseTradingEconomicsVietnamHtml(indHtml, bondHtml, now);
-  const sp500PeRatio = parseMultplSp500PeHtml(multplHtml);
+  const spPe = parseSsgaIndexPe(spPeHtml, now);
+  const sp500PeRatio = spPe?.pe;
   const overnight = overnightRes.status === 'fulfilled' ? parseOvernightRateRss(overnightRes.value.text, now) : undefined;
   const mergedMeta: Partial<Record<VietnamMacroPulseFieldKey, MacroFieldMeta>> = {
     ...(vnParsed.fieldMeta ?? {}),
@@ -651,7 +654,7 @@ export async function fetchVietnamAndGlobalMacroPulse(now: number): Promise<Viet
       : {}),
     ...(ytdContext.fieldMeta ?? {}),
     ...(sp500PeRatio !== undefined
-      ? { sp500PeRatio: { source: 'Multpl (S&P 500)', fetchedAt: now, retained: false } }
+      ? { sp500PeRatio: { source: 'State Street SPY', period: spPe!.period, fetchedAt: now, retained: false } }
       : {}),
   };
 

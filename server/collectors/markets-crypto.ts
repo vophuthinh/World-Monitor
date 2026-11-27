@@ -230,7 +230,7 @@ const DEFAULT_VN_PULSE_SOURCE: Record<VietnamMacroPulseFieldKey, string> = {
   tradeBalanceBillionUsd: 'Hải quan / TE',
   ytdTradeBalanceBillionUsd: 'Cục Thống kê (NSO)',
   vcbSellUsdVnd: 'Vietcombank',
-  sp500PeRatio: 'Multpl (S&P 500)',
+  sp500PeRatio: 'State Street SPY',
 };
 
 export function mergeFredWithPrevious(
@@ -645,7 +645,7 @@ export async function fetchMarketsAndCrypto(previous?: MarketSnapshot | null): P
   );
 
   const dailyUsdVnd = fxRes.status === 'fulfilled' ? fxRes.value.find((q) => q.symbol === 'USD/VND') : undefined;
-  const crossChecks = await crossCheckMarketQuotes(quotes, now, dailyUsdVnd).catch(() => []);
+  const crossChecks = await crossCheckMarketQuotes(quotes, now, dailyUsdVnd, vnMacroPulse?.sp500PeRatio).catch(() => []);
 
   const vnGold = [...vnGoldByCode.values()];
   const hasFreshData = (cryptoRes.status === 'fulfilled' && cryptoRes.value.length > 0) ||

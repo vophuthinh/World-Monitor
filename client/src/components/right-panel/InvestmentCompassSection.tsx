@@ -73,8 +73,8 @@ export function InvestmentCompassSection({
           <p className="mt-1.5 text-[11px] leading-snug text-slate-300">
             {investmentCompass.summary}
           </p>
-          <p className="mt-1 font-mono text-[11px] leading-snug text-slate-500">
-            Điểm số và tỷ trọng tính theo quy tắc trọng số cố định để quan sát trạng thái thị trường; chưa qua kiểm định hiệu quả (backtest) và không phải khuyến nghị đầu tư.
+          <p className="mt-1 rounded border border-amber-500/45 bg-amber-950/35 px-2 py-1 text-[11px] leading-snug text-amber-200">
+            ⚠️ Kiểm định 2019–2026 (thiếu một số đầu vào): làm theo tỷ trọng này cho kết quả <strong>kém hơn giữ một tỷ trọng cố định</strong> cùng mức trung bình, và điểm cao không báo trước lợi nhuận cao hơn. Chỉ dùng để mô tả trạng thái, không dùng để quyết định mua bán.
           </p>
 
           <RegimeHistoryTimelineChart history={regimeHistory} />

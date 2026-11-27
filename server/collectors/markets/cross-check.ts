@@ -1,5 +1,5 @@
 import type { DataCrossCheck, DataCrossCheckSide, MarketQuote } from '@shared/types';
-import { DEFAULT_BROWSER_UA, fetchJsonWithTimeout } from '../../lib/http';
+import { DEFAULT_BROWSER_UA, fetchJsonWithTimeout, fetchTextWithTimeout } from '../../lib/http';
 
 const STALE_REFERENCE_MS = 400 * 86_400_000;
 
@@ -37,21 +37,32 @@ export async function fetchVndRatios(code: string): Promise<Map<string, DataCros
   );
 }
 
+export function parseWorldPeRatio(html: string): DataCrossCheckSide | undefined {
+  const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  const match = text.match(/P\/E\) Ratio for S&(?:amp;|#038;)?P 500 Index is ([0-9]+\.[0-9]+) ?, calculated on (\d{1,2} [A-Z][a-z]+ 20\d{2})/);
+  const asOf = match ? Date.parse(`${match[2]} UTC`) : Number.NaN;
+  return match && Number.isFinite(asOf)
+    ? { value: Number(match[1]), source: 'worldperatio', asOf: new Date(asOf).toISOString().slice(0, 10) }
+    : undefined;
+}
+
 const present = (checks: Array<DataCrossCheck | null>) => checks.filter((c): c is DataCrossCheck => c !== null);
 
 export async function crossCheckMarketQuotes(
   quotes: readonly MarketQuote[],
   now = Date.now(),
   dailyUsdVnd?: MarketQuote,
+  sp500Pe?: number,
 ): Promise<DataCrossCheck[]> {
   const vni = quotes.find((q) => q.symbol === 'VN-Index' && !q.retained);
   const fx = quotes.find((q) => q.symbol === 'USD/VND' && !q.retained);
-  const [ratios, ssi] = await Promise.allSettled([
+  const [ratios, ssi, worldPe] = await Promise.allSettled([
     fetchVndRatios('VNINDEX'),
     fetchJsonWithTimeout<{ data?: { indexValue?: number; time?: number } }>(
       'https://iboard-query.ssi.com.vn/exchange-index/VNINDEX',
       { timeoutMs: 6_000, retries: 0, userAgent: DEFAULT_BROWSER_UA, headers: { Referer: 'https://iboard.ssi.com.vn/' } },
     ),
+    fetchTextWithTimeout('https://worldperatio.com/index/sp-500/', { timeoutMs: 8_000, retries: 0, userAgent: 'Mozilla/5.0' }),
   ]);
   const checks: Array<DataCrossCheck | null> = [];
   const pe = ratios.status === 'fulfilled' ? ratios.value.get('PRICE_TO_EARNINGS') : undefined;
@@ -68,6 +79,10 @@ export async function crossCheckMarketQuotes(
   if (fx && dailyUsdVnd && fx.source !== dailyUsdVnd.source) {
     checks.push(compareSources('usd-vnd', 'Tỷ giá USD/VND', { value: fx.price, source: 'Yahoo' },
       { value: dailyUsdVnd.price, source: 'ER-API' }, 1, now));
+  }
+  const other = worldPe.status === 'fulfilled' ? parseWorldPeRatio(worldPe.value.text) : undefined;
+  if (sp500Pe && other) {
+    checks.push(compareSources('sp500-pe', 'P/E S&P 500', { value: sp500Pe, source: 'State Street' }, other, 15, now));
   }
   return present(checks);
 }

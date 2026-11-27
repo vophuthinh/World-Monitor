@@ -130,7 +130,7 @@ export function buildUsGlobalMacroHealth(
       deltaVsBenchmark: Number((usErp.erpPct - 1.0).toFixed(2)),
       trendLabel: `E/P ${usErp.earningsYieldPct}% − TP 10Y ${us10y.value.toFixed(2)}%`,
       periodLabel: us10y.date,
-      sourceLabel: `${sp500PeMeta?.source ?? 'Multpl'} · FRED`,
+      sourceLabel: `${sp500PeMeta?.source ?? 'State Street SPY'} · FRED`,
       retained: Boolean(us10y.retained || sp500PeMeta?.retained),
       fetchedAt: sp500PeMeta?.fetchedAt ?? us10y.fetchedAt,
       status: usErp.erpPct >= 1.0 ? 'good' : usErp.erpPct >= 0 ? 'watch' : 'warn',

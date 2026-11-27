@@ -68,7 +68,7 @@ export function collectExpiredMacroNotices(
       us.push({
         id: 'sp500PeRatio',
         label: 'Định giá P/E S&P 500',
-        sourceLabel: spMeta.source || 'Multpl (S&P 500)',
+        sourceLabel: spMeta.source || 'State Street SPY',
         lastValueLabel: `${spVal.toFixed(1)}x`,
         ...(spMeta.fetchedAt && spMeta.fetchedAt > 0 ? { fetchedAt: spMeta.fetchedAt } : {}),
       });
