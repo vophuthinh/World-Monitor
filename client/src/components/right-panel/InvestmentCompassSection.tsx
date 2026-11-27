@@ -74,7 +74,7 @@ export function InvestmentCompassSection({
             {investmentCompass.summary}
           </p>
           <p className="mt-1 rounded border border-amber-500/45 bg-amber-950/35 px-2 py-1 text-[11px] leading-snug text-amber-200">
-            ⚠️ Kiểm định 2019–2026 (thiếu một số đầu vào): làm theo tỷ trọng này cho kết quả <strong>kém hơn giữ một tỷ trọng cố định</strong> cùng mức trung bình, và điểm cao không báo trước lợi nhuận cao hơn. Chỉ dùng để mô tả trạng thái, không dùng để quyết định mua bán.
+            ⚠️ Kiểm định 2019–2026 (thiếu một số đầu vào): <strong>điểm cao không báo trước lợi nhuận cao hơn</strong>, nên web không hiển thị tỷ trọng danh mục. Điểm, tín hiệu và nhóm tài sản bên dưới chỉ mô tả trạng thái theo quy tắc cố định, không phải khuyến nghị đầu tư.
           </p>
 
           <RegimeHistoryTimelineChart history={regimeHistory} />
@@ -133,56 +133,6 @@ export function InvestmentCompassSection({
                     </div>
                   );
                 })}
-              </div>
-            </div>
-          )}
-
-          {investmentCompass.allocations.length > 0 && (
-            <div className="mt-2 rounded border border-slate-800/90 bg-[#0b1322] p-2">
-              <div className="mb-1.5 flex items-center justify-between font-mono text-[11px]">
-                <span className="font-bold text-emerald-300">
-                  TỶ TRỌNG MÔ PHỎNG THEO QUY TẮC TRẠNG THÁI
-                </span>
-                <span className="text-slate-400 tabular-nums">Minh họa 100%</span>
-              </div>
-              <div className="flex h-2 w-full overflow-hidden rounded-full bg-slate-900">
-                {investmentCompass.allocations.map((slice) => (
-                  <div
-                    key={slice.id}
-                    style={{
-                      width: `${slice.weightPct}%`,
-                      backgroundColor: slice.colorHex,
-                    }}
-                    title={`${slice.label}: ${slice.weightPct}% — ${slice.note}`}
-                    className="h-full transition-all duration-500"
-                  />
-                ))}
-              </div>
-              <div className="mt-1.5 grid grid-cols-2 gap-1">
-                {investmentCompass.allocations.map((slice) => (
-                  <div
-                    key={slice.id}
-                    className="flex items-center justify-between gap-1 rounded border border-slate-800/80 bg-[#070d17] px-1.5 py-1"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1">
-                        <span
-                          className="h-2 w-2 shrink-0 rounded-full"
-                          style={{ backgroundColor: slice.colorHex }}
-                        />
-                        <span className="truncate text-[11px] font-semibold text-slate-200">
-                          {slice.label}
-                        </span>
-                      </div>
-                      <div className="truncate pl-3 text-[11px] text-slate-400" title={slice.note}>
-                        {slice.note}
-                      </div>
-                    </div>
-                    <span className="shrink-0 font-mono text-[11px] font-bold text-slate-100 tabular-nums">
-                      {slice.weightPct}%
-                    </span>
-                  </div>
-                ))}
               </div>
             </div>
           )}

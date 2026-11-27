@@ -268,7 +268,7 @@ export function RegimeHistoryTimelineChart({ history }: { history: readonly Regi
         </span>
         {latest.vnIndexPrice && (
           <span className="text-slate-300">
-            VN-Index {Math.round(latest.vnIndexPrice).toLocaleString('en-US')} · CP {latest.equitiesWeightPct}%
+            VN-Index {Math.round(latest.vnIndexPrice).toLocaleString('en-US')}
           </span>
         )}
       </div>

@@ -55,7 +55,7 @@ Chỉ tab đầu được tải khi mở trang; 5 tab còn lại nạp khi bạn
 | **AI & ML** | Trạng thái các nền tảng AI và Cloud lớn, GitHub Trending, tra cứu IP hoặc CVE (Shodan InternetDB, NVD, CISA KEV), lọc theo kỹ thuật MITRE ATT&CK |
 | **Tin nóng** | Luồng tin gộp từ Wikimedia, GDELT, Hacker News, Reddit và báo chí trong nước lẫn quốc tế; dịch tự động tiêu đề sang tiếng Việt; bấm tin để bản đồ bay tới tọa độ sự kiện |
 | **Chính sách** | Văn bản mới từ Cổng Thông tin Chính phủ, Công báo, Bộ Khoa học và Công nghệ, nhóm Nghị quyết 57, 59, 66, 68. Tóm tắt 3 ý bằng AI khi bạn yêu cầu |
-| **Thị trường** | Sức khỏe vĩ mô Việt Nam và Mỹ, khẩu vị rủi ro và tỷ trọng mô phỏng, lịch sự kiện, tác động khi nghẽn eo biển, giá vàng SJC, rổ VN30, tỷ giá, lãi suất Mỹ, VIX, stablecoin và crypto theo thời gian thực |
+| **Thị trường** | Sức khỏe vĩ mô Việt Nam và Mỹ, khẩu vị rủi ro và tín hiệu thị trường, lịch sự kiện, tác động khi nghẽn eo biển, giá vàng SJC, rổ VN30, tỷ giá, lãi suất Mỹ, VIX, stablecoin và crypto theo thời gian thực |
 | **HPT** | Theo dõi riêng Công ty Cổ phần Dịch vụ Công nghệ Tin học HPT (UPCoM: `HPT`): giá và định giá, công bố thông tin, thông báo đấu thầu, tin tài chính, diễn đàn và mạng xã hội. Tự loại tin từ chính HPT và tin tuyển dụng, phân loại sắc thái, hiện chấm báo khi có tin mới trong 24 giờ |
 
 ## Dữ liệu và độ tin cậy
@@ -164,7 +164,7 @@ Quy ước làm việc và nợ kỹ thuật hiện tại nằm trong [AGENTS.md
 
 ## Giới hạn đã biết
 
-- **Không phải mô hình dự báo.** Các bảng vĩ mô phản ánh sức khỏe và tín hiệu rủi ro từ số liệu đã công bố; không phải dự báo GDP, CPI hay tỷ giá. Tỷ trọng danh mục là mô phỏng theo quy tắc, không phải lời khuyên đầu tư. Kiểm định 11/2026 trên dữ liệu 2019–2026 (thiếu số vĩ mô Việt Nam, Polymarket, độ rộng VN30; chênh lệch HY chỉ có từ 11/2023): tỷ trọng cổ phiếu theo điểm tổng hợp cho Sharpe thấp hơn giữ cố định cùng tỷ trọng trung bình trên cả VN-Index và S&P 500, và điểm tương quan âm với lợi nhuận 3–6 tháng sau đó.
+- **Không phải mô hình dự báo.** Các bảng vĩ mô phản ánh sức khỏe và tín hiệu rủi ro từ số liệu đã công bố; không phải dự báo GDP, CPI hay tỷ giá. Web không hiển thị tỷ trọng danh mục: kiểm định 11/2026 trên dữ liệu 2019–2026 (thiếu số vĩ mô Việt Nam, Polymarket, độ rộng VN30; chênh lệch HY chỉ có từ 11/2023) cho thấy tỷ trọng cổ phiếu theo điểm tổng hợp có Sharpe thấp hơn giữ cố định cùng mức trung bình trên cả VN-Index và S&P 500, và điểm tương quan âm với lợi nhuận 3–6 tháng sau đó.
 - **Tham số hiệu chỉnh cố định.** Một số mốc đối chiếu của Việt Nam (vùng cân bằng USD/VND, CPI, lãi suất liên ngân hàng) là hằng số trong mã và trôi dần theo thời gian. Cần rà soát định kỳ, có nguồn và có kiểm thử.
 - **Nguồn không chính thức.** Yahoo Finance v8, RSSHub, Reddit JSON, trang cảnh báo NCHMF có thể đổi cấu trúc hoặc chặn truy cập bất cứ lúc nào. Xem trạng thái từng nguồn trên thanh công cụ hoặc tại `/api/health`.
 - **Dữ liệu bão lấy từ GDACS, chưa trực tiếp từ JMA/JTWC.** GDACS đăng lại cảnh báo JTWC (đường đi, vùng dự báo) và cấu trúc đã được kiểm chứng bằng cả bão đang hoạt động lẫn bão đã qua. Bản tin trực tiếp của JMA (`targetTc.json`) và JTWC chưa được dùng vì chưa có bão để xác minh cấu trúc dữ liệu.

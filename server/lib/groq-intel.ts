@@ -263,13 +263,9 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now(), 
         compass.vnIndexPe !== undefined
           ? ` | VN-Index P/E ${compass.vnIndexPe.toFixed(2)}x${compass.vnErpPct !== undefined ? ` (ERP ${compass.vnErpPct >= 0 ? '+' : ''}${compass.vnErpPct}%)` : ' (ERP không rõ)'}`
           : '';
-      const allocPart =
-        compass.allocations.length > 0
-          ? ` | Phân bổ: ${compass.allocations.map((a) => `${a.label} ${a.weightPct}%`).join(', ')}`
-          : '';
       const dualPart = compass.dualConfirmationLabel ? ` | ${compass.dualConfirmationLabel}` : '';
       lines.push(
-        `[LA BÀN ĐẦU TƯ & CHỈ BÁO] ${compass.stanceLabel} (${compass.riskAppetiteScore}/100)${netLiqPart}${pePart}${dualPart}${allocPart}. Ưu tiên: ${compass.favoredAssets.join('; ')}`,
+        `[LA BÀN ĐẦU TƯ & CHỈ BÁO] ${compass.stanceLabel} (${compass.riskAppetiteScore}/100)${netLiqPart}${pePart}${dualPart}. Ưu tiên: ${compass.favoredAssets.join('; ')}`,
       );
     }
 
