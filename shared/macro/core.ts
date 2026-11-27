@@ -8,6 +8,11 @@ import type {
   Vn30StockQuote,
   VnGoldQuote,
 } from '../types';
+/** 0-100 score bands shared by the status label and the factor colours. */
+export function scoreLevel(score: number): 'low' | 'medium' | 'high' {
+  return score >= 65 ? 'high' : score >= 46 ? 'medium' : 'low';
+}
+
 /** Quốc hội CPI target, applies to full-year / YTD average CPI. */
 export const VN_CPI_TARGET_PCT = 4.5;
 

@@ -26,3 +26,15 @@ describe('compass summary', () => {
     expect(report.summary).toBe('Chưa đủ số liệu thị trường để tóm tắt.');
   });
 });
+
+describe('compass status label', () => {
+  it('names only the score level, even when a recession trigger is on', () => {
+    const report = evaluateInvestmentCompass({
+      quotes: [], crypto: [], fearGreed: null, macro: [], updatedAt: now,
+      fred: [fred('M2SL', 6), fred('NFCI', -0.5), fred('BAMLH0A0HYM2', 3), fred('SAHMREALTIME', 0.6)],
+    }, undefined, now)!;
+    const level = report.riskAppetiteScore >= 65 ? 'CAO' : report.riskAppetiteScore >= 46 ? 'VỪA' : 'THẤP';
+    expect(report.stance).toBe('defensive_recession');
+    expect(report.stanceLabel).toBe(`MỨC ĐIỂM: ${level}`);
+  });
+});

@@ -1,3 +1,4 @@
+import { scoreLevel } from '@shared/macro/core';
 import { Target } from '@phosphor-icons/react';
 import { RegimeHistoryTimelineChart } from './shared';
 import type { InvestmentCompassReport, RegimeHistoryPoint } from '@shared/types';
@@ -29,10 +30,9 @@ export function InvestmentCompassSection({
           <div className="flex flex-wrap items-center justify-between gap-1.5">
             <span
               className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[11px] font-bold ${
-                investmentCompass.stance === 'risk_on' ||
-                investmentCompass.stance === 'selective_growth'
+                scoreLevel(investmentCompass.riskAppetiteScore) === 'high'
                   ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-200'
-                  : investmentCompass.stance === 'cautious'
+                  : scoreLevel(investmentCompass.riskAppetiteScore) === 'medium'
                     ? 'border-amber-500/50 bg-amber-500/20 text-amber-200'
                     : 'border-rose-500/55 bg-rose-500/20 text-rose-200'
               }`}

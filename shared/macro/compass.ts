@@ -7,7 +7,7 @@ import type {
   MarketSnapshot,
   PredictionItem,
 } from '../types';
-import { NEUTRAL_SCORE, VN_CPI_TARGET_PCT, buildSectorRotation, clampScore, computeFedNetLiquidity, computeVietnamEquityRiskPremium, computeVn30MarketBreadth, extractPolymarketMacroInsight, isFreshGoldComparison, resolveNyFedSpreadAndProb, shrunkPillarScore, smoothFactorScore } from './core';
+import { NEUTRAL_SCORE, VN_CPI_TARGET_PCT, buildSectorRotation, clampScore, computeFedNetLiquidity, computeVietnamEquityRiskPremium, computeVn30MarketBreadth, extractPolymarketMacroInsight, isFreshGoldComparison, resolveNyFedSpreadAndProb, shrunkPillarScore, smoothFactorScore, scoreLevel } from './core';
 import { evaluateMacroHealth, usableMacroInputs } from './inputs';
 import { computeDynamicPortfolioAllocation } from './allocation';
 export { computeDynamicPortfolioAllocation } from './allocation';
@@ -721,7 +721,9 @@ export function evaluateInvestmentCompass(
   const sectorRotation = activeQuad ? buildSectorRotation(activeQuad) : undefined;
 
   let stance: InvestmentStance = 'selective_growth';
-  let stanceLabel = 'KHẨU VỊ TRUNG TÍNH - TÍCH CỰC · CHỌN LỌC';
+  // The label states the score level only (same bands as the factor bar colours), with no judgement.
+  const level = scoreLevel(riskAppetiteScore);
+  const stanceLabel = `MỨC ĐIỂM: ${level === 'high' ? 'CAO' : level === 'medium' ? 'VỪA' : 'THẤP'}`;
 
   if (
     (sahm && sahm.value >= 0.5) ||
@@ -729,20 +731,16 @@ export function evaluateInvestmentCompass(
     riskAppetiteScore < 42
   ) {
     stance = 'defensive_recession';
-    stanceLabel = 'NGHIÊNG PHÒNG THỦ · TÍN HIỆU SUY THOÁI SỚM';
   } else if (riskAppetiteScore < 55 || dualConfirmation === 'confirmed_bear') {
     stance = 'cautious';
-    stanceLabel = 'THẬN TRỌNG · ÁP LỰC THANH KHOẢN & XU HƯỚNG';
   } else if (
     riskAppetiteScore >= 74 &&
     (!realYield || realYield.value < 2.2) &&
     dualConfirmation !== 'macro_bull_trend_weak'
   ) {
     stance = 'risk_on';
-    stanceLabel = 'KHẨU VỊ RỦI RO CAO · THANH KHOẢN & XU HƯỚNG THUẬN';
   } else if (dualConfirmation === 'macro_bull_trend_weak') {
     stance = 'selective_growth';
-    stanceLabel = 'PHÂN KỲ VĨ MÔ - GIÁ · CHỈ SỐ DƯỚI MA200';
   }
 
   // Figures only: interpretation of what they imply for any asset did not survive the backtest.
