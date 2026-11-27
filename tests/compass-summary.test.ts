@@ -38,3 +38,15 @@ describe('compass status label', () => {
     expect(report.stanceLabel).toBe(`MỨC ĐIỂM: ${level}`);
   });
 });
+
+describe('VIX backwardation notice', () => {
+  it('shows the two readings without calling a bottom or suggesting a trade', () => {
+    const vol = (symbol: string, price: number) => quote(symbol, price, { observedAt: now });
+    const report = evaluateInvestmentCompass({
+      quotes: [quote('S&P 500', 90, { rsi14: 25 }), vol('VIX', 27), vol('VIX 3M', 25)],
+      crypto: [], fearGreed: null, macro: [], updatedAt: now, fred: [fred('M2SL', 5), fred('SAHMREALTIME', 0)],
+    }, undefined, now)!;
+    expect(report.capitulationLabel).toBe('VIX/VIX3M 1.080x · RSI-14 S&P 500: 25');
+    expect(report.signals.find((s) => s.id === 'vix-term')?.signalBadge).toBe('BACKWARDATION · BẤT ỔN');
+  });
+});

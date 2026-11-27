@@ -489,7 +489,7 @@ export function evaluateInvestmentCompass(
 
     if (vixTermRatio >= 1.0 && macroNotRecession && equityOversold) {
       capitulationSignal = true;
-      capitulationLabel = `TÍN HIỆU RŨ BỎ HOẢNG LOẠN (VIX/VIX3M = ${vixTermRatio.toFixed(3)}x + RSI S&P 500 QUÁ BÁN) · CANH NHỊP HỒI KỸ THUẬT`;
+      capitulationLabel = `VIX/VIX3M ${vixTermRatio.toFixed(3)}x · RSI-14 S&P 500: ${spx!.rsi14!.toFixed(0)}`;
     }
 
     // Low weight for the same backtest reason; the capitulation rule above is unaffected.
@@ -506,9 +506,7 @@ export function evaluateInvestmentCompass(
       subtext: `VIX ${vix.price.toFixed(2)} / VIX3M ${vix3m.price.toFixed(2)}`,
       signalBadge:
         vixTermRatio >= 1.0
-          ? capitulationSignal
-            ? 'HOẢNG LOẠN · VÙNG RŨ ĐÁY'
-            : 'BACKWARDATION · BẤT ỔN'
+          ? 'BACKWARDATION · BẤT ỔN'
           : vixTermRatio <= 0.91
             ? 'CONTANGO · ÊM Ả'
             : 'BÌNH THƯỜNG',
