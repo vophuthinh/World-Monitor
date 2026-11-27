@@ -265,7 +265,7 @@ export function buildMonitorLiveContext(store: SnapshotStore, now = Date.now(), 
           : '';
       const dualPart = compass.dualConfirmationLabel ? ` | ${compass.dualConfirmationLabel}` : '';
       lines.push(
-        `[LA BÀN ĐẦU TƯ & CHỈ BÁO] ${compass.stanceLabel} (${compass.riskAppetiteScore}/100)${netLiqPart}${pePart}${dualPart}. Ưu tiên: ${compass.favoredAssets.join('; ')}`,
+        `[LA BÀN ĐẦU TƯ & CHỈ BÁO] ${compass.stanceLabel} (${compass.riskAppetiteScore}/100)${netLiqPart}${pePart}${dualPart}`,
       );
     }
 

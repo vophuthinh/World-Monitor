@@ -74,7 +74,7 @@ export function InvestmentCompassSection({
             {investmentCompass.summary}
           </p>
           <p className="mt-1 rounded border border-amber-500/45 bg-amber-950/35 px-2 py-1 text-[11px] leading-snug text-amber-200">
-            ⚠️ Kiểm định 2019–2026 (thiếu một số đầu vào): <strong>điểm cao không báo trước lợi nhuận cao hơn</strong>, nên web không hiển thị tỷ trọng danh mục. Điểm, tín hiệu và nhóm tài sản bên dưới chỉ mô tả trạng thái theo quy tắc cố định, không phải khuyến nghị đầu tư.
+            ⚠️ Kiểm định 2019–2026 (thiếu một số đầu vào): <strong>điểm cao không báo trước lợi nhuận cao hơn</strong>, nên web không hiển thị tỷ trọng danh mục. Điểm và tín hiệu chỉ mô tả trạng thái theo quy tắc cố định, không phải khuyến nghị đầu tư.
           </p>
 
           <RegimeHistoryTimelineChart history={regimeHistory} />
@@ -136,50 +136,6 @@ export function InvestmentCompassSection({
               </div>
             </div>
           )}
-
-          <div className="mt-2 space-y-1.5 text-[11px] leading-snug">
-            <div className="rounded border border-emerald-500/35 bg-emerald-950/25 px-2 py-1.5">
-              <div className="flex flex-wrap items-center justify-between gap-1 font-mono text-[11px] font-bold text-emerald-300">
-                <span>🟢 NHÓM THUẬN PHA &amp; KÊNH ÍT BIẾN ĐỘNG</span>
-                {investmentCompass.sectorRotation && (
-                  <span className="text-[11px] font-normal text-emerald-200/80">
-                    {investmentCompass.sectorRotation.phaseTitle.split('(')[0].trim()}
-                  </span>
-                )}
-              </div>
-              <ul className="mt-0.5 space-y-0.5 text-slate-200">
-                {investmentCompass.favoredAssets.map((item, idx) => (
-                  <li key={idx}>• {item}</li>
-                ))}
-              </ul>
-            </div>
-
-            {investmentCompass.watchAssets.length > 0 && (
-              <div className="rounded border border-amber-500/35 bg-amber-950/20 px-2 py-1.5">
-                <div className="font-mono text-[11px] font-bold text-amber-300">
-                  🟡 NHÓM THEO DÕI ĐIỀU KIỆN XU HƯỚNG
-                </div>
-                <ul className="mt-0.5 space-y-0.5 text-slate-200">
-                  {investmentCompass.watchAssets.map((item, idx) => (
-                    <li key={idx}>• {item}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {investmentCompass.avoidAssets.length > 0 && (
-              <div className="rounded border border-rose-500/35 bg-rose-950/25 px-2 py-1.5">
-                <div className="font-mono text-[11px] font-bold text-rose-300">
-                  🔴 NHÓM NHẠY CẢM RỦI RO / CHÊNH LỆCH CAO
-                </div>
-                <ul className="mt-0.5 space-y-0.5 text-slate-200">
-                  {investmentCompass.avoidAssets.map((item, idx) => (
-                    <li key={idx}>• {item}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
         </div>
 
         <div className="mt-2 grid grid-cols-2 gap-1.5">
